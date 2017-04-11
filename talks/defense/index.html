@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>You Can&#39;t Spell Trust Without Rust</title>
+
+    
+    <link rel="stylesheet" href="rust.css">
+<link rel="stylesheet" href="sliderust.css">
+<script src="sliderust.js"></script>
+
+
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+    <h1 class="title">You Can&#39;t Spell Trust Without Rust</h1>
+    <p><center><h1>Alexis Beingessner</h1></center></p>
+
+<p><center><a href="http://rust-lang.org"><img src="rust.png" width="250" style="display:inline; box-shadow:none;"></img></a></center></p>
+
+<h1 id='the-actual-thesis' class='section-header'><a href='#the-actual-thesis'>The Actual Thesis</a></h1>
+<p>By enabling programmers to specify where and when data can be mutated, and where
+and when it lives, ownership enables programmers to design interfaces in terms of trust.
+(and this is useful and pleasant!)</p>
+
+<h1 id='problems' class='section-header'><a href='#problems'>Problems</a></h1>
+<ul>
+<li>use-after-free</li>
+<li>index out of bounds</li>
+<li>iterator invalidation</li>
+<li>data races</li>
+<li>memory leaks</li>
+</ul>
+
+<h1 id='trust' class='section-header'><a href='#trust'>Trust</a></h1>
+<p>Common theme: code trusting data</p>
+
+<p><em>What&#39;s the justification?</em></p>
+
+<h1 id='naivety' class='section-header'><a href='#naivety'>Naivety</a></h1>
+<p>Blind trust</p>
+
+<ul>
+<li>Good for control</li>
+<li>Bad for safety</li>
+<li>Mixed ergonomics</li>
+</ul>
+
+<h1 id='paranoia' class='section-header'><a href='#paranoia'>Paranoia</a></h1>
+<p>Static guarantees - omissions or static analysis</p>
+
+<ul>
+<li>Good for safety</li>
+<li>Bad for control</li>
+<li>Mixed ergonomics</li>
+</ul>
+
+<h1 id='suspicion' class='section-header'><a href='#suspicion'>Suspicion</a></h1>
+<p>Verify at runtime</p>
+
+<ul>
+<li>Good for ergonomics</li>
+<li>Ok for safety</li>
+<li>Ok for control</li>
+</ul>
+
+<h1 id='ownership' class='section-header'><a href='#ownership'>Ownership</a></h1>
+<p>Emergent from 3 systems</p>
+
+<ul>
+<li>Affine Types</li>
+<li>Borrows and Regions (lifetimes)</li>
+<li>Privacy</li>
+</ul>
+
+<h1 id='affine-types' class='section-header'><a href='#affine-types'>Affine Types</a></h1>
+<ul>
+<li>&quot;usable at most once&quot;</li>
+<li>Solves use-after (without pointers)</li>
+<li>Solves sequencing</li>
+</ul>
+
+<h1 id='borrows-and-regions' class='section-header'><a href='#borrows-and-regions'>Borrows and Regions</a></h1>
+<ul>
+<li>Pointers tied to regions of code they can&#39;t escape</li>
+<li>Mutating through pointer needs unique access (mut ^ share)</li>
+<li>Solves use-after (with pointers!)</li>
+<li>Solves iterator invalidation</li>
+<li>Solves data races</li>
+</ul>
+
+<h1 id='privacy' class='section-header'><a href='#privacy'>Privacy</a></h1>
+<ul>
+<li>Makes it possible to build safe abstractions</li>
+<li>Language is extensible with naive interfaces (Unsafe Rust)</li>
+</ul>
+
+<h1 id='case-study-indexing' class='section-header'><a href='#case-study-indexing'>Case Study: Indexing</a></h1>
+<p>Can ergonomically express all kinds of trust</p>
+
+<ul>
+<li>Naive: <code>get_unchecked</code></li>
+<li>Suspicious: <code>get</code> and <code>[]</code></li>
+<li>Paranoid: iterators</li>
+</ul>
+
+<h1 id='case-study-entry-api' class='section-header'><a href='#case-study-entry-api'>Case Study: Entry API</a></h1>
+<p>Demonstrates external vs internal interfaces</p>
+
+<ul>
+<li>Internal: client executes in your context (always safe)</li>
+<li>External: you execute in client&#39;s context (safe due to ownership!)</li>
+</ul>
+
+<h1 id='generativity' class='section-header'><a href='#generativity'>Generativity</a></h1>
+<p>Can bootstrap fancy type-system stuff on top of region analysis</p>
+
+<h1 id='limitations---cycles' class='section-header'><a href='#limitations---cycles'>Limitations - Cycles</a></h1>
+<p>Rust likes <em>unique</em> ownership.</p>
+
+<h1 id='limitations---leaks' class='section-header'><a href='#limitations---leaks'>Limitations - Leaks</a></h1>
+<ul>
+<li>Largely handled by destructors</li>
+<li>Destructors can be leaked!</li>
+<li>Can&#39;t rely on destructors for safety</li>
+<li>But this is a library decision!</li>
+</ul>
+
+<h1 id='case-study---scoped-threads' class='section-header'><a href='#case-study---scoped-threads'>Case Study - Scoped Threads</a></h1>
+<ul>
+<li>Brings it all together</li>
+<li>Mutating data on parent thread&#39;s stack from child threads</li>
+<li>No unnecessary synchronization</li>
+<li>100% safe</li>
+</ul>
+
+    <script type="text/javascript">
+        window.playgroundUrl = "";
+    </script>
+    
+</body>
+</html>

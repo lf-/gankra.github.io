@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>Rust VS Swift </title>
+
+    
+    <link rel="stylesheet" href="rust.css">
+<link rel="stylesheet" href="sliderust.css">
+<script src="sliderust.js"></script>
+
+
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+    <h1 class="title">Rust VS Swift </h1>
+    <p>Alexis Beingessner</p>
+
+<p><a href="https://swift.org"><img src="swiftsvg.png" width="250" style="display:inline; box-shadow:none;"></img></a>
+<a href="http://cglab.ca/%7Eabeinges"><img src="icon.png" width="250" style="display:inline; box-shadow:none;"></img></a>
+<a href="https://rust-lang.org"><img src="rust.png" width="250" style="display:inline; box-shadow:none;"></img></a></p>
+
+<!--
+Hey There, I'm Alexis! 
+
+I've spent the last three years working on Swift and Rust; but mostly Rust.
+
+I find putting the two of them side-by-side fascinating. Partly for the similarities, but moreso for the differences.
+
+Let's take a look at the similarities first:
+-->
+
+<h1 id='swift-is' class='section-header'><a href='#swift-is'>Swift is...</a></h1>
+<ul>
+<li>a new open source systems language</li>
+<li>developed by a major browser vendor</li>
+<li>to replace The Son Of C</li>
+<li>and make programming easier</li>
+</ul>
+
+<h1 id='featuring' class='section-header'><a href='#featuring'>Featuring:</a></h1>
+<ul>
+<li>value types! </li>
+<li>no garbage collection!</li>
+<li>interfaces over inheritance!</li>
+<li>tagged unions and pattern matching!</li>
+<li>closures!</li>
+<li>easy compatibility with legacy C codebases!</li>
+</ul>
+
+<h1 id='oops' class='section-header'><a href='#oops'>Oops</a></h1>
+<p>That&#39;s Rust!</p>
+
+<!--
+there are a lot of parallels you can draw between the two languages, especially
+if you look at them "from space".
+-->
+
+<h1 id='bffs-4-eva' class='section-header'><a href='#bffs-4-eva'>BFFs 4 Eva</a></h1>
+<p>Swift: hey check out <code>if let</code></p>
+
+<p>Rust: imma steal that (but make it better)</p>
+
+<p>Swift: imma steal that back</p>
+
+<!--
+The two have even developed features cooperatively.
+
+The most notable example is if-let:
+
+* Swift created if-let as an easy way to work with optional values
+
+* Rust liked it, but generalized it to work with any pattern
+
+* Swift then came back around and copied that ability back into its own design
+-->
+
+<h1 id='but-really-theyre-quite-different' class='section-header'><a href='#but-really-theyre-quite-different'>But Really They&#39;re Quite Different</a></h1>
+<p>(Disclaimer: IMHO)</p>
+
+<p>Rust rocks way harder at systems programming</p>
+
+<p>Swift rocks way harder at app development</p>
+
+<!--
+Systems programming: kernels, drivers, databases, allocators, parsers, renderers
+
+Application programming: GUIs, localization, HTTP, processing data sets
+-->
+
+<h1 id='why-is-that' class='section-header'><a href='#why-is-that'>Why Is That?</a></h1>
+<p>different motivations and users -&gt; different philosophies</p>
+
+<!--
+So why is it that the two are better at different things?
+-->
+
+<h1 id='motivation-rust' class='section-header'><a href='#motivation-rust'>Motivation: Rust</a></h1>
+<p>&quot;Safe, Fast, Concurrent&quot;</p>
+
+<p>Firefox! </p>
+
+<!-- 
+Rust was borne of an exhaustion with C++ in Firefox. 
+
+C++ is the source of most of the major exploits in Firefox.
+
+At the same time: C++ is holding back the performance of Firefox. It's way
+too hard to write *correct* concurrent or optimized C++ code.
+-->
+
+<h1 id='motivation-swift' class='section-header'><a href='#motivation-swift'>Motivation: Swift</a></h1>
+<p>&quot;Safe, Fast, Expressive&quot;</p>
+
+<p>iOS Apps!</p>
+
+<!--
+Swift was borne of an exhaustion with Objective-C in Apple's ecosystem.
+
+Objective-C has many of the same problems as C++ (hence the same focus on
+"safe and fast") but the environment was different. 
+
+Now, the Swift devs are very clear that they intend Swift to be use for everything, from low level systems to little scripts, but if you look at what people are using Swift for, it's very clear that Swift's biggest influence is iOS apps.
+
+Caring about things like memory management
+in the guts of a web browser is expected. It's harder to make that argument for
+a simple app, especially when it might be the author's first ever programming experience.
+
+Sure, that stuff should be there when your app gets more complex and it starts to be an issue, but it shouldn't be something you need to worry about on day 1.
+
+Rust on the other hand, with its Firefox-like perspective, is assuming you want to care about these things on day 1.
+-->
+
+<h1 id='philosophies---swift-vs-rust' class='section-header'><a href='#philosophies---swift-vs-rust'>Philosophies - Swift VS Rust</a></h1>
+<ul>
+<li>Progressive Complexity VS Essential Complexity</li>
+<li>Conveniences VS Uniformity</li>
+<li>Semantics VS Implementation</li>
+</ul>
+
+<!--
+From these motivations, Swift and Rust developed divergent core philosophies.
+
+Now to be clear: these aren't hard rules, but tendencies. You can find places
+where both languages have gone either way when trying to resolve an issue.
+But where the two have *diverged*, you can often find these differences. If you talk to the developers of Swift and Rust, they'll even point out places where they think they maybe overdid it a bit, and want to be more like the other language.
+
+But languages have momentum, so these tendencies will probably live forever.
+
+Let's check these philosophies out.
+-->
+
+<h1 id='swift-progressive-disclosure-of-complexity' class='section-header'><a href='#swift-progressive-disclosure-of-complexity'>Swift: Progressive Disclosure of Complexity</a></h1>
+<p>There should be a simple ways to do things correctly</p>
+
+<p>complexities are hidden ...but available when you care</p>
+
+<!--
+PDoC serves two purposes: 
+* for people new to a problem or library, it gives a gentle learning curve
+* for people used to a problem or library, it lets them ignore the specific details that don't matter to them
+-->
+
+<h1 id='features-for-progressive-disclosure-functions' class='section-header'><a href='#features-for-progressive-disclosure-functions'>Features For Progressive Disclosure: Functions</a></h1>
+<ul>
+<li>labeled args</li>
+<li>variable length args</li>
+<li>default args</li>
+</ul>
+
+<h1 id='ex-print' class='section-header'><a href='#ex-print'>Ex: Print</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='ident'>print</span>(<span class='ident'>name</span>)</pre>
+
+<h1 id='ex-print-varargs' class='section-header'><a href='#ex-print-varargs'>Ex: Print (varargs)</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='ident'>print</span>(<span class='ident'>name1</span>, <span class='ident'>name2</span>, <span class='ident'>name3</span>)</pre>
+
+<h1 id='ex-print-labelsdefaults' class='section-header'><a href='#ex-print-labelsdefaults'>Ex: Print (labels/defaults)</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='ident'>print</span>(<span class='ident'>name1</span>, <span class='ident'>name2</span>, <span class='ident'>name3</span>, 
+      <span class='ident'>seperator</span>: <span class='string'>&quot;;&quot;</span>)</pre>
+
+<h1 id='ex-print-labelsdefaults-1' class='section-header'><a href='#ex-print-labelsdefaults-1'>Ex: Print (labels/defaults)</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='ident'>print</span>(<span class='ident'>name1</span>, <span class='ident'>name2</span>, <span class='ident'>name3</span>, 
+      <span class='ident'>seperator</span>: <span class='string'>&quot;;&quot;</span>, 
+      <span class='ident'>toStream</span>: <span class='ident'>outputFile</span>)</pre>
+
+<!--
+Rust will probably have some of these features one day...
+
+but they just aren't considered that important, since PDoC isn't one of its core philosophies. In fact, there are members of the community that oppose these features precisely *because* they hide details.
+
+That's because Rust has the philosophy of...
+-->
+
+<h1 id='rust-essential-complexity' class='section-header'><a href='#rust-essential-complexity'>Rust: Essential Complexity</a></h1>
+<p>some complexity is essential, and progress must be halted for it</p>
+
+<p>it&#39;s ok -- the compiler will help you learn</p>
+
+<!--
+For new people, this can represent a "learning wall" that must be overcome. But hopefully once it's overcome, they've actually learned some of the complexities of the domain, and are a better programmer.
+
+For experienced people, this generally means there's less "gotchas" in the language. If it compiles, it works!
+-->
+
+<h1 id='features-for-essential-complexity-ownership' class='section-header'><a href='#features-for-essential-complexity-ownership'>Features for Essential Complexity: Ownership</a></h1>
+<ul>
+<li>moves</li>
+<li>borrows</li>
+</ul>
+
+<!--
+Ownership is an *infamous* case of the essential complexity philosophy. The
+community even has a term for this: "fighting the borrow checker". 
+
+The particular complexity this is primarily targetted at is memory management.
+-->
+
+<h1 id='ex-use-after-move' class='section-header'><a href='#ex-use-after-move'>Ex: Use After Move</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='ident'>array</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>1</span>, <span class='number'>2</span>, <span class='number'>3</span>, <span class='number'>4</span>];
+<span class='ident'>process</span>(<span class='ident'>array</span>); <span class='comment'>// seems</span>
+<span class='ident'>process</span>(<span class='ident'>array</span>); <span class='comment'>// legit</span></pre>
+
+<!--
+Pretty simple code: make an arraystack, and pass it to two functions
+-->
+
+<h1 id='ex-use-after-free-error' class='section-header'><a href='#ex-use-after-free-error'>Ex: Use After Free (Error)</a></h1>
+<pre><code class="language-text">error[E0382]: use of moved value: `array`
+  |
+3 |     process(array); // seems
+  |             ----- value moved here
+4 |     process(array); // legit
+  |             ^^^^^ value used here after move
+  |
+  = note: move occurs because `array` ... does not implement the `Copy` trait
+</code></pre>
+
+<p><a href="https://doc.rust-lang.org/error-index.html#E0382">E0382</a></p>
+
+<!--
+...and we get a compilation error.
+
+(read it)
+
+So if you've used Rust for like a week you'll probably have run into this and
+understand it. Hopefully what to do about it also comes naturally, (in this case, probably a copy-paste error?)
+
+But if you're new to Rust, it's totally reasonable to feel walled... what is this? But that's what the error code is for: if we look it up [click], we get a great pile of documentation written about why this error exists, what might
+have caused it, and what you can do about it.
+
+
+
+Swift has been working towards an ownership model inspired by Rust, but Rust's
+design was considered too much to put on programmers up front; it's inconsistent with the goal of progressive disclosure. 
+
+Swift's version of Ownership will be more of an "opt in" design for optimizations.
+-->
+
+<h1 id='rust-uniformity' class='section-header'><a href='#rust-uniformity'>Rust: Uniformity</a></h1>
+<p>Everything is...</p>
+
+<ul>
+<li>an expression</li>
+<li>a value</li>
+<li>a pattern</li>
+<li>a trait</li>
+<li>a function</li>
+</ul>
+
+<!--
+It's really common in Rust to hear "we don't have that because everything is (read list)".
+
+This gives Rust code a certain uniformity and shallowness. There's like 5 or 6
+concepts you really need to know, and then everything else is idioms.
+-->
+
+<h1 id='ex-constructors-everything-is-a-fn' class='section-header'><a href='#ex-constructors-everything-is-a-fn'>Ex: Constructors (Everything Is A Fn)</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>impl</span> <span class='ident'>Foo</span> {
+    <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>Foo</span> { <span class='ident'>Foo</span> { <span class='ident'>cap</span>: <span class='number'>1</span> } }
+    <span class='kw'>fn</span> <span class='ident'>with_capacity</span>(<span class='ident'>cap</span>: <span class='ident'>usize</span>) <span class='op'>-&gt;</span> <span class='ident'>Foo</span> { <span class='ident'>Foo</span> { <span class='ident'>cap</span>: <span class='ident'>cap</span> } }
+}
+
+<span class='kw'>let</span> <span class='ident'>x</span> <span class='op'>=</span> <span class='ident'>Foo</span>::<span class='ident'>new</span>();
+<span class='kw'>let</span> <span class='ident'>y</span> <span class='op'>=</span> <span class='ident'>Foo</span>::<span class='ident'>with_capacity</span>(<span class='number'>10</span>);</pre>
+
+<!--
+A lot of languages have the concept of a type constructor. Rust doesn't bother
+to provide that as a first-class notion. Instead, *everything is just a function*.
+
+So you don't need to learn about constructors, but you do get a bit of a  "broken record" effect, as code can repeat itself a lot.
+-->
+
+<h1 id='ex-ternary-everything-is-an-expr' class='section-header'><a href='#ex-ternary-everything-is-an-expr'>Ex: Ternary (Everything Is An Expr)</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='ident'>val</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>condition</span> { <span class='ident'>x</span> } <span class='kw'>else</span> { <span class='ident'>y</span> };</pre>
+
+<!--
+It's pretty common for people to show up to Rust and ask "how do I do a ternary", which gets them the "everything's an expression" spiel.
+-->
+
+<h1 id='swift-conveniences' class='section-header'><a href='#swift-conveniences'>Swift: Conveniences</a></h1>
+<p>common pattern? make it a feature!</p>
+
+<p>constructors? <code>Check()</code></p>
+
+<p>ternary? <code>check ? check : check</code></p>
+
+<!--
+By contrast, Swift has tons of special forms for common patterns.
+-->
+
+<h1 id='ex-swift-constructors' class='section-header'><a href='#ex-swift-constructors'>Ex: Swift Constructors</a></h1>
+<pre><code class="language-swift">extension Foo {
+    init() { self.cap = 1 }
+    init(capacity: Int) { self.cap = capacity }
+}
+
+let x = Foo()
+let y = Foo(capacity: 10)
+</code></pre>
+
+<!--
+Here we see that Swift's version of constructors is a lot more concise, and lacks any redundant information.
+
+However these more concise forms tend to come at a cost. Whenever you want
+to do something that doesn't fit into the common pattern it's trying to
+match, things tend to get a bit awkward:
+-->
+
+<h1 id='ex-swift-constructors-limits' class='section-header'><a href='#ex-swift-constructors-limits'>Ex: Swift Constructors (Limits)</a></h1>
+<pre><code class="language-swift">extension Foo {
+    init() { ... }
+    init(secure: ()) { ... }             // ???
+    static func secure() -&gt; Foo { ... }  // ???
+}
+
+let x = Foo()
+let y = Foo(secure: ())
+let z = Foo.secure()
+</code></pre>
+
+<!--
+Here we want provide two constructors which take the same arguments but have
+different behaviour. Swift's design for constructors can't handle this case
+cleanly, so we have to hack around it.
+-->
+
+<h1 id='ex-rust-constructors-no-problem' class='section-header'><a href='#ex-rust-constructors-no-problem'>Ex: Rust Constructors (No Problem)</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>impl</span> <span class='ident'>Foo</span> {
+    <span class='kw'>fn</span> <span class='ident'>new</span>() <span class='op'>-&gt;</span> <span class='ident'>Foo</span> { ... }
+    <span class='kw'>fn</span> <span class='ident'>secure</span>() <span class='op'>-&gt;</span> <span class='ident'>Foo</span> { ... }
+}
+
+<span class='kw'>let</span> <span class='ident'>x</span> <span class='op'>=</span> <span class='ident'>Foo</span>::<span class='ident'>new</span>();
+<span class='kw'>let</span> <span class='ident'>y</span> <span class='op'>=</span> <span class='ident'>Foo</span>::<span class='ident'>secure</span>();</pre>
+
+<!--
+Here Rust's philosophy of uniformity means that we still have function names
+to disambiguate while remaining idiomatic.
+-->
+
+<h1 id='implementation-vs-semantics' class='section-header'><a href='#implementation-vs-semantics'>Implementation VS Semantics</a></h1>
+<p>Should the user care...</p>
+
+<ul>
+<li>about allocations?</li>
+<li>about costs?</li>
+<li>about tricky optimizations?</li>
+</ul>
+
+<h1 id='rust-implementation' class='section-header'><a href='#rust-implementation'>Rust: Implementation</a></h1>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>x</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>1</span>, <span class='number'>2</span>, <span class='number'>3</span>, <span class='number'>4</span>];
+<span class='kw'>let</span> <span class='ident'>y</span> <span class='op'>=</span> <span class='ident'>x</span>.<span class='ident'>clone</span>();  <span class='comment'>// explicit sheep copy</span>
+<span class='ident'>x</span>[<span class='number'>0</span>] <span class='op'>=</span> <span class='number'>5</span>            <span class='comment'>// what you expect</span></pre>
+
+<!--
+Rust tries to focus on implementation, and wants you to be able to see
+potentially expensive things.
+
+Here we create an arraystack...
+
+`clone` here explicitly makes a new allocation and copies the contents of the array.
+
+The assignment on the next line doesn't do anything interesting. It just sets the value.
+-->
+
+<h1 id='swift-semantics' class='section-header'><a href='#swift-semantics'>Swift: Semantics</a></h1>
+<pre><code class="language-swift">var x = [1, 2, 3, 4]
+let y = x            // ~magic~
+x[0] = 5             // 🐮
+</code></pre>
+
+<!--
+Swift on the other hand is focused on semantics. This code does the same thing
+as the Rust code, but there's several hidden details.
+
+Arrays in swift are actually Copy-on-Write, so the assignment here actually
+increments a reference count, and y and x will both point to the same memory.
+
+*Semantically* x and y are distinct values, but in their implementations, they're actually the same one!
+
+During the assignment `x` detects that it's aliased by `y`, and creates a fresh
+allocation for itself. So a seemingly boring operation like setting a value in an array can trigger a very expensive operation.
+-->
+
+<h1 id='implications-of-implementations' class='section-header'><a href='#implications-of-implementations'>Implications of Implementations</a></h1>
+<ul>
+<li>easy to <em>understand</em> code</li>
+<li>easy to do <em>tricky</em> things</li>
+</ul>
+
+<hr>
+
+<ul>
+<li>developers overreact and freak out</li>
+<li>loses optimization opportunities</li>
+</ul>
+
+<h1 id='situation-with-semantics' class='section-header'><a href='#situation-with-semantics'>Situation with Semantics</a></h1>
+<ul>
+<li>sloppy code can go faster</li>
+<li>better learning curve</li>
+</ul>
+
+<hr>
+
+<ul>
+<li>optimizations become necessary, performance unpredictable</li>
+<li>hard to do tricky things</li>
+</ul>
+
+<h1 id='philosophies---swift-vs-rust-1' class='section-header'><a href='#philosophies---swift-vs-rust-1'>Philosophies - Swift VS Rust</a></h1>
+<ul>
+<li>Progressive Complexity VS Essential Complexity</li>
+<li>Conveniences VS Uniformity</li>
+<li>Semantics VS Implementation</li>
+</ul>
+
+    
+</body>
+</html>

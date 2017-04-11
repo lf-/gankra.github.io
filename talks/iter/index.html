@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>OMG ITERATORS</title>
+
+    
+    <link rel="stylesheet" href="rust.css">
+<link rel="stylesheet" href="sliderust.css">
+<script src="sliderust.js"></script>
+
+
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+    <h1 class="title">OMG ITERATORS</h1>
+    <p>Alexis Beingessner</p>
+
+<p>Carleton University + Mozilla Research</p>
+
+<p><a href="http://cglab.ca/%7Eabeinges"><img src="icon.png" width="250" style="display:inline; box-shadow:none;"></img></a>
+<a href="http://rust-lang.org"><img src="rust.png" width="250" style="display:inline; box-shadow:none;"></img></a></p>
+
+<p>rendered: <a href="http://cglab.ca/%7Eabeinges/talks/iter/">http://cglab.ca/~abeinges/talks/iter/</a></p>
+
+<p>raw: <a href="http://cglab.ca/%7Eabeinges/talks/iter/index.md">http://cglab.ca/~abeinges/talks/iter/index.md</a></p>
+
+<h1 id="let&#39;s-talk-about-this-for-30-minutes" class='section-header'><a
+                           href="#let&#39;s-talk-about-this-for-30-minutes">Let&#39;s talk about this for 30 minutes</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Iterator</span> { <span class='comment'>// I can yield things</span>
+    <span class='kw'>type</span> <span class='ident'>Item</span>;       <span class='comment'>// Things I yield</span>
+    <span class='comment'>// How I yield them</span>
+    <span class='kw'>fn</span> <span class='ident'>next</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>Item</span><span class='op'>&gt;</span>;
+}
+</pre>
+
+<ul>
+<li><code>mut</code> because we want to <em>progress</em></li>
+<li><code>Option</code> coalesces <code>has_next</code> and <code>get_next</code>
+
+<ul>
+<li>Some(item) - I have next, and here it is</li>
+<li>None - I don&#39;t have next</li>
+</ul></li>
+</ul>
+
+<h1 id="usage" class='section-header'><a
+                           href="#usage">Usage</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> <span class='number'>0</span>..<span class='number'>10</span> {
+    <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{}&quot;</span>, <span class='ident'>i</span>);
+}
+</pre>
+
+<ul>
+<li><code>i</code>: name for <code>item</code> in <code>Some(item)</code></li>
+<li><code>0..10</code>: the thing to iterate (0 to 10, 10 excluded)</li>
+</ul>
+
+<h1 id="collection-iterator-dream-team" class='section-header'><a
+                           href="#collection-iterator-dream-team">Collection Iterator Dream Team</a></h1>
+<ul>
+<li>IntoIter</li>
+<li>Iter</li>
+<li>IterMut</li>
+</ul>
+
+<p>(these are structs)</p>
+
+<h1 id="omg-so-many-why??" class='section-header'><a
+                           href="#omg-so-many-why??">OMG SO MANY WHY??</a></h1>
+<p>Ownership!</p>
+
+<h1 id="intoiter---owned-values-(t)" class='section-header'><a
+                           href="#intoiter---owned-values-(t)">IntoIter - Owned Values (T)</a></h1>
+<ul>
+<li>Moves the data out of the collection</li>
+<li>You get total ownership!</li>
+<li>Can do anything with data, including destroy it</li>
+</ul>
+
+<h1 id="what-if-we-only-had-intoiter" class='section-header'><a
+                           href="#what-if-we-only-had-intoiter">What if we only had IntoIter</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>fn</span> <span class='ident'>process</span>(<span class='ident'>data</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>) {
+    <span class='kw'>for</span> <span class='ident'>string</span> <span class='kw'>in</span> <span class='ident'>data</span>.<span class='ident'>into_iter</span>() {
+        <span class='comment'>// I got all the data, it&#39;s mine!</span>
+        <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{}&quot;</span>, <span class='ident'>string</span>);
+    }
+
+    <span class='comment'>// Oh no! Iterating consumed it :(</span>
+    <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{}&quot;</span>, <span class='ident'>data</span>.<span class='ident'>len</span>()); <span class='comment'>//~ERROR</span>
+}
+</pre>
+
+<p>Trash Language; Quit Forever</p>
+
+<h1 id="iter---shared-references-(&amp;t)" class='section-header'><a
+                           href="#iter---shared-references-(&amp;t)">Iter - Shared References (&amp;T)</a></h1>
+<ul>
+<li>Shares the data in the collection</li>
+<li>Read-only access</li>
+<li>Can have many readers at once</li>
+</ul>
+
+<h1 id="iter-lets-you-look-but-not-touch" class='section-header'><a
+                           href="#iter-lets-you-look-but-not-touch">Iter lets you look but not touch</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>fn</span> <span class='ident'>print</span>(<span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>)
+    <span class='kw'>for</span> <span class='ident'>string</span> <span class='kw'>in</span> <span class='ident'>data</span>.<span class='ident'>iter</span>() {
+        <span class='comment'>// All I can do is read :/</span>
+        <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{}&quot;</span>, <span class='ident'>string</span>);
+    }
+
+    <span class='comment'>// Yay it lives!</span>
+    <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{}&quot;</span>, <span class='ident'>data</span>.<span class='ident'>len</span>());
+}
+</pre>
+
+<h1 id="everyone-can-look-at-the-same-time!" class='section-header'><a
+                           href="#everyone-can-look-at-the-same-time!">Everyone can look at the same time!</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>fn</span> <span class='ident'>print_combos</span>(<span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>) {
+    <span class='kw'>let</span> <span class='ident'>len</span> <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>len</span>();
+    <span class='kw'>for</span> <span class='ident'>string</span> <span class='kw'>in</span> <span class='ident'>data</span>.<span class='ident'>iter</span>() {
+        <span class='comment'>// Iterate and query at the same time!</span>
+        <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{} {}&quot;</span>,
+                 <span class='ident'>string</span>,
+                 <span class='kw-2'>&amp;</span><span class='ident'>data</span>[<span class='ident'>random_idx</span>(<span class='ident'>len</span>)]);
+    }
+}
+</pre>
+
+<h1 id="itermut---mutable-references-(&amp;mut-t)" class='section-header'><a
+                           href="#itermut---mutable-references-(&amp;mut-t)">IterMut - Mutable References (&amp;mut T)</a></h1>
+<ul>
+<li>Loans the data in the collection</li>
+<li>Read-Write access</li>
+<li>Only one loan at once</li>
+</ul>
+
+<h1 id="itermut-gives-you-exclusive-access" class='section-header'><a
+                           href="#itermut-gives-you-exclusive-access">IterMut gives you exclusive access</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>fn</span> <span class='ident'>make_better</span>(<span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>String</span><span class='op'>&gt;</span>) {
+    <span class='kw'>for</span> <span class='ident'>string</span> <span class='kw'>in</span> <span class='ident'>data</span>.<span class='ident'>iter_mut</span>() {
+        <span class='comment'>// Ooh I can mutate you!</span>
+        <span class='ident'>string</span>.<span class='ident'>push_str</span>(<span class='string'>&quot;!!!!!&quot;</span>);
+        <span class='comment'>// But I can&#39;t share :(</span>
+    }
+}
+</pre>
+
+<h1 id="drain---i-drink-your-milkshake-(🍼t)" class='section-header'><a
+                           href="#drain---i-drink-your-milkshake-(🍼t)">Drain - I Drink Your Milkshake (🍼T)</a></h1>
+<ul>
+<li>Partially moves the data</li>
+<li>Full access to the elements</li>
+<li>Doesn&#39;t destroy the container</li>
+</ul>
+
+<h1 id="drain-lets-you-partial-move" class='section-header'><a
+                           href="#drain-lets-you-partial-move">Drain lets you partial move</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>0</span>, <span class='number'>1</span>, <span class='number'>2</span>, <span class='number'>3</span>, <span class='number'>4</span>, <span class='number'>5</span>];
+
+<span class='kw'>for</span> <span class='ident'>x</span> <span class='kw'>in</span> <span class='ident'>data</span>.<span class='ident'>drain</span>(<span class='number'>2</span>..<span class='number'>4</span>) {
+    <span class='comment'>// got exclusive access so we can &quot;drain&quot;</span>
+    <span class='comment'>// the values out but leave the vec alive</span>
+    <span class='ident'>consume</span>(<span class='ident'>x</span>);
+}
+
+<span class='comment'>// data lives on! We can reuse the allocation!</span>
+<span class='comment'>// Bulk `remove`!</span>
+<span class='comment'>// Dat Perf. ;_;</span>
+<span class='macro'>assert_eq</span><span class='macro'>!</span>(<span class='kw-2'>&amp;</span><span class='op'>*</span><span class='ident'>data</span>, <span class='kw-2'>&amp;</span>[<span class='number'>0</span>, <span class='number'>1</span>, <span class='number'>4</span>, <span class='number'>5</span>]);
+</pre>
+
+<h1 id="recap" class='section-header'><a
+                           href="#recap">Recap</a></h1>
+<p>Iterators naturally fall out of ownership:</p>
+
+<ul>
+<li>IntoIter - <code>T</code></li>
+<li>Iter - <code>&amp;T</code></li>
+<li>IterMut - <code>&amp;mut T</code></li>
+<li>Drain - <code>🍼T</code></li>
+</ul>
+
+<h1 id="itermut-is-kinda-weird..." class='section-header'><a
+                           href="#itermut-is-kinda-weird...">IterMut is kinda weird...</a></h1>
+<p>Rust doesn&#39;t understand when indexing is disjoint:</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>1</span>, <span class='number'>2</span>, <span class='number'>3</span>, <span class='number'>4</span>];
+
+<span class='kw'>let</span> <span class='ident'>ptr1</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>[<span class='number'>0</span>];
+<span class='kw'>let</span> <span class='ident'>ptr2</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>data</span>[<span class='number'>1</span>]; <span class='comment'>//~ ERROR</span>
+
+<span class='op'>*</span><span class='ident'>ptr1</span> <span class='op'>+=</span> <span class='number'>5</span>;
+<span class='op'>*</span><span class='ident'>ptr2</span> <span class='op'>*=</span> <span class='number'>3</span>;
+</pre>
+
+<p>(I would argue this is a good thing)</p>
+
+<h1 id="itermut-is-kinda-weird...-1" class='section-header'><a
+                           href="#itermut-is-kinda-weird...-1">IterMut is kinda weird...</a></h1>
+<p>But it&#39;s ok with IterMut?!
+Ownership busted?!</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>data</span> <span class='op'>=</span> <span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>1</span>, <span class='number'>2</span>, <span class='number'>3</span>, <span class='number'>4</span>];
+<span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>iter</span> <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>iter_mut</span>();
+
+<span class='kw'>let</span> <span class='ident'>ptr1</span> <span class='op'>=</span> <span class='ident'>iter</span>.<span class='ident'>next</span>().<span class='ident'>unwrap</span>();
+<span class='kw'>let</span> <span class='ident'>ptr2</span> <span class='op'>=</span> <span class='ident'>iter</span>.<span class='ident'>next</span>().<span class='ident'>unwrap</span>();
+
+<span class='op'>*</span><span class='ident'>ptr1</span> <span class='op'>+=</span> <span class='number'>5</span>;
+<span class='op'>*</span><span class='ident'>ptr2</span> <span class='op'>*=</span> <span class='number'>3</span>;
+</pre>
+
+<h1 id="itermut-100%-legit-and-safe" class='section-header'><a
+                           href="#itermut-100%-legit-and-safe">IterMut 100% Legit and Safe</a></h1>
+<ul>
+<li>Iterators are &quot;one shot&quot;</li>
+<li>Each element yielded <em>at most</em> once</li>
+<li>Can&#39;t get a fresh IterMut while refs live</li>
+</ul>
+
+<p>(not true for indexing in general)</p>
+
+<h1 id="why-does-the-api-allow-this?" class='section-header'><a
+                           href="#why-does-the-api-allow-this?">Why does the API allow this?</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Iterator</span> <span class='kw'>for</span> <span class='ident'>IterMut</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> {
+  <span class='kw'>type</span> <span class='ident'>Item</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>T</span>;
+  <span class='kw'>fn</span> <span class='ident'>next</span><span class='op'>&lt;</span><span class='lifetime'>&#39;b</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;b</span> <span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>T</span><span class='op'>&gt;</span> {
+    ...
+  }
+}
+</pre>
+
+<p><code>&#39;a</code> is not associated with <code>&#39;b</code>, so <code>next</code> doesn&#39;t care if you still have a <code>&#39;a</code></p>
+
+<p><em>Shh... It&#39;s okay borrow checker, only dreams now</em></p>
+
+<h1 id="crazy!" class='section-header'><a
+                           href="#crazy!">Crazy!</a></h1>
+<p>How can Rust let you implement this?!?</p>
+
+<h1 id="the-borrow-checker-is-crazy-smart" class='section-header'><a
+                           href="#the-borrow-checker-is-crazy-smart">The Borrow Checker is Crazy Smart</a></h1>
+<p>You can statically prove to the compiler that this works.</p>
+
+<h1 id="itermut-for-an-array" class='section-header'><a
+                           href="#itermut-for-an-array">IterMut for an Array</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>IterMut</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span>: <span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> { <span class='ident'>data</span>: <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span>[<span class='ident'>T</span>] };
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Iterator</span> <span class='kw'>for</span> <span class='ident'>IterMut</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> {
+    <span class='kw'>type</span> <span class='ident'>Item</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>T</span>;
+    <span class='kw'>fn</span> <span class='ident'>next</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>Item</span><span class='op'>&gt;</span> {
+        <span class='kw'>let</span> <span class='ident'>d</span> <span class='op'>=</span> <span class='ident'>replace</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>.<span class='ident'>data</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> []);
+        <span class='kw'>if</span> <span class='ident'>d</span>.<span class='ident'>is_empty</span>() { <span class='kw'>return</span> <span class='prelude-val'>None</span>; }
+
+        <span class='kw'>let</span> (<span class='ident'>l</span>, <span class='ident'>r</span>) <span class='op'>=</span> <span class='ident'>d</span>.<span class='ident'>split_at_mut</span>(<span class='number'>1</span>);
+        <span class='self'>self</span>.<span class='ident'>data</span> <span class='op'>=</span> <span class='ident'>r</span>;
+        <span class='ident'>l</span>.<span class='ident'>get_mut</span>(<span class='number'>0</span>)
+    }
+}
+</pre>
+
+<h1 id="not-just-arrays" class='section-header'><a
+                           href="#not-just-arrays">Not Just Arrays</a></h1>
+<p>Same basic idea works on singly-linked lists and trees -- anything with clear
+ownership that you can get subviews into.</p>
+
+<h1 id="what-if-i-don&#39;t-<em>want</em>-them-to-call-next-again?" class='section-header'><a
+                           href="#what-if-i-don&#39;t-<em>want</em>-them-to-call-next-again?">What if I don&#39;t <em>want</em> them to call next again?</a></h1>
+<p>Totally valid use-cases:</p>
+
+<ul>
+<li>Mutating collection structure during iteration</li>
+<li>Non-disjoint items (windows or repeats)</li>
+<li>Items constructed and stored in one place</li>
+</ul>
+
+<p>None of these are sound because Iterator says
+&quot;you can always call next again&quot;.</p>
+
+<h1 id="borrow-checker-escape-hatch:-indices!" class='section-header'><a
+                           href="#borrow-checker-escape-hatch:-indices!">Borrow Checker Escape Hatch: Indices!</a></h1><pre class='rust rust-example-rendered'>
+<span class='comment'>// Vec of enemies with health.</span>
+<span class='comment'>// When they reach 0 we &quot;die!&quot; and drop them.</span>
+<span class='comment'>// Concurrent modification and iteration!</span>
+<span class='kw'>for</span> <span class='ident'>i</span> <span class='kw'>in</span> (<span class='number'>0</span>..<span class='ident'>enemies</span>.<span class='ident'>len</span>()).<span class='ident'>rev</span>() {
+    <span class='ident'>enemies</span>[<span class='ident'>i</span>] <span class='op'>-=</span> <span class='number'>1</span>;
+    <span class='kw'>if</span> <span class='ident'>enemies</span>[<span class='ident'>i</span>] <span class='op'>==</span> <span class='number'>0</span> {
+        <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;die!&quot;</span>);
+        <span class='ident'>enemies</span>.<span class='ident'>swap_remove</span>(<span class='ident'>i</span>);
+    }
+}
+</pre>
+
+<p>You only wanted to work with arrays, right?</p>
+
+<h1 id="more-robust:-streamingiterator" class='section-header'><a
+                           href="#more-robust:-streamingiterator">More Robust: StreamingIterator</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>StreamingIterator</span> {
+  <span class='kw'>type</span> <span class='ident'>Item</span>;
+  <span class='kw'>fn</span> <span class='ident'>next</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='self'>self</span>)
+      <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>Self</span>::<span class='ident'>Item</span><span class='op'>&gt;</span>;
+}
+</pre>
+
+<p><em>Now</em> the lifetimes are attached!</p>
+
+<p>Statically prevented from calling <code>next</code> twice.</p>
+
+<h1 id="good" class='section-header'><a
+                           href="#good">Good</a></h1>
+<p>Actual mutual exclusion!</p>
+<pre class='rust rust-example-rendered'>
+<span class='kw'>let</span> <span class='ident'>ptr1</span> <span class='op'>=</span> <span class='ident'>iter</span>.<span class='ident'>next</span>().<span class='ident'>unwrap</span>();
+<span class='kw'>let</span> <span class='ident'>ptr2</span> <span class='op'>=</span> <span class='ident'>iter</span>.<span class='ident'>next</span>().<span class='ident'>unwrap</span>(); <span class='comment'>//~ERROR</span>
+</pre>
+
+<h1 id="bad" class='section-header'><a
+                           href="#bad">Bad</a></h1>
+<p><code>&amp;mut Item</code> is hardcoded.</p>
+
+<ul>
+<li><code>&amp;Item</code>?</li>
+<li><code>Item&lt;&#39;a&gt;</code>?</li>
+</ul>
+
+<h1 id="we-can&#39;t-express-this-generically-today" class='section-header'><a
+                           href="#we-can&#39;t-express-this-generically-today">We can&#39;t express this generically today</a></h1>
+<p><code>(╯°□°)╯︵ ┻━┻</code></p>
+
+<p>(need higher-kinded-whatzits)</p>
+
+<h1 id="going-backwards!" class='section-header'><a
+                           href="#going-backwards!">Going Backwards!</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Seeker</span> {
+  <span class='kw'>fn</span> <span class='ident'>next</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Self</span>::<span class='ident'>Item</span><span class='op'>&gt;</span>;
+  <span class='kw'>fn</span> <span class='ident'>prev</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Self</span>::<span class='ident'>Item</span><span class='op'>&gt;</span>;
+}
+</pre>
+
+<h1 id="going-crazy!" class='section-header'><a
+                           href="#going-crazy!">Going Crazy!</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Cursor</span> {
+  <span class='kw'>fn</span> <span class='ident'>next</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Self</span>::<span class='ident'>Item</span><span class='op'>&gt;</span>;
+  <span class='kw'>fn</span> <span class='ident'>prev</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>Self</span>::<span class='ident'>Item</span><span class='op'>&gt;</span>;
+  <span class='kw'>fn</span> <span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>Self</span>::<span class='ident'>Item</span>);
+  <span class='kw'>fn</span> <span class='ident'>remove</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>Self</span>::<span class='ident'>Item</span><span class='op'>&gt;</span>;
+}
+</pre>
+
+<h1 id="we-don&#39;t-need-no-stinkin&#39;-traits!" class='section-header'><a
+                           href="#we-don&#39;t-need-no-stinkin&#39;-traits!">We don&#39;t need no stinkin&#39; traits!</a></h1>
+<ul>
+<li>Can&#39;t be generic over collections in Rust <em>anyway</em></li>
+<li>Can&#39;t really use Cursor in a for-loop <em>anyway</em> (the loop var would
+borrow the iterator for the whole loop body)</li>
+</ul>
+
+<p><a href="http://contain-rs.github.io/linked-list/linked_list/struct.Cursor.html">http://contain-rs.github.io/linked-list/linked_list/struct.Cursor.html</a></p>
+
+<h1 id="conclusions" class='section-header'><a
+                           href="#conclusions">Conclusions</a></h1>
+<ul>
+<li>Iter, IterMut, IntoIter, and Drain &quot;natural&quot; reflections of ownership</li>
+<li>Iterator always lets you call <code>next</code> again</li>
+<li>StreamingIterator prevents you calling <code>next</code></li>
+<li>Enables <code>prev</code>, <code>insert</code>, <code>remove</code></li>
+<li>Works concretely today</li>
+</ul>
+
+    <script type="text/javascript">
+        window.playgroundUrl = "";
+    </script>
+    
+</body>
+</html>

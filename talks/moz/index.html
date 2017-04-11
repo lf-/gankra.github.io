@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>The Dark Arts of Unsafe Rust Programming</title>
+
+    
+    <link rel="stylesheet" href="rust.css">
+<link rel="stylesheet" href="sliderust.css">
+<script src="sliderust.js"></script>
+
+
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+    <h1 class="title">The Dark Arts of Unsafe Rust Programming</h1>
+    <p>Alexis Beingessner</p>
+
+<p>Carleton University + Mozilla Research</p>
+
+<p><a href="http://cglab.ca/%7Eabeinges"><img src="icon.png" width="250" style="display:inline; box-shadow:none;"></img></a>
+<a href="http://rust-lang.org"><img src="rust.png" width="250" style="display:inline; box-shadow:none;"></img></a></p>
+
+<p>rendered: <a href="http://cglab.ca/%7Eabeinges/talks/moz/">http://cglab.ca/~abeinges/talks/moz/</a></p>
+
+<p>raw: <a href="http://cglab.ca/%7Eabeinges/talks/moz/index.md">http://cglab.ca/~abeinges/talks/moz/index.md</a></p>
+
+<h1 id="the-rustonomicon" class='section-header'><a
+                           href="#the-rustonomicon">The Rustonomicon</a></h1>
+<p><a href="https://doc.rust-lang.org/nightly/nomicon/">doc.rust-lang.org/nightly/nomicon/</a></p>
+
+<p>It&#39;s a book. I wrote it. That&#39;s what I did this summer.</p>
+
+<p>Presentation over.</p>
+
+<p>(Actually I wrote two, but I was <em>supposed</em> to write the first)</p>
+
+<p><a href="http://cglab.ca/%7Eabeinges/blah/too-many-lists/book/">cglab.ca/~abeinges/blah/too-many-lists/book/</a></p>
+
+<h1 id="what&#39;s-a-safe-language?" class='section-header'><a
+                           href="#what&#39;s-a-safe-language?">What&#39;s a Safe Language?</a></h1>
+<p>Memory Safety and Type Safety, mostly</p>
+
+<p>Safe: Python, Ruby, Javascript, Java...</p>
+
+<p>Unsafe: C, C++</p>
+
+<h1 id="everyone-is-unsafe-because-of-ffi" class='section-header'><a
+                           href="#everyone-is-unsafe-because-of-ffi">Everyone is Unsafe Because of FFI</a></h1>
+<p>C is the lingua franca</p>
+
+<p>Everyone has to support C FFI</p>
+
+<p>Safe Language + FFI = &quot;lol safety&quot;</p>
+
+<h1 id="rust-is-safe" class='section-header'><a
+                           href="#rust-is-safe">Rust is Safe</a></h1>
+<ul>
+<li>No indexing out of bounds</li>
+<li>No dangling pointers / use-after-free</li>
+<li>No null pointers (!)</li>
+<li>No iterator invalidation (!!)</li>
+<li>No data races (without pervasive atomics!!!)</li>
+</ul>
+
+<h1 id="rust-is-helpful" class='section-header'><a
+                           href="#rust-is-helpful">Rust is Helpful</a></h1>
+<ul>
+<li>Hard to leak memory/destructors</li>
+<li>Hard to see exception-safety issues (!)</li>
+<li>Hard to do concurrency wrong (!!!)</li>
+</ul>
+
+<h1 id="rust-is-unsafe?" class='section-header'><a
+                           href="#rust-is-unsafe?">Rust is Unsafe?</a></h1>
+<p>Rust is two languages: Safe Rust and Unsafe Rust</p>
+
+<p>Safe Rust is safe... except it can FFI into Unsafe Rust</p>
+
+<p>(So it&#39;s as safe as any language ever is)</p>
+
+<h1 id="unsafe-rust" class='section-header'><a
+                           href="#unsafe-rust">Unsafe Rust</a></h1>
+<p>Exactly the same as Safe Rust -- but more things are allowed:</p>
+
+<ul>
+<li>Dereference raw (C-like) pointers</li>
+<li>Call unsafe functions (including C functions, intrinsics, and the raw allocator)</li>
+<li>Implement unsafe traits</li>
+<li>Mutate statics</li>
+</ul>
+
+<p><em>That&#39;s it</em></p>
+
+<h1 id="why-is-this-ok?" class='section-header'><a
+                           href="#why-is-this-ok?">Why is this Ok?</a></h1>
+<p>All FFI into Unsafe Rust must be demarcated with the <code>unsafe</code> keyword.</p>
+
+<p>You can <code>#[deny(unsafe)]</code> at the project or module level</p>
+
+<p>Rust community takes pride in not using <code>unsafe</code> -- don&#39;t want to go back to C</p>
+
+<h1 id="modularity-of-unsafety" class='section-header'><a
+                           href="#modularity-of-unsafety">Modularity of Unsafety</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>fn</span> <span class='ident'>index</span>(<span class='ident'>idx</span>: <span class='ident'>usize</span>, <span class='ident'>arr</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span> {
+    <span class='kw'>if</span> <span class='ident'>idx</span> <span class='op'>&lt;</span> <span class='ident'>arr</span>.<span class='ident'>len</span>() {
+        <span class='kw'>unsafe</span> { <span class='prelude-val'>Some</span>(<span class='op'>*</span><span class='ident'>arr</span>.<span class='ident'>get_unchecked</span>(<span class='ident'>idx</span>)) }
+    } <span class='kw'>else</span> {
+        <span class='prelude-val'>None</span>
+    }
+}</pre>
+
+<p>No need to worry about <code>arr</code> being null, dangling, uninit</p>
+
+<p>Only need to worry about indexing out of bounds</p>
+
+<h1 id="modularity-of-unsafety-1" class='section-header'><a
+                           href="#modularity-of-unsafety-1">Modularity of Unsafety</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>fn</span> <span class='ident'>index</span>(<span class='ident'>idx</span>: <span class='ident'>usize</span>, <span class='ident'>arr</span>: <span class='kw-2'>&amp;</span>[<span class='ident'>u8</span>]) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>u8</span><span class='op'>&gt;</span> {
+    <span class='kw'>if</span> <span class='ident'>idx</span> <span class='op'>&lt;=</span> <span class='ident'>arr</span>.<span class='ident'>len</span>() {
+        <span class='kw'>unsafe</span> { <span class='prelude-val'>Some</span>(<span class='op'>*</span><span class='ident'>arr</span>.<span class='ident'>get_unchecked</span>(<span class='ident'>idx</span>)) }
+    } <span class='kw'>else</span> {
+        <span class='prelude-val'>None</span>
+    }
+}</pre>
+
+<p>Oops! Safe code caused UB!</p>
+
+<p><code>unsafe</code> taints the surrounding code.</p>
+
+<h1 id="modularity-of-unsafety-2" class='section-header'><a
+                           href="#modularity-of-unsafety-2">Modularity of Unsafety</a></h1><pre class='rust rust-example-rendered'>
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>push</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>elem</span>: <span class='ident'>T</span>) {
+    <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>len</span> <span class='op'>==</span> <span class='self'>self</span>.<span class='ident'>cap</span> { <span class='self'>self</span>.<span class='ident'>reallocate</span>(); }
+    <span class='kw'>unsafe</span> {
+      <span class='ident'>ptr</span>::<span class='ident'>write</span>(<span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>offset</span>(<span class='self'>self</span>.<span class='ident'>len</span>), <span class='ident'>elem</span>);
+      <span class='self'>self</span>.<span class='ident'>len</span> <span class='op'>+=</span> <span class='number'>1</span>;
+    }
+}
+<span class='kw'>fn</span> <span class='ident'>make_room</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
+    <span class='comment'>// &quot;grow&quot; the capacity (unsound)</span>
+    <span class='self'>self</span>.<span class='ident'>cap</span> <span class='op'>+=</span> <span class='number'>1</span>;
+}</pre>
+
+<h1 id="modularity-of-unsafety-3" class='section-header'><a
+                           href="#modularity-of-unsafety-3">Modularity of Unsafety</a></h1>
+<p>make_room isn&#39;t a problem because <em>privacy</em></p>
+
+<p>Only Vec&#39;s module can access make_room</p>
+
+<p><code>unsafe</code> taint is limited to module boundaries</p>
+
+<p>Public API is safe -- unsafety captured!</p>
+
+<h1 id="conclusions" class='section-header'><a
+                           href="#conclusions">Conclusions</a></h1>
+<p>Rust is awesome, safe, and helpful</p>
+
+<p>Unsafe Rust gives an FFI-like escape hatch</p>
+
+<p>Much Better than FFI into C</p>
+
+<p>Unsafety is easily contained by privacy</p>
+
+    <script type="text/javascript">
+        window.playgroundUrl = "";
+    </script>
+    
+</body>
+</html>
