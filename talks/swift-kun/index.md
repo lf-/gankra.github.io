@@ -168,7 +168,7 @@ Let's check these philosophies out.
 
 
 
-# Swift: Progressive Disclosure of Complexity
+# Swift: Prog. Disclosure of Complexity
 
 There should be a simple ways to do things correctly
 
@@ -183,7 +183,7 @@ PDoC serves two purposes:
 
 
 
-# Features For Progressive Disclosure: Functions
+# Features For Prog. Disclosure: Funcs
 
 * labeled args
 * variable length args
@@ -328,12 +328,28 @@ concepts you really need to know, and then everything else is idioms.
 
 
 
+
+# Ex: Ternary (Everything Is An Expr)
+
+```
+let val = if condition { x } else { y };
+```
+
+<!--
+It's pretty common for people to show up to Rust and ask "how do I do a ternary", which gets them the "everything's an expression" spiel.
+-->
+
+
+
+
 # Ex: Constructors (Everything Is A Fn)
 
 ```
 impl Foo {
     fn new() -> Foo { Foo { cap: 1 } }
-    fn with_capacity(cap: usize) -> Foo { Foo { cap: cap } }
+    fn with_capacity(cap: usize) -> Foo { 
+        Foo { cap: cap } 
+    }
 }
 
 let x = Foo::new();
@@ -345,18 +361,6 @@ A lot of languages have the concept of a type constructor. Rust doesn't bother
 to provide that as a first-class notion. Instead, *everything is just a function*.
 
 So you don't need to learn about constructors, but you do get a bit of a  "broken record" effect, as code can repeat itself a lot.
--->
-
-
-
-# Ex: Ternary (Everything Is An Expr)
-
-```
-let val = if condition { x } else { y };
-```
-
-<!--
-It's pretty common for people to show up to Rust and ask "how do I do a ternary", which gets them the "everything's an expression" spiel.
 -->
 
 
