@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>Blogging about Rust using Rust&#39;s Compiler Toolchain</title>
+
+    
+       <link href="../../src/css/style.css" rel="stylesheet" type="text/css">
+    <link href="../../libs/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css">
+    <link href="../../libs/bootstrap/css/bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
+    <link href="../rust.css" rel="stylesheet" type="text/css">
+
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    <div class="content">
+
+    <h1 class="title">Blogging about Rust using Rust&#39;s Compiler Toolchain</h1>
+    
+<h2 id="alexis-beingessner---may-23,-2015---rust-1.0.0" class='section-header'><a
+                           href="#alexis-beingessner---may-23,-2015---rust-1.0.0">Alexis Beingessner - May 23, 2015 - Rust 1.0.0</a></h2>
+<p>A while ago I had an annoying problem: I would like to write blog posts about Rust, but all I have at my disposal is a static file server that I can&#39;t modify on a system I have no priviledges on. I could post things on Github or like Mediumblr or something, but that didn&#39;t feel... right. I want to host my own words, damn it!</p>
+
+<p>Now, I can definitely hand-write everything in html. At some limit, that&#39;s eveything I host. Still, I <em>really</em> like markdown. I&#39;d also be writing a lot about code, which html is kinda janky at. I want to be lazy, damn it!</p>
+
+<p>So like pandoc or something is probably a thing... I&#39;d have to look that up... download stuff... install it... figure out how it works... nonono, all wrong! See the previous proclamation for details.</p>
+
+<p>What I <em>did</em> know is that the Rust compiler has a nifty little too called rustdoc, for building documentation. It&#39;s most powerful feature is scraping an entire crate&#39;s source and building nice static html indexes. However more obscure is that you can just feed it markdown files, and it will spit out html. That&#39;s how TRPL is built. It comes with the rest of the compiler tools, so it&#39;s even already in my <code>$PATH</code>. Sounds like what I want!</p>
+
+<p>The only special thing it requires from your file is a title line prefixed by a <code>%</code>. It works pretty ok on its own but the raw output is pretty... raw. No source highlighting. No CSS. On the other end of the spectrum, it produces this TOC that I really don&#39;t like. And spits the file out in a <code>doc/</code> folder (which it would just crash on the absence of!).</p>
+
+<p>Thankfully, <code>rustdoc --help</code> is full of little goodies:</p>
+
+<pre><code class="language-text">&gt; rustdoc --help
+/Users/ABeingessner/.multirust/toolchains/nightly/bin/rustdoc [options] &lt;input&gt;
+
+Options:
+    -h --help           show this help message
+    -V --version        print rustdoc&#39;s version
+    -v --verbose        use verbose output
+    -r --input-format [rust|json]
+                        the input type of the specified file
+    -w --output-format [html|json]
+                        the output type to write
+    -o --output PATH    where to place the output
+    --crate-name NAME   specify the name of this crate
+    -L --library-path DIR
+                        directory to add to crate search path
+    --cfg               pass a --cfg to rustc
+    --extern NAME=PATH  pass an --extern to rustc
+    --plugin-path DIR   directory to load plugins from
+    --passes PASSES     list of passes to also run, you might want to pass it
+                        multiple times; a value of `list` will print available
+                        passes
+    --plugins PLUGINS   space separated list of plugins to also load
+    --no-defaults       don&#39;t run the default passes
+    --test              run code examples as tests
+    --test-args ARGS    arguments to pass to the test runner
+    --target TRIPLE     target triple to document
+    --markdown-css FILES
+                        CSS files to include via &lt;link&gt; in a rendered Markdown
+                        file
+    --html-in-header FILES
+                        files to include inline in the &lt;head&gt; section of a
+                        rendered Markdown file or generated documentation
+    --html-before-content FILES
+                        files to include inline between &lt;body&gt; and the content
+                        of a rendered Markdown file or generated documentation
+    --html-after-content FILES
+                        files to include inline between the content and
+                        &lt;/body&gt; of a rendered Markdown file or generated
+                        documentation
+    --markdown-playground-url URL
+                        URL to send code snippets to
+    --markdown-no-toc   don&#39;t include table of contents
+
+</code></pre>
+
+<p>Right at the bottom is a direct answer to one of my problems: <code>--markdown-no-toc</code>. For a bit I got by with the rest by just hand-editing the HTML. Paste in the CSS, add some extra html hooks for the CSS, etc. Unfortunately this was pretty brittle to editing the text!</p>
+
+<p>Someone on the internet helpfully pointed out that my code <em>was</em> being marked up for code highlighting, I just didn&#39;t have the CSS for it. Having worked on rustdoc a bit myself, I knew roughly where that would have to be. A quick ctrl+f for <code>code</code> brought up <a href="https://github.com/rust-lang/rust/blob/master/src/doc/rust.css#L224-L233">this</a>:</p>
+
+<pre><code class="language-css">/* Code highlighting */
+pre.rust .kw { color: #8959A8; }
+pre.rust .kw-2, pre.rust .prelude-ty { color: #4271AE; }
+pre.rust .number, pre.rust .string { color: #718C00; }
+pre.rust .self, pre.rust .boolval, pre.rust .prelude-val,
+pre.rust .attribute, pre.rust .attribute .ident { color: #C82829; }
+pre.rust .comment { color: #8E908C; }
+pre.rust .doccomment { color: #4D4D4C; }
+pre.rust .macro, pre.rust .macro-nonterminal { color: #3E999F; }
+pre.rust .lifetime { color: #B76514; }
+</code></pre>
+
+<p>which I promptly stole.</p>
+
+<p>I still was hand-editing some stuff into the file, though. After a couple posts I decided the time waste had reach a critical mass and paid a little more attention to the above flags. The three <code>--html-*</code> flags give me exactly the places I was editing content into. Then I just tossed it all in a bash script so that I could forget how to do all of this <em>forever</em>:</p>
+
+<pre><code class="language-text">#!/bin/bash
+
+mkdir doc
+rustdoc --markdown-no-toc --html-in-header ../rustblog/head.html --html-before-content ../rustblog/before.html --html-after-content ../rustblog/after.html &quot;$1.md&quot;
+mv -f &quot;doc/$1.html&quot; ./
+rm -rf doc
+</code></pre>
+
+<p>And thus <code>rustblog</code> was born. Was it worth it? I don&#39;t even know. But heck, it works. <a href="index.md">Here&#39;s this post&#39;s text</a>.</p>
+
+    <script type="text/javascript">
+        window.playgroundUrl = "";
+    </script>
+    </div>
+
+</body>
+</html>
