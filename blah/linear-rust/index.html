@@ -188,6 +188,8 @@
 
 <p>Ultimately, Rust lacks &quot;proper&quot; support for this kind of type.</p>
 
+<p>(Edit: a commenter pointed out to me that you can hack some stronger must-use guarantees by making step3 return a value, and having the current function return a Step3Token. This makes it so that it&#39;s impossible to return from the function without a proof of completing step3. But there&#39;s lots of holes in this design, not the least of which is that the user of your API needs to be &quot;in on it&quot; and set that up).</p>
+
 <h2 id='must-be-used-exactly-once' class='section-header'><a href='#must-be-used-exactly-once'>1.4 Must Be Used Exactly Once</a></h2>
 <p>There&#39;s nothing actually interesting about this case. It&#39;s just a move-only must-use type. People who say they want Linear™ Types In Rust actually just want Proper Support For Relevant™ Types.</p>
 
@@ -210,6 +212,8 @@
 <p>I&#39;m pretty sure you don&#39;t need to do anything special for closures that take must-use values as arguments. The creator of the closures just checks that the closure body moves the input, like any other function.</p>
 
 <p>I don&#39;t think anything at all needs to be done with the borrow checker? There&#39;s probably some new must-use reference type you could make but I can&#39;t think of what the point of that would be (it can&#39;t be &amp;uninit, because must-use types can be passed to mem::forget).</p>
+
+<p>(Edit: a commenter pointed out that instead of mem::forget as The Final Sink, you could use <em>destructuring</em>. This would basically give anyone with permission to access all of a type&#39;s fields the right to mark a must-use type as fully used. With this you could potentially make &amp;uninit useful.)</p>
 
 <p>Some of the holes that Drop has would remain in effect:</p>
 

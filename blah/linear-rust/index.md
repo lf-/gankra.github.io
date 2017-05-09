@@ -166,6 +166,7 @@ One extreme option that I've seen is to implement drop() as `abort("this value m
 
 Ultimately, Rust lacks "proper" support for this kind of type.
 
+(Edit: a commenter pointed out to me that you can hack some stronger must-use guarantees by making step3 return a value, and having the current function return a Step3Token. This makes it so that it's impossible to return from the function without a proof of completing step3. But there's lots of holes in this design, not the least of which is that the user of your API needs to be "in on it" and set that up).
 
 
 
@@ -200,6 +201,8 @@ The checker is trivial to implement. It already basically exists in rustc to imp
 I'm pretty sure you don't need to do anything special for closures that take must-use values as arguments. The creator of the closures just checks that the closure body moves the input, like any other function.
 
 I don't think anything at all needs to be done with the borrow checker? There's probably some new must-use reference type you could make but I can't think of what the point of that would be (it can't be &uninit, because must-use types can be passed to mem::forget).
+
+(Edit: a commenter pointed out that instead of mem::forget as The Final Sink, you could use *destructuring*. This would basically give anyone with permission to access all of a type's fields the right to mark a must-use type as fully used. With this you could potentially make &uninit useful.)
 
 Some of the holes that Drop has would remain in effect:
 
