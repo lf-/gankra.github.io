@@ -17,10 +17,10 @@ The definition of use is purposefully vague here, because as you'll see Rust pla
 
 All the combinations of having-and-not-having these properties gives us 4 interesting kinds of type:
 
-1) can be used any number of times (no name - the default)
-2) can't be used more than once (affine™)
-3) must be used at least once (relevant™ - this one is a decent name)
-4) must be used exactly once (linear™)
+1. can be used any number of times (no name - the default)
+2. can't be used more than once (affine™)
+3. must be used at least once (relevant™ - this one is a decent name)
+4. must be used exactly once (linear™)
 
 Also for added confusion, sometimes linear™ or affine™ is used as a synonym for the whole substructural™ system. Nice™.
 
