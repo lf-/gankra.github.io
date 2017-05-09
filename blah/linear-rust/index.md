@@ -8,7 +8,7 @@ For whatever reason "linear" types in Rust came up at work today, at which point
 
 So there's this thing called a [Substructural Type System](https://en.wikipedia.org/wiki/Substructural_type_system)™, that Rust takes some ideas from. It's poorly named, and so are most of the concepts it introduces. Just so you can look this stuff up in The Literature, I'll be providing all these bad names with a Trademark of Disdain™, but otherwise I'd prefer to use Rust-centric terminology.
 
-So this type system defines three operations that a type might support. Two of them are interesting to us, and one of them we don't care about. Here's the two we care about:
+So this type system defines three operations that a (instance of a) type might support. Two of them are interesting to us, and one of them we don't care about. Here's the two we care about:
 
 * can be used less than once (weakening™)
 * can be used more than once (contraction™)
