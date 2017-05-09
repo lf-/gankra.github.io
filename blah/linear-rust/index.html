@@ -27,7 +27,7 @@
 
     <h1 class="title">The Pain Of Real Linear Types in Rust</h1>
     <h2>Alexis Beingessner - May 8, 2017</h2>
-
+    
     <nav id="TOC"><ul>
 <li><a href="#definitions-and-the-state-of-rust">1 Definitions And The State Of Rust</a><ul>
 <li><a href="#can-be-used-any-number-of-times">1.1 Can Be Used Any Number Of Times</a><ul></ul></li>
@@ -85,7 +85,7 @@
 
 <p>The purpose of this system is that it gives us a simple way to prove that we have unique access to a value. If you have a move-only type by-value, you know that no one else is looking at it, and it&#39;s safe to do something that invalidates it, like freeing a pointer it owns. This also gives fairly strong aliasing guarantees for mutable references, which helps avoid tons of logic bugs.</p>
 
-<p>More broadly, this system can be used as a <em>proof of work</em>. For instance, if I need step1() to always proceed step2(), I can use a move-only value to enforce this:</p>
+<p>More broadly, this system can be used as a <em>proof of work</em>. For instance, if I need step1() to always precede step2(), I can use a move-only value to enforce this:</p>
 
 <pre class="rust rust-example-rendered">
 <span class="kw">fn</span> <span class="ident">step1</span>() <span class="op">-&gt;</span> <span class="ident">Step1Token</span>;             <span class="comment">// malloc, fopen, glCreateContext, connect</span>
