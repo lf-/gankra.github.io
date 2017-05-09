@@ -56,7 +56,7 @@ Here Rust defines a "use" to be pass-by-value. Pass-by-reference isn't considere
 
 The purpose of this system is that it gives us a simple way to prove that we have unique access to a value. If you have a move-only type by-value, you know that no one else is looking at it, and it's safe to do something that invalidates it, like freeing a pointer it owns. This also gives fairly strong aliasing guarantees for mutable references, which helps avoid tons of logic bugs.
 
-More broadly, this system can be used as a *proof of work*. For instance, if I need step1() to always proceed step2(), I can use a move-only value to enforce this:
+More broadly, this system can be used as a *proof of work*. For instance, if I need step1() to always precede step2(), I can use a move-only value to enforce this:
 
 ```rust
 fn step1() -> Step1Token;             // malloc, fopen, glCreateContext, connect
