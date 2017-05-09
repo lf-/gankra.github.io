@@ -27,7 +27,7 @@
 
     <h1 class="title">The Pain Of Real Linear Types in Rust</h1>
     <h2>Alexis Beingessner - May 8, 2017</h2>
-
+    
     <nav id="TOC"><ul>
 <li><a href="#definitions-and-the-state-of-rust">1 Definitions And The State Of Rust</a><ul>
 <li><a href="#can-be-used-any-number-of-times">1.1 Can Be Used Any Number Of Times</a><ul></ul></li>
@@ -246,11 +246,9 @@
 <p>Solution 1, like all effect systems, is a huge infectious burden. Solution 2 is a bit depressing but probably the right choice to make this even vaguely usable. Anyone who opts into a panic=abort build won&#39;t have to worry about this. </p>
 
 <h2 id='the-trait' class='section-header'><a href='#the-trait'>2.2 The Trait</a></h2>
-<p>The rest of this post will focus on the trait bound and its implications.</p>
-
 <p>First off, we have the issue of legacy defaults: all generic code today implicitly doesn&#39;t support must-useness. That&#39;s probably for the best, as generic must-use code is pretty awkward to write. <sup id="fnref3"><a href="#fn3" rel="footnote">3</a></sup> Thankfully, Rust has already faced this issue once before in the form of Sized, and developed a solution for it. </p>
 
-<p>All generic types in Rust are implicitly Sized, but generic code may opt out of this assumption with the <code>T: ?Sized</code> bound. Here &quot;?&quot; is read as &quot;maybe&quot;. So rather than being definitely Sized, we are now saying that something is maybe Sized, which is exactly what the absence of any other trait bound means. The type specified by <T> is <em>maybe</em> Copy.</p>
+<p>All generic types in Rust are implicitly Sized, but generic code may opt out of this assumption with the <code>T: ?Sized</code> bound. Here &quot;?&quot; is read as &quot;maybe&quot;. So rather than being definitely Sized, we are now saying that something is maybe Sized, which is exactly what the absence of any other trait bound means: the type specified by <code>&lt;T&gt;</code> is <em>maybe</em> Copy.</p>
 
 <p>I suggest introducing a new trait called Leave, which Drop extends. This is in analogy to Copy and Clone. Leave basically states &quot;this type can be left unused&quot;. If a type is Leave but not Drop, then dropping the value is a no-op (<code>intrinsics::needs_drop::&lt;T&gt;() == false</code>). All types implicitly derive Leave. All generic code has an implicit Leave bound. This bound can be opted out of by adding <code>T: ?Leave</code>. </p>
 

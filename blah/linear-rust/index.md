@@ -227,11 +227,9 @@ Solution 1, like all effect systems, is a huge infectious burden. Solution 2 is 
 
 ## The Trait
 
-The rest of this post will focus on the trait bound and its implications.
-
 First off, we have the issue of legacy defaults: all generic code today implicitly doesn't support must-useness. That's probably for the best, as generic must-use code is pretty awkward to write. [^swift-copy] Thankfully, Rust has already faced this issue once before in the form of Sized, and developed a solution for it. 
 
-All generic types in Rust are implicitly Sized, but generic code may opt out of this assumption with the `T: ?Sized` bound. Here "?" is read as "maybe". So rather than being definitely Sized, we are now saying that something is maybe Sized, which is exactly what the absence of any other trait bound means. The type specified by <T> is *maybe* Copy.
+All generic types in Rust are implicitly Sized, but generic code may opt out of this assumption with the `T: ?Sized` bound. Here "?" is read as "maybe". So rather than being definitely Sized, we are now saying that something is maybe Sized, which is exactly what the absence of any other trait bound means: the type specified by `<T>` is *maybe* Copy.
 
 I suggest introducing a new trait called Leave, which Drop extends. This is in analogy to Copy and Clone. Leave basically states "this type can be left unused". If a type is Leave but not Drop, then dropping the value is a no-op (`intrinsics::needs_drop::<T>() == false`). All types implicitly derive Leave. All generic code has an implicit Leave bound. This bound can be opted out of by adding `T: ?Leave`. 
 
