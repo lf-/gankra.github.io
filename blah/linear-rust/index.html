@@ -27,7 +27,7 @@
 
     <h1 class="title">The Pain Of Real Linear Types in Rust</h1>
     <h2>Alexis Beingessner - May 8, 2017</h2>
-    
+
     <nav id="TOC"><ul>
 <li><a href="#definitions-and-the-state-of-rust">1 Definitions And The State Of Rust</a><ul>
 <li><a href="#can-be-used-any-number-of-times">1.1 Can Be Used Any Number Of Times</a><ul></ul></li>
@@ -194,11 +194,12 @@
 <p>As such, we will focus on what providing must-use types looks like.</p>
 
 <h1 id='adding-proper-must-use-types-to-rust' class='section-header'><a href='#adding-proper-must-use-types-to-rust'>2 Adding Proper Must-Use Types To Rust</a></h1>
-<p>Proper support for must-use types requires two things:</p>
+<p>Proper support for must-use types requires three things:</p>
 
 <ul>
-<li>A checker that ensures a must-use value is always locally moved (mem::forget being the ultimate destination of all must-use types)</li>
-<li>A proper trait bound for code to support and derive must-useness with</li>
+<li>a checker that ensures a must-use value is always locally moved (mem::forget being the ultimate destination of all must-use types)</li>
+<li>a proper trait bound for code to support and derive must-useness with</li>
+<li>stdlib support</li>
 </ul>
 
 <p>I posit that this system is deeply unpleasant.</p>
@@ -272,7 +273,7 @@
 <p>Having trouble thinking of exactly the right way to encode &quot;a function that must be called at least once&quot; for functions that capture must-use values. The negative bound of ?Leave combined with the backwards thinking of Fn traits hurts my brain right now.</p>
 
 <h2 id='usage-examples' class='section-header'><a href='#usage-examples'>2.3 Usage Examples</a></h2>
-<p>A bunch of the standard library will need to be &quot;upgraded&quot; to have ?Leave support. Here&#39;s some pain points I see. The TL;DR is you suddenly REALLY want dependent types to capture special states where must_use is satisfied.</p>
+<p>A bunch of the standard library will need to be &quot;upgraded&quot; to have ?Leave support. Here&#39;s some pain points I see.</p>
 
 <p>Let&#39;s look at Option:</p>
 

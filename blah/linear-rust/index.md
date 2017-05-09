@@ -182,10 +182,11 @@ As such, we will focus on what providing must-use types looks like.
 
 # Adding Proper Must-Use Types To Rust 
 
-Proper support for must-use types requires two things:
+Proper support for must-use types requires three things:
 
-* A checker that ensures a must-use value is always locally moved (mem::forget being the ultimate destination of all must-use types)
-* A proper trait bound for code to support and derive must-useness with
+* a checker that ensures a must-use value is always locally moved (mem::forget being the ultimate destination of all must-use types)
+* a proper trait bound for code to support and derive must-useness with
+* stdlib support
 
 I posit that this system is deeply unpleasant.
 
@@ -256,7 +257,7 @@ Having trouble thinking of exactly the right way to encode "a function that must
 
 ## Usage Examples
 
-A bunch of the standard library will need to be "upgraded" to have ?Leave support. Here's some pain points I see. The TL;DR is you suddenly REALLY want dependent types to capture special states where must_use is satisfied.
+A bunch of the standard library will need to be "upgraded" to have ?Leave support. Here's some pain points I see.
 
 Let's look at Option:
 
