@@ -7,10 +7,11 @@
     <title>The Pain Of Real Linear Types in Rust</title>
 
     
-       <link href="../../src/css/style.css" rel="stylesheet" type="text/css">
-    <link href="../../libs/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css">
-    <link href="../../libs/bootstrap/css/bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
+       <link href="../style.css" rel="stylesheet" type="text/css">
+    <link href="../bootstrap.min.css" rel="stylesheet" type="text/css">
+    <link href="../bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
     <link href="../rust.css" rel="stylesheet" type="text/css">
+
 
 </head>
 <body class="rustdoc">
@@ -26,20 +27,9 @@
 
 
     <h1 class="title">The Pain Of Real Linear Types in Rust</h1>
-    <h2>Alexis Beingessner - May 8, 2017</h2>
-    <nav id="TOC"><ul>
-<li><a href="#definitions-and-the-state-of-rust">1 Definitions And The State Of Rust</a><ul>
-<li><a href="#can-be-used-any-number-of-times">1.1 Can Be Used Any Number Of Times</a><ul></ul></li>
-<li><a href="#cant-be-used-more-than-once">1.2 Can&#39;t Be Used More Than Once</a><ul></ul></li>
-<li><a href="#must-be-used-at-least-once">1.3 Must Be Used At Least Once</a><ul></ul></li>
-<li><a href="#must-be-used-exactly-once">1.4 Must Be Used Exactly Once</a><ul></ul></li></ul></li>
-<li><a href="#adding-proper-must-use-types-to-rust">2 Adding Proper Must-Use Types To Rust</a><ul>
-<li><a href="#the-checker">2.1 The Checker</a><ul></ul></li>
-<li><a href="#the-trait">2.2 The Trait</a><ul></ul></li>
-<li><a href="#usage-examples">2.3 Usage Examples</a><ul></ul></li></ul></li>
-<li><a href="#conclusion">3 Conclusion</a><ul></ul></li></ul></nav><p>For whatever reason &quot;linear&quot; types in Rust came up at work today, at which point I made my usual assertion that they&#39;re a nightmare, because they don&#39;t compose well. I tried to explain it off the top of my head, but I figured it&#39;s best for me to just write it out.</p>
+    <p>For whatever reason &quot;linear&quot; types in Rust came up at work today, at which point I made my usual assertion that they&#39;re a nightmare, because they don&#39;t compose well. I tried to explain it off the top of my head, but I figured it&#39;s best for me to just write it out.</p>
 
-<h1 id='definitions-and-the-state-of-rust' class='section-header'><a href='#definitions-and-the-state-of-rust'>1 Definitions And The State Of Rust</a></h1>
+<h1 id='definitions-and-the-state-of-rust' class='section-header'><a href='#definitions-and-the-state-of-rust'>Definitions And The State Of Rust</a></h1>
 <p>So there&#39;s this thing called a <a href="https://en.wikipedia.org/wiki/Substructural_type_system">Subtructural Type System</a>™, that Rust takes some ideas from. It&#39;s poorly named, and so are most of the concepts it introduces. Just so you can look this stuff up in The Literature, I&#39;ll be providing all these bad names with a Trademark of Disdain™, but otherwise I&#39;d prefer to use Rust-centric terminology.</p>
 
 <p>So this type system defines three operations that a type might support. Two of them are interesting to us, and one of them we don&#39;t care about. Here&#39;s the two we care about:</p>
@@ -60,7 +50,7 @@
 
 <p>Also for added confusion, sometimes linear™ or affine™ is used as a synonym for the whole substructural™ system. Nice™.</p>
 
-<h2 id='can-be-used-any-number-of-times' class='section-header'><a href='#can-be-used-any-number-of-times'>1.1 Can Be Used Any Number Of Times</a></h2>
+<h2 id='can-be-used-any-number-of-times' class='section-header'><a href='#can-be-used-any-number-of-times'>Can Be Used Any Number Of Times</a></h2>
 <p>This one doesn&#39;t really need any justification -- it&#39;s how basically every programming language works. Rust provides this semantic in two forms: Copy and Clone. Copy is the form we&#39;re all used to: total unrestricted use of the value. In Rust it has a very specific language semantic as well: copying the value can be done with a bitwise copy, and discarding the value can be done by just forgetting about it (it can&#39;t implement Drop). </p>
 
 <p>This is in contrast to Swift and C++, which may implicitly execute code when a value is copied or destroyed (e.g. incrementing and decrementing reference counts).</p>
@@ -69,7 +59,7 @@
 
 <p>Plain Old Data types like <code>i32</code>, <code>f64</code>, and <code>[i32; 4]</code> are Copy. Almost every type in Rust is Clone (or, at least, could be without any issue).</p>
 
-<h2 id='cant-be-used-more-than-once' class='section-header'><a href='#cant-be-used-more-than-once'>1.2 Can&#39;t Be Used More Than Once</a></h2>
+<h2 id='cant-be-used-more-than-once' class='section-header'><a href='#cant-be-used-more-than-once'>Can&#39;t Be Used More Than Once</a></h2>
 <p>This is what Rust calls move semantics, or move-only types. e.g.</p>
 
 <pre class="rust rust-example-rendered">
@@ -111,7 +101,7 @@
 
 <p>Another bug move-only types can&#39;t prevent is <em>forgetting to do a thing</em>. We can make sure you perform step1 before step2, but we can&#39;t actually make you do step2. Which brings us to the next kind of type...</p>
 
-<h2 id='must-be-used-at-least-once' class='section-header'><a href='#must-be-used-at-least-once'>1.3 Must Be Used At Least Once</a></h2>
+<h2 id='must-be-used-at-least-once' class='section-header'><a href='#must-be-used-at-least-once'>Must Be Used At Least Once</a></h2>
 <p>This is the form Rust has the loosest support for, but it does have <em>some</em>. Aspects of At Least Once can be seen in two places:</p>
 
 <ul>
@@ -185,12 +175,12 @@
 
 <p>Ultimately, Rust lacks &quot;proper&quot; support for this kind of type.</p>
 
-<h2 id='must-be-used-exactly-once' class='section-header'><a href='#must-be-used-exactly-once'>1.4 Must Be Used Exactly Once</a></h2>
+<h2 id='must-be-used-exactly-once' class='section-header'><a href='#must-be-used-exactly-once'>Must Be Used Exactly Once</a></h2>
 <p>There&#39;s nothing actually interesting about this case. It&#39;s just a move-only must-use type. People who say they want Linear™ Types In Rust actually just want Proper Support For Relevant™ Types.</p>
 
 <p>As such, we will focus on what providing must-use types looks like.</p>
 
-<h1 id='adding-proper-must-use-types-to-rust' class='section-header'><a href='#adding-proper-must-use-types-to-rust'>2 Adding Proper Must-Use Types To Rust</a></h1>
+<h1 id='adding-proper-must-use-types-to-rust' class='section-header'><a href='#adding-proper-must-use-types-to-rust'>Adding Proper Must-Use Types To Rust</a></h1>
 <p>Proper support for must-use types requires two things:</p>
 
 <ul>
@@ -200,7 +190,7 @@
 
 <p>I posit that this system is deeply unpleasant.</p>
 
-<h2 id='the-checker' class='section-header'><a href='#the-checker'>2.1 The Checker</a></h2>
+<h2 id='the-checker' class='section-header'><a href='#the-checker'>The Checker</a></h2>
 <p>The checker is trivial to implement. It already basically exists in rustc to implement dynamic drop flags; it&#39;s just a basic definite-initialization analysis. The only tweak that needs to be made is to produce an error if a must-use type isn&#39;t definitely uninitialized by the end of the function, or overwritten while already initialized. There would need to be some special handling if <code>&lt;T: Copy&gt;</code>, I think this is easy but wouldn&#39;t be surprised if weird stuff comes up.</p>
 
 <p>I&#39;m pretty sure you don&#39;t need to do anything special for closures that take must-use values as arguments. The creator of the closures just checks that the closure body moves the input, like any other function.</p>
@@ -242,7 +232,7 @@
 
 <p>Solution 1, like all effect systems, is a huge infectious burden. Solution 2 is a bit depressing but probably the right choice to make this even vaguely usable. Anyone who opts into a panic=abort build won&#39;t have to worry about this. </p>
 
-<h2 id='the-trait' class='section-header'><a href='#the-trait'>2.2 The Trait</a></h2>
+<h2 id='the-trait' class='section-header'><a href='#the-trait'>The Trait</a></h2>
 <p>The rest of this post will focus on the trait bound and its implications.</p>
 
 <p>First off, we have the issue of legacy defaults: all generic code today implicitly doesn&#39;t support must-useness. That&#39;s probably for the best, as generic must-use code is pretty awkward to write. <sup id="fnref3"><a href="#fn3" rel="footnote">3</a></sup> Thankfully, Rust has already faced this issue once before in the form of Sized, and developed a solution for it. </p>
@@ -270,7 +260,7 @@
 
 <p>Having trouble thinking of exactly the right way to encode &quot;a function that must be called at least once&quot; for functions that capture must-use values. The negative bound of ?Leave combined with the backwards thinking of Fn traits hurts my brain right now.</p>
 
-<h2 id='usage-examples' class='section-header'><a href='#usage-examples'>2.3 Usage Examples</a></h2>
+<h2 id='usage-examples' class='section-header'><a href='#usage-examples'>Usage Examples</a></h2>
 <p>A bunch of the standard library will need to be &quot;upgraded&quot; to have ?Leave support. Here&#39;s some pain points I see. The TL;DR is you suddenly REALLY want dependent types to capture special states where must_use is satisfied.</p>
 
 <p>Let&#39;s look at Option:</p>
@@ -335,7 +325,7 @@
 
 <p>Actually, now that I mention it, I&#39;m not actually certain how into_iter is supposed to work? The for loop consumes the iterator, but what if it held must-use data that isn&#39;t part of the yield? I think the loop just has to mem::forget all iterators passed to it unconditionally, and if you did something weird, that&#39;s your problem? Ick.</p>
 
-<h1 id='conclusion' class='section-header'><a href='#conclusion'>3 Conclusion</a></h1>
+<h1 id='conclusion' class='section-header'><a href='#conclusion'>Conclusion</a></h1>
 <p>Ok having actually written this all out, it&#39;s better than I thought. That said, I still think it&#39;s <em>a lot</em> of paper cuts that pile up to make an overall unpleasant and difficult to implement system. The library work is probably the biggest burden. Something that would realistically take years to shake out.</p>
 
 <p>Feel free to call me a fool, or ask me questions, on twitter or any of the usual places The Rust Evangelism Strikeforce hangs out.</p>
