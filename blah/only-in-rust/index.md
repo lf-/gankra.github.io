@@ -325,7 +325,7 @@ Rust lets you create types that have nothing in them, and thus have zero size. F
 
 As an example of (1), the author of the Diesel ORM often brags that building up SQL queries in Diesel actually just builds up a really complicated zero-sized type, which the compiler then statically resolves for minimum runtime overhead.
 
-As an example of (2), `HashSet<T>` is implemented as a trivial wrapper around `HashMap<T, ()>`. Because the language knows instances of `()` are useless, all the code in HashMap that manipulates keys is completely eliminated, producing an optimized HashSet implementation. As a more extreme example, `Vec<()>` is basically just a glorified counter.
+As an example of (2), `HashSet<T>` is implemented as a trivial wrapper around `HashMap<T, ()>`. Because the language knows instances of `()` are useless, all the code in HashMap that manipulates values is completely eliminated, producing an optimized HashSet implementation. As a more extreme example, `Vec<()>` is basically just a glorified counter.
 
 However, in low level (unsafe) code zero-sized types can be a bit hazardous, for two reasons:
 

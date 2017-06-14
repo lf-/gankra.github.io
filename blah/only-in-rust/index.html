@@ -302,7 +302,7 @@ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</p>
 
 <p>As an example of (1), the author of the Diesel ORM often brags that building up SQL queries in Diesel actually just builds up a really complicated zero-sized type, which the compiler then statically resolves for minimum runtime overhead.</p>
 
-<p>As an example of (2), <code>HashSet&lt;T&gt;</code> is implemented as a trivial wrapper around <code>HashMap&lt;T, ()&gt;</code>. Because the language knows instances of <code>()</code> are useless, all the code in HashMap that manipulates keys is completely eliminated, producing an optimized HashSet implementation. As a more extreme example, <code>Vec&lt;()&gt;</code> is basically just a glorified counter.</p>
+<p>As an example of (2), <code>HashSet&lt;T&gt;</code> is implemented as a trivial wrapper around <code>HashMap&lt;T, ()&gt;</code>. Because the language knows instances of <code>()</code> are useless, all the code in HashMap that manipulates values is completely eliminated, producing an optimized HashSet implementation. As a more extreme example, <code>Vec&lt;()&gt;</code> is basically just a glorified counter.</p>
 
 <p>However, in low level (unsafe) code zero-sized types can be a bit hazardous, for two reasons:</p>
 
