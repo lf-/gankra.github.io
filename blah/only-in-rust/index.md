@@ -78,7 +78,7 @@ So there's our first bug that You Should Only See In Rust: writing unsafe code, 
 
 TL;DR: don't infer lifetimes that unsafe pointers produce!
 
-So Rust has these lifetime things. They're type-level variables for talking about scopes/regions in your program. We attach them to references to indicate for what scope of the program we can guarantee the reference will be valid for. Mostly, lifetimes only show up to create a relationship between two references. For example:
+So Rust has these lifetime things. They're type-level variables for talking about scopes/regions in your program. We attach them to references to indicate what scope of the program we can guarantee the reference will be valid for. Mostly, lifetimes only show up to create a relationship between two references. For example:
 
 ```rust
 fn foo<'a>(input: &'a u32) -> &'a u32;
