@@ -2,6 +2,10 @@
 
 <h2>Alexis Beingessner - June 14, 2017</h2>
 
+> The source of this post is [hosted on Github](https://github.com/Gankro/gankro.github.io/blob/master/blah/only-in-rust/index.md). If you find any errors, please file an issue or submit a PR! 😀
+
+---
+
 Recently, [Ralf Jung found a bug in Rust's standard library](https://www.ralfj.de/blog/2017/06/09/mutexguard-sync.html). Congrats to him! 🎉
 
 The bug was a missing annotation, and the result was that users of Rust's stdlib could compile some incorrect programs that violated memory safety. 🙀 Fortunately, those incorrect programs would be pretty surprising to see in the wild, so no one should be affected. Adding the annotation should fix the bug without anyone noticing.
