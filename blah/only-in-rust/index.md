@@ -1,6 +1,6 @@
 % Bugs You'll Probably Only Have in Rust
 
-<h2>Alexis Beingessner - June 10, 2017</h2>
+<h2>Alexis Beingessner - June 14, 2017</h2>
 
 Recently, [Ralf Jung found a bug in Rust's standard library](https://www.ralfj.de/blog/2017/06/09/mutexguard-sync.html). Congrats to him! 🎉
 
@@ -8,7 +8,7 @@ The bug was a missing annotation, and the result was that users of Rust's stdlib
 
 On twitter an interesting question was raised: is this the first Rust-specific bug class?
 
-Nope! There's actually a few of them, which is why I did my best to document them in [The Rustonomicon](https://doc.rust-lang.org/nomicon/). But the Rust-specific bugs documented in the nomicon are mixed in with lots of details and bugs that happen in other languages, so I thought it would be interesting to put them all together in one place.
+Nope! There's actually a few of them, which is why I did my best to document them in [The Rustonomicon](https://doc.rust-lang.org/nomicon/) (which I've started working on again, and hope to improve and finish). But the Rust-specific bugs documented in the nomicon are mixed in with lots of details and bugs that happen in other languages, so I thought it would be interesting to put all the Rust-specific ones together in one place.
 
 
 
@@ -18,17 +18,19 @@ Nope! There's actually a few of them, which is why I did my best to document the
 
 So just to be clear, there's lots of bugs that Rust code can have. Many of them you would expect to see in any language: integer overflow, index out of bounds, failing to sanitize input, etc.
 
-Others are *kinda* Rust-specific, in that they're a consequence of certain features: [exception safety](https://doc.rust-lang.org/nomicon/exception-safety.html), dangling raw pointers, [inappropriately trusting interfaces](https://doc.rust-lang.org/nomicon/safe-unsafe-meaning.html#how-safe-and-unsafe-interact), etc. However we won't be focusing on these issues because they're just as relevant in Rust's close relatives: C++ and Swift. (Swift doesn't really have exception safety issues; and C++ doesn't really have trust issues, insofar as C++ doesn't try to distinguish "safe" and "unsafe" operations)
+Others are *kinda* Rust-specific, in that they're a consequence of certain features: [exception safety](https://doc.rust-lang.org/nomicon/exception-safety.html), dangling raw pointers, [inappropriately trusting interfaces](https://doc.rust-lang.org/nomicon/safe-unsafe-meaning.html#how-safe-and-unsafe-interact), etc. However we won't be focusing on these issues because they're just as relevant in Rust's close relatives: C++ and Swift. (Swift doesn't really have exception safety issues; and C++ doesn't really have trust issues, insofar as C++ doesn't really try to distinguish between "safe" and "unsafe" operations)
 
-But the bugs I want to focus on I've only seen in Rust code, as a result of unique type-system interactions. I won't go so far as to say that no other language has these issues. I just don't know them.
+But the bugs I want to focus on I've only seen in Rust code, as a result of unique type-system interactions. I won't go so far as to say that no other language has these issues. I just don't know them, and I wouldn't expect to see them.
 
-Also I should note that all the bugs I want to focus on will be related to writing unsafe code. So these aren't things you generally need to worry about day-to-day. The reason they're related to unsafe code is because these bugs are generally places where we're doing clever/subtle things for you which are always correct *in safe code* but fall over once you start doing the things `unsafe` lets you.
+Also I should note that all the bugs I want to focus on will be related to writing unsafe code. So these aren't things you generally need to worry about day-to-day when using Rust. The reason they're related to unsafe code is because these bugs are generally places where we're doing clever/subtle things for you which are always correct *in safe code* but fall over once you start doing the things `unsafe` lets you.
 
 
 
 
 
 # Ralf's Bug: Oops Unsafe Autotraits
+
+TL;DR: if you write `unsafe` you *must* closely audit `Send` and `Sync` for your types!
 
 This one's going to need a fair bit of background, because it's the consequence of a several obscure Rust features.
 
@@ -69,6 +71,8 @@ So there's our first bug that You Should Only See In Rust: writing unsafe code, 
 
 
 # Unbound Lifetimes
+
+TL;DR: don't infer lifetimes that unsafe pointers produce!
 
 So Rust has these lifetime things. They're type-level variables for talking about scopes/regions in your program. We attach them to references to indicate for what scope of the program we can guarantee the reference will be valid for. Mostly, lifetimes only show up to create a relationship between two references. For example:
 
@@ -244,6 +248,8 @@ So one way to keep yourself safe is to use lifetime elision as much as possible.
 
 # Destructor Leaking - The Leakpocalypse
 
+TL;DR: don't rely on borrows expiring meaning destructors ran!
+
 Every language I know of that has destructors comes with a little asterisk: destructors aren't guaranteed to actually run. Or to put it another way:
 
 > THIS SOFTWARE IS PROVIDED ''AS IS'' AND WITHOUT ANY EXPRESS OR
@@ -308,6 +314,8 @@ Sadly, some APIs don't have any way to apply leak amplification, as was the case
 
 # Honorable Mention: Zero Sized Types (ZSTs)
 
+TL;DR: be sure that `size_of::<T>() == 0` is handled reasonably for allocations and offsets!
+
 Ok so this one actually shows up in a few other languages (at very least Swift and Go), but it's really cool and I want to talk about it. To be fair, I *think* these problems are the worst in Rust.
 
 Rust lets you create types that have nothing in them, and thus have zero size. For example, the empty tuple `()`. Instances of these types are completely useless -- after all they hold no state. However they serve two purposes:
@@ -338,3 +346,52 @@ Swift decouples size from stride. ZSTs have a stride of 1 (byte), and allocation
 It seems like Go is closer to Rust in legitimately optimizing away ZSTs, but I'm not super confident in the details. Because Go is garbage collected, it seems like it needs to handle a lot of the details here for you, so ZSTs aren't as big of a concern in practice.
 
 [This blog post](https://dave.cheney.net/2014/03/25/the-empty-struct) seems to have some interesting details about ZSTs in Go, but I don't know how accurate it is.
+
+
+
+
+
+# Honorable Mention: Variance
+
+TL;DR: be sure to eat all of your PhantomDatas for breakfast!
+
+Variance is the thing that makes it so that you can pass a Cat to a function that expects an Animal in an object-oriented language, but not an `ArrayList<Cat>` where an `ArrayList<Animal>` is expected. In Rust, variance is applied to lifetimes: you can pass a long-lived thing to a function that expects short-lived things.
+
+Rust is already relatively unique in that it actually exposes type variance as something user-defined types can have (`&MyType<&'long T>` can potentially be passed where `&MyType<&'short T>` is expected). This is because variance is usually made unsound by shared mutability: if you turn an `ArrayList<Cat>` into an `ArrayList<Animal>`, and someone puts a `Dog` in, then anyone still holding the `ArrayList<Cat>` will start interpreting Cats as Dogs! As it turns out, Rust's type system is incredibly good at managing aliasing and mutability.
+
+However Rust mostly handles variance in a similar manner to Sync: it's automatic and based on the values stored in the type. This leads to a similar scenario to Sync: once you start using unsafe code, it can get confused and give you variance when you shouldn't have it.
+
+The solution to this is to, whenever your type stores values that Rust can't "see", use PhantomData. `PhantomData<T>` is a cool little language feature that lets you tell the compiler "look I'm not gonna directly store this type, but just pretend I did". It's zero-sized, so it has no impact on your type at runtime.
+
+For instance:
+
+```rust
+struct MySmahtPointer<T> {
+  allocation: *mut u8,       // Something complex we can't do in the type system
+  _boo: PhantomData<*mut T>, // But hey there's some mutably shared T's in there!
+}
+```
+
+Pre-1.0, Rust actually used to have markers that explicitly requested a "kind" of variance, but it was deemed too confusing in practice. The PhantomData system was adopted because it let you just "say what you're doing" and have the compiler figure it out for you.
+
+Note that in the above example, removing the PhantomData would be a compilation error, as we refuse to let you claim you're generic over a type without actually telling us how you're using it. However there are more subtle definitions which may lead to incorrect results, like this:
+
+```
+struct MySmahtPointer<T> {
+  allocation: *mut u8,  // Something complex we can't do in the type system
+  aux_value: T,         // Compiler thinks this is the only way we're using it,
+                        // and gives us variance incorrectly.
+}
+```
+
+
+
+I discuss this situation in more detail [here](https://doc.rust-lang.org/nomicon/subtyping.html)
+and [here](https://doc.rust-lang.org/nomicon/phantom-data.html).
+
+
+
+
+# That's All I Can Think Of!
+
+Lemme know if you can think of any others!

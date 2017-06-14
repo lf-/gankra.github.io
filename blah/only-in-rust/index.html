@@ -26,7 +26,7 @@
 
 
     <h1 class="title">Bugs You&#39;ll Probably Only Have in Rust</h1>
-    <h2>Alexis Beingessner - June 10, 2017</h2>
+    <h2>Alexis Beingessner - June 14, 2017</h2>
 
 <p>Recently, <a href="https://www.ralfj.de/blog/2017/06/09/mutexguard-sync.html">Ralf Jung found a bug in Rust&#39;s standard library</a>. Congrats to him! 🎉</p>
 
@@ -34,18 +34,20 @@
 
 <p>On twitter an interesting question was raised: is this the first Rust-specific bug class?</p>
 
-<p>Nope! There&#39;s actually a few of them, which is why I did my best to document them in <a href="https://doc.rust-lang.org/nomicon/">The Rustonomicon</a>. But the Rust-specific bugs documented in the nomicon are mixed in with lots of details and bugs that happen in other languages, so I thought it would be interesting to put them all together in one place.</p>
+<p>Nope! There&#39;s actually a few of them, which is why I did my best to document them in <a href="https://doc.rust-lang.org/nomicon/">The Rustonomicon</a> (which I&#39;ve started working on again, and hope to improve and finish). But the Rust-specific bugs documented in the nomicon are mixed in with lots of details and bugs that happen in other languages, so I thought it would be interesting to put all the Rust-specific ones together in one place.</p>
 
 <h1 id='what-these-bugs-arent' class='section-header'><a href='#what-these-bugs-arent'>What These Bugs Aren&#39;t</a></h1>
 <p>So just to be clear, there&#39;s lots of bugs that Rust code can have. Many of them you would expect to see in any language: integer overflow, index out of bounds, failing to sanitize input, etc.</p>
 
-<p>Others are <em>kinda</em> Rust-specific, in that they&#39;re a consequence of certain features: <a href="https://doc.rust-lang.org/nomicon/exception-safety.html">exception safety</a>, dangling raw pointers, <a href="https://doc.rust-lang.org/nomicon/safe-unsafe-meaning.html#how-safe-and-unsafe-interact">inappropriately trusting interfaces</a>, etc. However we won&#39;t be focusing on these issues because they&#39;re just as relevant in Rust&#39;s close relatives: C++ and Swift. (Swift doesn&#39;t really have exception safety issues; and C++ doesn&#39;t really have trust issues, insofar as C++ doesn&#39;t try to distinguish &quot;safe&quot; and &quot;unsafe&quot; operations)</p>
+<p>Others are <em>kinda</em> Rust-specific, in that they&#39;re a consequence of certain features: <a href="https://doc.rust-lang.org/nomicon/exception-safety.html">exception safety</a>, dangling raw pointers, <a href="https://doc.rust-lang.org/nomicon/safe-unsafe-meaning.html#how-safe-and-unsafe-interact">inappropriately trusting interfaces</a>, etc. However we won&#39;t be focusing on these issues because they&#39;re just as relevant in Rust&#39;s close relatives: C++ and Swift. (Swift doesn&#39;t really have exception safety issues; and C++ doesn&#39;t really have trust issues, insofar as C++ doesn&#39;t really try to distinguish between &quot;safe&quot; and &quot;unsafe&quot; operations)</p>
 
-<p>But the bugs I want to focus on I&#39;ve only seen in Rust code, as a result of unique type-system interactions. I won&#39;t go so far as to say that no other language has these issues. I just don&#39;t know them.</p>
+<p>But the bugs I want to focus on I&#39;ve only seen in Rust code, as a result of unique type-system interactions. I won&#39;t go so far as to say that no other language has these issues. I just don&#39;t know them, and I wouldn&#39;t expect to see them.</p>
 
-<p>Also I should note that all the bugs I want to focus on will be related to writing unsafe code. So these aren&#39;t things you generally need to worry about day-to-day. The reason they&#39;re related to unsafe code is because these bugs are generally places where we&#39;re doing clever/subtle things for you which are always correct <em>in safe code</em> but fall over once you start doing the things <code>unsafe</code> lets you.</p>
+<p>Also I should note that all the bugs I want to focus on will be related to writing unsafe code. So these aren&#39;t things you generally need to worry about day-to-day when using Rust. The reason they&#39;re related to unsafe code is because these bugs are generally places where we&#39;re doing clever/subtle things for you which are always correct <em>in safe code</em> but fall over once you start doing the things <code>unsafe</code> lets you.</p>
 
 <h1 id='ralfs-bug-oops-unsafe-autotraits' class='section-header'><a href='#ralfs-bug-oops-unsafe-autotraits'>Ralf&#39;s Bug: Oops Unsafe Autotraits</a></h1>
+<p>TL;DR: if you write <code>unsafe</code> you <em>must</em> closely audit <code>Send</code> and <code>Sync</code> for your types!</p>
+
 <p>This one&#39;s going to need a fair bit of background, because it&#39;s the consequence of a several obscure Rust features.</p>
 
 <p>There&#39;s a trait (interface) in Rust called Sync. It&#39;s a marker trait, which just means that the interface doesn&#39;t actually have any methods or types you need to provide to implement. It&#39;s basically a type-level boolean: either you implement it or you don&#39;t. Implementing Sync is a declaration that your type has a property: it&#39;s safe for two threads to access it concurrently. Generic APIs which want to share data between threads do that by requiring <code>T: Sync</code> so that they&#39;re safe.</p>
@@ -77,6 +79,8 @@
 <p><a href="https://github.com/rust-lang/rust/pull/41624">And here&#39;s the fix</a>: properly overriding the Sync impl for MutexGuard... right next to the line where we had already done that for Send two years ago. 😭</p>
 
 <h1 id='unbound-lifetimes' class='section-header'><a href='#unbound-lifetimes'>Unbound Lifetimes</a></h1>
+<p>TL;DR: don&#39;t infer lifetimes that unsafe pointers produce!</p>
+
 <p>So Rust has these lifetime things. They&#39;re type-level variables for talking about scopes/regions in your program. We attach them to references to indicate for what scope of the program we can guarantee the reference will be valid for. Mostly, lifetimes only show up to create a relationship between two references. For example:</p>
 
 <pre class="rust rust-example-rendered">
@@ -227,6 +231,8 @@ note: borrowed value must be valid for the lifetime &#39;a as defined on the bod
 <p><a href="https://github.com/rust-lang/rust/issues/17500#issue-43719812">Here&#39;s a (pre-1.0) bug where we messed this up in the Rust standard library.</a></p>
 
 <h1 id='destructor-leaking---the-leakpocalypse' class='section-header'><a href='#destructor-leaking---the-leakpocalypse'>Destructor Leaking - The Leakpocalypse</a></h1>
+<p>TL;DR: don&#39;t rely on borrows expiring meaning destructors ran!</p>
+
 <p>Every language I know of that has destructors comes with a little asterisk: destructors aren&#39;t guaranteed to actually run. Or to put it another way:</p>
 
 <blockquote>
@@ -283,6 +289,8 @@ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</p>
 <p>Sadly, some APIs don&#39;t have any way to apply leak amplification, as was the case for the original design of thread::scoped. For that API, we had to force the user of our API to run inside a closure we call, so that we could run any cleanup code we wanted after their closure terminated. This works, it&#39;s just less ergonomic and composable.</p>
 
 <h1 id='honorable-mention-zero-sized-types-zsts' class='section-header'><a href='#honorable-mention-zero-sized-types-zsts'>Honorable Mention: Zero Sized Types (ZSTs)</a></h1>
+<p>TL;DR: be sure that <code>size_of::&lt;T&gt;() == 0</code> is handled reasonably for allocations and offsets!</p>
+
 <p>Ok so this one actually shows up in a few other languages (at very least Swift and Go), but it&#39;s really cool and I want to talk about it. To be fair, I <em>think</em> these problems are the worst in Rust.</p>
 
 <p>Rust lets you create types that have nothing in them, and thus have zero size. For example, the empty tuple <code>()</code>. Instances of these types are completely useless -- after all they hold no state. However they serve two purposes:</p>
@@ -314,6 +322,42 @@ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</p>
 <p>It seems like Go is closer to Rust in legitimately optimizing away ZSTs, but I&#39;m not super confident in the details. Because Go is garbage collected, it seems like it needs to handle a lot of the details here for you, so ZSTs aren&#39;t as big of a concern in practice.</p>
 
 <p><a href="https://dave.cheney.net/2014/03/25/the-empty-struct">This blog post</a> seems to have some interesting details about ZSTs in Go, but I don&#39;t know how accurate it is.</p>
+
+<h1 id='honorable-mention-variance' class='section-header'><a href='#honorable-mention-variance'>Honorable Mention: Variance</a></h1>
+<p>TL;DR: be sure to eat all of your PhantomDatas for breakfast!</p>
+
+<p>Variance is the thing that makes it so that you can pass a Cat to a function that expects an Animal in an object-oriented language, but not an <code>ArrayList&lt;Cat&gt;</code> where an <code>ArrayList&lt;Animal&gt;</code> is expected. In Rust, variance is applied to lifetimes: you can pass a long-lived thing to a function that expects short-lived things.</p>
+
+<p>Rust is already relatively unique in that it actually exposes type variance as something user-defined types can have (<code>&amp;MyType&lt;&amp;&#39;long T&gt;</code> can potentially be passed where <code>&amp;MyType&lt;&amp;&#39;short T&gt;</code> is expected). This is because variance is usually made unsound by shared mutability: if you turn an <code>ArrayList&lt;Cat&gt;</code> into an <code>ArrayList&lt;Animal&gt;</code>, and someone puts a <code>Dog</code> in, then anyone still holding the <code>ArrayList&lt;Cat&gt;</code> will start interpreting Cats as Dogs! As it turns out, Rust&#39;s type system is incredibly good at managing aliasing and mutability.</p>
+
+<p>However Rust mostly handles variance in a similar manner to Sync: it&#39;s automatic and based on the values stored in the type. This leads to a similar scenario to Sync: once you start using unsafe code, it can get confused and give you variance when you shouldn&#39;t have it.</p>
+
+<p>The solution to this is to, whenever your type stores values that Rust can&#39;t &quot;see&quot;, use PhantomData. <code>PhantomData&lt;T&gt;</code> is a cool little language feature that lets you tell the compiler &quot;look I&#39;m not gonna directly store this type, but just pretend I did&quot;. It&#39;s zero-sized, so it has no impact on your type at runtime.</p>
+
+<p>For instance:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">struct</span> <span class="ident">MySmahtPointer</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+  <span class="ident">allocation</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>,       <span class="comment">// Something complex we can&#39;t do in the type system</span>
+  <span class="ident">_boo</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">T</span><span class="op">&gt;</span>, <span class="comment">// But hey there&#39;s some mutably shared T&#39;s in there!</span>
+}</pre>
+
+<p>Pre-1.0, Rust actually used to have markers that explicitly requested a &quot;kind&quot; of variance, but it was deemed too confusing in practice. The PhantomData system was adopted because it let you just &quot;say what you&#39;re doing&quot; and have the compiler figure it out for you.</p>
+
+<p>Note that in the above example, removing the PhantomData would be a compilation error, as we refuse to let you claim you&#39;re generic over a type without actually telling us how you&#39;re using it. However there are more subtle definitions which may lead to incorrect results, like this:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">struct</span> <span class="ident">MySmahtPointer</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+  <span class="ident">allocation</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>,  <span class="comment">// Something complex we can&#39;t do in the type system</span>
+  <span class="ident">aux_value</span>: <span class="ident">T</span>,         <span class="comment">// Compiler thinks this is the only way we&#39;re using it,</span>
+                        <span class="comment">// and gives us variance incorrectly.</span>
+}</pre>
+
+<p>I discuss this situation in more detail <a href="https://doc.rust-lang.org/nomicon/subtyping.html">here</a>
+and <a href="https://doc.rust-lang.org/nomicon/phantom-data.html">here</a>.</p>
+
+<h1 id='thats-all-i-can-think-of' class='section-header'><a href='#thats-all-i-can-think-of'>That&#39;s All I Can Think Of!</a></h1>
+<p>Lemme know if you can think of any others!</p>
 
     </div>
 
