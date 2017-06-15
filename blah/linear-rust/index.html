@@ -6,7 +6,7 @@
     <meta name="generator" content="rustdoc">
     <title>The Pain Of Real Linear Types in Rust</title>
 
-    
+
        <link href="../style.css" rel="stylesheet" type="text/css">
     <link href="../bootstrap.min.css" rel="stylesheet" type="text/css">
     <link href="../bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
@@ -27,7 +27,7 @@
 
     <h1 class="title">The Pain Of Real Linear Types in Rust</h1>
     <h2>Alexis Beingessner - May 8, 2017</h2>
-    
+
     <nav id="TOC"><ul>
 <li><a href="#definitions-and-the-state-of-rust">1 Definitions And The State Of Rust</a><ul>
 <li><a href="#can-be-used-any-number-of-times">1.1 Can Be Used Any Number Of Times</a><ul></ul></li>
@@ -190,6 +190,8 @@
 
 <p>(Edit: a commenter pointed out to me that you can hack some stronger must-use guarantees by making step3 return a value, and having the current function return a Step3Token. This makes it so that it&#39;s impossible to return from the function without a proof of completing step3. But there&#39;s lots of holes in this design, not the least of which is that the user of your API needs to be &quot;in on it&quot; and set that up).</p>
 
+<p>(Edit2: It&#39;s possible for a library to statically require its client to call functions up to and including step3 by providing <code>with_step1&lt;R, F: FnOnce(Step1Token) -&gt; (R, Step3Token)&gt;(f: F) -&gt; R</code> instead of <code>step1() -&gt; Step1Token</code>, which fixes the first edit&#39;s approach&#39;s issue of require the client to have prior knowledge of step3. This is a similar pattern to what <code>scoped_threadpool</code> uses to work around the <a href="https://github.com/rust-lang/rust/issues/24292">JoinGuard unsoundness</a>)</p>
+
 <h2 id='must-be-used-exactly-once' class='section-header'><a href='#must-be-used-exactly-once'>1.4 Must Be Used Exactly Once</a></h2>
 <p>There&#39;s nothing actually interesting about this case. It&#39;s just a move-only must-use type. People who say they want Linear™ Types In Rust actually just want Proper Support For Relevant™ Types.</p>
 
@@ -218,7 +220,7 @@
 <p>Some of the holes that Drop has would remain in effect:</p>
 
 <ul>
-<li>building a reference counted cycle which will leak into infinity 
+<li>building a reference counted cycle which will leak into infinity
 
 <ul>
 <li>solution?: Rc/Arc don&#39;t opt into support of must-use values</li>
