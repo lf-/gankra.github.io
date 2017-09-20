@@ -15,18 +15,43 @@
 }
 </style>
 
-
+<style type="text/css"> 
+    .deco > p { margin-left: 11px; padding-left: 11px; } 
+    p.dotted span { text-decoration-style: dotted; } 
+    p.dashed span { text-decoration-style: dashed; } 
+    p.wavy span { text-decoration-style: wavy; } 
+    .deco span { text-decoration: underline line-through overline; } 
+    p.relative span { position: relative; left: 13px; } 
+    p.relative2 > span { position: relative; left: 13px; text-decoration: none; } 
+    p.relative2 span span { position: relative; left: -13px; } 
+    p.shadow { color: transparent; text-shadow: 1em 0.5em black; } 
+</style> 
 
 <meta charset="UTF-8"></head>
 <body style = "font-family: sans-serif; width: 100%">
 
-<div style="position: absolute; right: 0px; top: 0px; width: 4em;">
+<div style="position: absolute; right: 0px; top: 0px; width: 6em;">
     <div style="writing-mode:vertical-rl;text-emphasis:'*';text-shadow:-2px 2px 3px red;color: rgba(0,0,0,0);">你好<span style="text-combine-upright:all">12</span>你好</div>
     <div style="writing-mode:vertical-rl;text-emphasis:'*';text-shadow:-2px 2px 3px red;">你好<span style="text-combine-upright:all">12</span>你好</div>
     <div style="writing-mode:vertical-rl;text-emphasis:'*';text-shadow:-2px 2px 3px red; text-decoration: line-through underline overline green;">你好<span style="text-combine-upright:all">12</span>你好</div>
     <div style="writing-mode:vertical-rl;text-emphasis:'*'; text-decoration: line-through wavy blue;">你好<span style="text-combine-upright:all">12</span>你好</div>
     <div style="writing-mode:vertical-rl;text-emphasis:'*';text-decoration: underline dotted red; ">你好<span style="text-combine-upright:all">12</span>你好</div>
     <div style="writing-mode:vertical-rl;text-emphasis:'*'; text-decoration: overline dashed blue;">你好<span style="text-combine-upright:all">12</span>你好</div>
+
+    <div style="font-size: 32px;" class="deco">
+      <p class="dotted"> <span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span> </p>
+      <p class="dashed"> <span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span> </p>
+      <p class="wavy"> <span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span> </p>
+      <p class="dotted relative"> <span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span> </p>
+      <p class="dashed relative"> <span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span> </p>
+      <p class="wavy relative"> <span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span> </p>
+      <p class="dotted relative2"> <span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span></span> </p>
+      <p class="dashed relative2"> <span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span></span> </p>
+      <p class="wavy relative2"> <span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span></span> </p>
+      <p class="dotted shadow"> <span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span> </p>
+      <p class="dashed shadow"> <span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span> </p>
+      <p class="wavy shadow"> <span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span><span>&nbsp;</span> </p>
+    </div> 
 </div>
 
 <div style= "max-width: 40em">
@@ -129,24 +154,11 @@ velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupid
 sunt in culpa qui officia deserunt mollit anim id est laborum.
 </p>
 
-<p style="text-decoration: underline">
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-</p>
-
-<p style="text-decoration: overline">
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-</p>
-
-<p style="text-decoration: line-through">
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-</p>
-
-<p style="text-decoration: underline wavy">
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-</p>
 
 
-
+<div style="width: 100%">
+    
+</div>
 <p>
 Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 </p>
