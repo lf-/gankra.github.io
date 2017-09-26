@@ -1,11 +1,11 @@
 <html>
 <head>
 
+<meta charset="utf8">
 
-<script src="http://use.edgefonts.net/basic.js"></script> <!-- synthetic bold -->
-<script src="http://searchfox.org/static/js/utils.js"></script> <!-- mixed content warning style in url bar -->
 
 <style>
+/*
 @font-face {
   font-family: "disco";
   src: url('Bubbles-SVG_a.woff');
@@ -13,6 +13,22 @@
   font-style: normal;
   text-rendering: optimizeLegibility;
 }
+
+@font-face {
+  font-family: "emoji";
+  src: url('');
+  font-weight: 400;
+  font-style: normal;
+  text-rendering: optimizeLegibility;
+}
+
+
+*/
+@font-face {
+  src: url('emojione-svg.woff') format('woff');
+  font-family: 'EmojiOne Color';
+}
+
 </style>
 
 <style type="text/css"> 
@@ -26,8 +42,9 @@
     p.relative2 span span { position: relative; left: -13px; } 
     p.shadow { color: transparent; text-shadow: 1em 0.5em black; } 
 </style> 
+</head>
 
-<meta charset="UTF-8"></head>
+
 <body style = "font-family: sans-serif; width: 100%">
 
 <div style="position: absolute; right: 0px; top: 0px; width: 6em;">
@@ -56,13 +73,13 @@
 
 <div style= "max-width: 40em">
 
-<p> 👏THIS👏IS👏IMPORTANT👏 <span style = "text-emphasis: '👏'"">THIS IS IMPORTANT</span> <span style = "text-emphasis: 'T'"">THIS IS IMPORTANT</span>
+<p> 👏THIS👏IS👏IMPORTANT👏 <span style = "text-emphasis: '👏'"">THIS IS IMPORTANT</span> <span style = "text-emphasis: 'T'"">THIS IS IMPORTANT</span><span style="font-family: 'EmojiOne Color'">🙃😅😹</span>
 </p>
 
 <p>
 😍 tofu &#x10FFFD
-<textarea>asdfgh adasda asda hello asdasd</textarea>
-<span style="display: inline-block; width: 10em;" contenteditable="">asdfgh adasda asda hello asdasd</span>
+<textarea>typwos typs asda hello tpyos</textarea>
+<span style="display: inline-block; width: 10em;" contenteditable="">typwos typs asda hello tpyos</span>
 <!--<span style="font-family: 'disco'; font-size: 32px;">FUCK</span>-->
 </p>
 
@@ -73,6 +90,17 @@
  <span style="width: 5em; text-overflow: ''; display: inline-block; overflow: hidden;">overflow text</span>
  <span style="width: 5em; text-overflow: '-'; display: inline-block; overflow: hidden;">overflow text</span>
 </p>
+
+<div style="font-size:30px">
+
+  <span style="color:red;">पन</span>्ह <span style="color:red">पन्</span>ह <span style="color:red">त</span>्र <span style="color:red">र्</span>च 
+
+  <span style="color:red">क</span>ृक<span style="color:red">ृ</span> <span style="color:red">ड</span><span style="color:green">्ड</span>
+
+  <span style="color:red">न</span><span style="color:green">्ह</span><span style="color:blue">ृ</span><span style="color:orange">े</span>  <span style="color:red">ل</span><span style="color:green">ا</span>
+
+  <span style="color:red">ب</span><span style="color:green">س</span><span style="color:blue">م</span>  <span style="color:red">ا</span><span style="color:green">ل</span><span style="color:blue">ل</span><span style="color:orange">ه</span>
+</div>
 
 <p>
 Lorem ipsum
@@ -165,6 +193,10 @@ Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor i
 </div>
 
 
+
+
+<script src="http://use.edgefonts.net/basic.js"></script> <!-- synthetic bold -->
+<script src="http://searchfox.org/static/js/utils.js"></script> <!-- mixed content warning style in url bar -->
 
 </body>
 </html>
