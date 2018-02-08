@@ -6,7 +6,7 @@
     <meta name="generator" content="rustdoc">
     <title>The Pain Of Real Linear Types in Rust</title>
 
-
+    
        <link href="../style.css" rel="stylesheet" type="text/css">
     <link href="../bootstrap.min.css" rel="stylesheet" type="text/css">
     <link href="../bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
@@ -24,55 +24,49 @@
 
     <div class="content">
 
-
     <h1 class="title">The Pain Of Real Linear Types in Rust</h1>
     <h2>Alexis Beingessner - May 8, 2017</h2>
 
+
+    <h1 class="title">The Pain Of Real Linear Types in Rust</h1>
     <nav id="TOC"><ul>
 <li><a href="#definitions-and-the-state-of-rust">1 Definitions And The State Of Rust</a><ul>
 <li><a href="#can-be-used-any-number-of-times">1.1 Can Be Used Any Number Of Times</a><ul></ul></li>
-<li><a href="#cant-be-used-more-than-once">1.2 Can&#39;t Be Used More Than Once</a><ul></ul></li>
+<li><a href="#cant-be-used-more-than-once">1.2 Can't Be Used More Than Once</a><ul></ul></li>
 <li><a href="#must-be-used-at-least-once">1.3 Must Be Used At Least Once</a><ul></ul></li>
 <li><a href="#must-be-used-exactly-once">1.4 Must Be Used Exactly Once</a><ul></ul></li></ul></li>
 <li><a href="#adding-proper-must-use-types-to-rust">2 Adding Proper Must-Use Types To Rust</a><ul>
 <li><a href="#the-checker">2.1 The Checker</a><ul></ul></li>
 <li><a href="#the-trait">2.2 The Trait</a><ul></ul></li>
 <li><a href="#usage-examples">2.3 Usage Examples</a><ul></ul></li></ul></li>
-<li><a href="#conclusion">3 Conclusion</a><ul></ul></li></ul></nav><p>For whatever reason &quot;linear&quot; types in Rust came up at work today, at which point I made my usual assertion that they&#39;d be a nightmare to implement, because they don&#39;t compose well. I tried to explain it off the top of my head, but I figured it&#39;s best for me to just write it out.</p>
-
-<h1 id='definitions-and-the-state-of-rust' class='section-header'><a href='#definitions-and-the-state-of-rust'>1 Definitions And The State Of Rust</a></h1>
-<p>So there&#39;s this thing called a <a href="https://en.wikipedia.org/wiki/Substructural_type_system">Substructural Type System</a>™, that Rust takes some ideas from. It&#39;s poorly named, and so are most of the concepts it introduces. Just so you can look this stuff up in The Literature, I&#39;ll be providing all these bad names with a Trademark of Disdain™, but otherwise I&#39;d prefer to use Rust-centric terminology.</p>
-
-<p>So this type system defines three operations that a (instance of a) type might support. Two of them are interesting to us, and one of them we don&#39;t care about. Here&#39;s the two we care about:</p>
-
+<li><a href="#conclusion">3 Conclusion</a><ul></ul></li></ul></nav><p>For whatever reason &quot;linear&quot; types in Rust came up at work today, at which point I made my usual assertion that they'd be a nightmare to implement, because they don't compose well. I tried to explain it off the top of my head, but I figured it's best for me to just write it out.</p>
+<h1 id="definitions-and-the-state-of-rust" class="section-header"><a href="#definitions-and-the-state-of-rust">1 Definitions And The State Of Rust</a></h1>
+<p>So there's this thing called a <a href="https://en.wikipedia.org/wiki/Substructural_type_system">Substructural Type System</a>™, that Rust takes some ideas from.</p>
+<hr />
+<p>First off, I need to explain something about naming. My experience from discussing this system and its application to Rust and other programming languages is that it's poorly named, and so are most of the concepts it introduces. As in, I frequently see conversations about this topic quickly get muddied and confused because two people are using the same terms to mean different things.</p>
+<p>Yes, the names have a justification; Substructural Types are the natural consequence of applying Substructural Logic to Type Theory. However I haven't observed this duality to be actually helpful. Substructural Type Systems are actually fairly simple things which are very easy to reason about intuitively. Therefore I've found it much more helpful to use a naming scheme that appeals to this intuition and avoids the muddied baggage of the old names.</p>
+<p>That said, academia and research exists independent of my terminology gripes. As such, I'll be providing all the &quot;standard&quot; names (and explaining where they get mixed up) with a Trademark of Disdain™ while otherwise favouring the more intuitive Rust-centric terminology.</p>
+<hr />
+<p>So this type system defines three operations that a (instance of a) type might support. Two of them are interesting to us, and one of them we don't care about. Here's the two we care about:</p>
 <ul>
 <li>can be used less than once (weakening™)</li>
 <li>can be used more than once (contraction™)</li>
 </ul>
-
-<p>The definition of use is purposefully vague here, because as you&#39;ll see Rust plays around with &quot;what is a use&quot; a lot to make the type system do things we actually care about. </p>
-
+<p>The definition of use is purposefully vague here, because as you'll see Rust plays around with &quot;what is a use&quot; a lot to make the type system do things we actually care about. Because remember: the reason we make type systems is to help us solve actual problems.</p>
 <p>All the combinations of having-and-not-having these properties gives us 4 interesting kinds of type:</p>
-
 <ol>
 <li>can be used any number of times (no name - the default)</li>
-<li>can&#39;t be used more than once (affine™)</li>
+<li>can't be used more than once (affine™)</li>
 <li>must be used at least once (relevant™ - this one is a decent name)</li>
 <li>must be used exactly once (linear™)</li>
 </ol>
-
 <p>Also for added confusion, sometimes linear™ or affine™ is used as a synonym for the whole substructural™ system. Nice™.</p>
-
-<h2 id='can-be-used-any-number-of-times' class='section-header'><a href='#can-be-used-any-number-of-times'>1.1 Can Be Used Any Number Of Times</a></h2>
-<p>This one doesn&#39;t really need any justification -- it&#39;s how basically every programming language works. Rust provides this semantic in two forms: Copy and Clone. Copy is the form we&#39;re all used to: total unrestricted use of the value. In Rust it has a very specific language semantic as well: copying the value can be done with a bitwise copy, and discarding the value can be done by just forgetting about it (it can&#39;t implement Drop). </p>
-
+<h2 id="can-be-used-any-number-of-times" class="section-header"><a href="#can-be-used-any-number-of-times">1.1 Can Be Used Any Number Of Times</a></h2>
+<p>This one doesn't really need any justification -- it's how basically every programming language works. Rust provides this semantic in two forms: Copy and Clone. Copy is the form we're all used to: total unrestricted use of the value. In Rust it has a very specific language semantic as well: copying the value can be done with a bitwise copy, and discarding the value can be done by just forgetting about it (it can't implement Drop).</p>
 <p>This is in contrast to Swift and C++, which may implicitly execute code when a value is copied or destroyed (e.g. incrementing and decrementing reference counts).</p>
-
-<p>Clone is like Copy, but where we might need to do some work when we do the copy or destroy -- like the aforementionned reference count manipulation. Copying a Clone value requires an explicit call to <code>clone()</code>, while destroying a Clone value implicitly calls <code>drop()</code>. <sup id="fnref1"><a href="#fn1" rel="footnote">1</a></sup></p>
-
+<p>Clone is like Copy, but where we might need to do some work when we do the copy or destroy -- like the aforementionned reference count manipulation. Copying a Clone value requires an explicit call to <code>clone()</code>, while destroying a Clone value implicitly calls <code>drop()</code>. <sup id="fnref1"><a href="#fn1">1</a></sup></p>
 <p>Plain Old Data types like <code>i32</code>, <code>f64</code>, and <code>[i32; 4]</code> are Copy. Almost every type in Rust is Clone (or, at least, could be without any issue).</p>
-
-<h2 id='cant-be-used-more-than-once' class='section-header'><a href='#cant-be-used-more-than-once'>1.2 Can&#39;t Be Used More Than Once</a></h2>
+<h2 id="cant-be-used-more-than-once" class="section-header"><a href="#cant-be-used-more-than-once">1.2 Can't Be Used More Than Once</a></h2>
 <p>This is what Rust calls move semantics, or move-only types. e.g.</p>
 
 <pre class="rust rust-example-rendered">
@@ -80,19 +74,15 @@
 <span class="kw">let</span> <span class="ident">y</span> <span class="op">=</span> <span class="ident">x</span>;           <span class="comment">// NOTE: x moved here</span>
 <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">x</span>); <span class="comment">// ERROR: use of moved value x</span>
 <span class="macro">pritnln</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">y</span>); <span class="comment">// OK </span></pre>
-
-<p>Here Rust defines a &quot;use&quot; to be pass-by-value. Pass-by-reference isn&#39;t considered a use, because we want a way to <em>actually</em> make use of these value more than once. The borrow checker makes sure we get rid of all these references before we perform a &quot;real&quot; use. <sup id="fnref2"><a href="#fn2" rel="footnote">2</a></sup></p>
-
-<p>The purpose of this system is that it gives us a simple way to prove that we have unique access to a value. If you have a move-only type by-value, you know that no one else is looking at it, and it&#39;s safe to do something that invalidates it, like freeing a pointer it owns. This also gives fairly strong aliasing guarantees for mutable references, which helps avoid tons of logic bugs.</p>
-
+<p>Here Rust defines a &quot;use&quot; to be pass-by-value. Pass-by-reference isn't considered a use, because we want a way to <em>actually</em> make use of these value more than once. The borrow checker makes sure we get rid of all these references before we perform a &quot;real&quot; use. <sup id="fnref2"><a href="#fn2">2</a></sup></p>
+<p>The purpose of this system is that it gives us a simple way to prove that we have unique access to a value. If you have a move-only type by-value, you know that no one else is looking at it, and it's safe to do something that invalidates it, like freeing a pointer it owns. This also gives fairly strong aliasing guarantees for mutable references, which helps avoid tons of logic bugs.</p>
 <p>More broadly, this system can be used as a <em>proof of work</em>. For instance, if I need step1() to always precede step2(), I can use a move-only value to enforce this:</p>
 
 <pre class="rust rust-example-rendered">
 <span class="kw">fn</span> <span class="ident">step1</span>() <span class="op">-&gt;</span> <span class="ident">Step1Token</span>;             <span class="comment">// malloc, fopen, glCreateContext, connect</span>
 <span class="kw">fn</span> <span class="ident">step2</span>(<span class="ident">Step1Token</span>) <span class="op">-&gt;</span> <span class="ident">Step2Token</span>;   <span class="comment">// write, read, mutate, draw, send</span>
 <span class="kw">fn</span> <span class="ident">step3</span>(<span class="ident">Step2Token</span>);                 <span class="comment">// free, close, destroy</span></pre>
-
-<p>We have to do these steps in order, and we can&#39;t repeat any steps we shouldn&#39;t (references let us easily make repeatable steps):</p>
+<p>We have to do these steps in order, and we can't repeat any steps we shouldn't (references let us easily make repeatable steps):</p>
 
 <pre class="rust rust-example-rendered">
 <span class="kw">let</span> <span class="ident">token1</span> <span class="op">=</span> <span class="ident">step1</span>();
@@ -100,7 +90,6 @@
 <span class="ident">step3</span>(<span class="ident">token2</span>);
 <span class="ident">step2</span>(<span class="ident">token1</span>); <span class="comment">// ERROR: use of moved value</span>
 <span class="ident">step3</span>(<span class="ident">token2</span>); <span class="comment">// ERROR: use of moved value</span></pre>
-
 <p>Although if your API has hidden global state, you can still have some bugs:</p>
 
 <pre class="rust rust-example-rendered">
@@ -109,20 +98,15 @@
 <span class="kw">let</span> <span class="ident">token2a</span> <span class="op">=</span> <span class="ident">write_data</span>(<span class="ident">token1a</span>); <span class="comment">// actually writes to token1b&#39;s buffer</span>
 <span class="ident">insert_end</span>(<span class="ident">token2a</span>);               <span class="comment">// closes token 1b&#39;s buffer</span>
 <span class="ident">write_data</span>(<span class="ident">token1b</span>);               <span class="comment">// who knows what this will do</span></pre>
-
-<p>Most types don&#39;t have this problem though -- they own all the context they care about.</p>
-
-<p>Another bug move-only types can&#39;t prevent is <em>forgetting to do a thing</em>. We can make sure you perform step1 before step2, but we can&#39;t actually make you do step2. Which brings us to the next kind of type...</p>
-
-<h2 id='must-be-used-at-least-once' class='section-header'><a href='#must-be-used-at-least-once'>1.3 Must Be Used At Least Once</a></h2>
+<p>Most types don't have this problem though -- they own all the context they care about.</p>
+<p>Another bug move-only types can't prevent is <em>forgetting to do a thing</em>. We can make sure you perform step1 before step2, but we can't actually make you do step2. Which brings us to the next kind of type...</p>
+<h2 id="must-be-used-at-least-once" class="section-header"><a href="#must-be-used-at-least-once">1.3 Must Be Used At Least Once</a></h2>
 <p>This is the form Rust has the loosest support for, but it does have <em>some</em>. Aspects of At Least Once can be seen in two places:</p>
-
 <ul>
 <li>the unused_variables, unused_assignments, and unused_must_use lints</li>
 <li>Drop</li>
 </ul>
-
-<p>unused_variables is the simplest form. Lots of compilers support it, since it&#39;s pretty easy to implement and strongly indicative of an implementation bug.</p>
+<p>unused_variables is the simplest form. Lots of compilers support it, since it's pretty easy to implement and strongly indicative of an implementation bug.</p>
 
 <pre class="rust rust-example-rendered">
 <span class="kw">fn</span> <span class="ident">main</span>() {
@@ -130,7 +114,6 @@
     <span class="kw">let</span> <span class="ident">y</span> <span class="op">=</span> <span class="number">1</span>;
     <span class="kw">if</span> <span class="ident">y</span> <span class="op">==</span> <span class="ident">y</span> { <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;OK!&quot;</span>) }
 }</pre>
-
 <p>Here a use is defined much more weakly: basically any use of the identifier <code>x</code> will silence the lint:</p>
 
 <pre class="rust rust-example-rendered">
@@ -138,7 +121,6 @@
     <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="number">0</span>;
     <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">x</span>; <span class="comment">// OK!</span>
 }</pre>
-
 <p>unused_assignments is similar, but instead checks to see if there are any assignments that always get overwritten before a read:</p>
 
 <pre class="rust rust-example-rendered">
@@ -147,8 +129,7 @@
     <span class="ident">x</span> <span class="op">=</span> <span class="number">1</span>;
     <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>);
 }</pre>
-
-<p>must_use is an annotation that can be applied to a type or a function, to indicate that the function, or any function that returns a must_use type, shouldn&#39;t have its return value implicitly ignored. Result is the most notable must_use type:</p>
+<p>must_use is an annotation that can be applied to a type or a function, to indicate that the function, or any function that returns a must_use type, shouldn't have its return value implicitly ignored. Result is the most notable must_use type:</p>
 
 <pre class="rust rust-example-rendered">
 <span class="kw">fn</span> <span class="ident">read</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">i32</span>, <span class="ident">i32</span><span class="op">&gt;</span> { <span class="prelude-val">Ok</span>(<span class="number">0</span>) }
@@ -157,15 +138,10 @@
     <span class="ident">read</span>();         <span class="comment">// WARNING: unused result which must be used</span>
     <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">read</span>(); <span class="comment">// OK</span>
 }</pre>
-
-<p>All of these together are generally good enough to remind users to call step2() after step1(), especially if step2 is usually immediately after step1. However in more complex scenarios it&#39;s easy to accidentally mark the value as &quot;used&quot; without actually properly using it. For instance, printing a Step1Token or putting it in a collection will mark it as used for the purposes of these analyses.</p>
-
-<p>Drop provides stronger support for must-use values by introducing a final step that will automatically be called on a value as it&#39;s destroyed. Assigning to a variable, printing it, stuffing it in collection, or even calling panic!() is no escape: drop() will be called.</p>
-
-<p>Actually there&#39;s one escape hatch: mem::forget(). mem::forget will take any value and prevent it from being Dropped. It can be thought of as The All User of values, that any must-use value can be used by. Mostly it&#39;s just used by unsafe code to take ownership of the data owned by a Drop type (see: Vec::into_raw_parts).</p>
-
-<p>Also there&#39;s some several ways for destructors to not run (often called &quot;destructor leaking&quot;):</p>
-
+<p>All of these together are generally good enough to remind users to call step2() after step1(), especially if step2 is usually immediately after step1. However in more complex scenarios it's easy to accidentally mark the value as &quot;used&quot; without actually properly using it. For instance, printing a Step1Token or putting it in a collection will mark it as used for the purposes of these analyses.</p>
+<p>Drop provides stronger support for must-use values by introducing a final step that will automatically be called on a value as it's destroyed. Assigning to a variable, printing it, stuffing it in collection, or even calling panic!() is no escape: drop() will be called.</p>
+<p>Actually there's one escape hatch: mem::forget(). mem::forget will take any value and prevent it from being Dropped. It can be thought of as The All User of values, that any must-use value can be used by. Mostly it's just used by unsafe code to take ownership of the data owned by a Drop type (see: Vec::into_raw_parts).</p>
+<p>Also there's some several ways for destructors to not run (often called &quot;destructor leaking&quot;):</p>
 <ul>
 <li>building a reference counted cycle which will leak into infinity</li>
 <li>overwriting the value with ptr::write/copy</li>
@@ -173,92 +149,72 @@
 <li>never leaving the scope the value is defined for</li>
 <li>&lt;vague mumbling about double panicking&gt;</li>
 </ul>
-
 <p>Drop also has several annoying limitations:</p>
-
 <ul>
-<li>It can&#39;t produce a value</li>
-<li>It can&#39;t take extra values in</li>
+<li>It can't produce a value</li>
+<li>It can't take extra values in</li>
 <li>There Is Only One Drop</li>
 </ul>
-
-<p>This means that Drop can&#39;t be used to ensure step2 gets called, nor can it be used if <code>step3(takes, other, values)</code>. It also means it can&#39;t be used to ensure one of step3a or step3b is called.</p>
-
-<p>One extreme option that I&#39;ve seen is to implement drop() as <code>abort(&quot;this value must be used&quot;)</code>. All &quot;proper&quot; consumers then mem::forget the value, preventing this &quot;destructor bomb&quot; from going off. This provides a <em>dynamic</em> version of strict must-use values. Although it&#39;s still vulnerable to the few ways destructors can leak, this isn&#39;t a significant concern in practice. Mostly it just stinks because it&#39;s dynamic and Rust users Want Static Verification.</p>
-
+<p>This means that Drop can't be used to ensure step2 gets called, nor can it be used if <code>step3(takes, other, values)</code>. It also means it can't be used to ensure one of step3a or step3b is called.</p>
+<p>One extreme option that I've seen is to implement drop() as <code>abort(&quot;this value must be used&quot;)</code>. All &quot;proper&quot; consumers then mem::forget the value, preventing this &quot;destructor bomb&quot; from going off. This provides a <em>dynamic</em> version of strict must-use values. Although it's still vulnerable to the few ways destructors can leak, this isn't a significant concern in practice. Mostly it just stinks because it's dynamic and Rust users Want Static Verification.</p>
 <p>Ultimately, Rust lacks &quot;proper&quot; support for this kind of type.</p>
-
-<p>(Edit: a commenter pointed out to me that you can hack some stronger must-use guarantees by making step3 return a value, and having the current function return a Step3Token. This makes it so that it&#39;s impossible to return from the function without a proof of completing step3. But there&#39;s lots of holes in this design, not the least of which is that the user of your API needs to be &quot;in on it&quot; and set that up).</p>
-
-<p>(Edit2: It&#39;s possible for a library to statically require its client to call functions up to and including step3 by providing <code>with_step1&lt;R, F: FnOnce(Step1Token) -&gt; (R, Step3Token)&gt;(f: F) -&gt; R</code> instead of <code>step1() -&gt; Step1Token</code>, which fixes the first edit&#39;s approach&#39;s issue of require the client to have prior knowledge of step3. This is a similar pattern to what <code>scoped_threadpool</code> uses to work around the <a href="https://github.com/rust-lang/rust/issues/24292">JoinGuard unsoundness</a>)</p>
-
-<h2 id='must-be-used-exactly-once' class='section-header'><a href='#must-be-used-exactly-once'>1.4 Must Be Used Exactly Once</a></h2>
-<p>There&#39;s nothing actually interesting about this case. It&#39;s just a move-only must-use type. People who say they want Linear™ Types In Rust actually just want Proper Support For Relevant™ Types.</p>
-
+<p>(Edit: a commenter pointed out to me that you can hack some stronger must-use guarantees by making step3 return a value, and having the current function return a Step3Token. This makes it so that it's impossible to return from the function without a proof of completing step3. But there's lots of holes in this design, not the least of which is that the user of your API needs to be &quot;in on it&quot; and set that up).</p>
+<p>(Edit2: It's possible for a library to statically require its client to call functions up to and including step3 by providing <code>with_step1&lt;R, F: FnOnce(Step1Token) -&gt; (R, Step3Token)&gt;(f: F) -&gt; R</code> instead of <code>step1() -&gt; Step1Token</code>, which fixes the first edit's approach's issue of require the client to have prior knowledge of step3. This is a similar pattern to what <code>scoped_threadpool</code> uses to work around the <a href="https://github.com/rust-lang/rust/issues/24292">JoinGuard unsoundness</a>)</p>
+<h2 id="must-be-used-exactly-once" class="section-header"><a href="#must-be-used-exactly-once">1.4 Must Be Used Exactly Once</a></h2>
+<p>There's nothing actually interesting about this case. It's just a move-only must-use type. People who say they want Linear™ Types In Rust actually just want Proper Support For Relevant™ Types.</p>
 <p>As such, we will focus on what providing must-use types looks like.</p>
-
-<h1 id='adding-proper-must-use-types-to-rust' class='section-header'><a href='#adding-proper-must-use-types-to-rust'>2 Adding Proper Must-Use Types To Rust</a></h1>
+<h1 id="adding-proper-must-use-types-to-rust" class="section-header"><a href="#adding-proper-must-use-types-to-rust">2 Adding Proper Must-Use Types To Rust</a></h1>
 <p>Proper support for must-use types requires three things:</p>
-
 <ul>
 <li>a checker that ensures a must-use value is always locally moved (mem::forget being the ultimate destination of all must-use types)</li>
 <li>a proper trait bound for code to support and derive must-useness with</li>
 <li>stdlib support</li>
 </ul>
-
 <p>I posit that this system is deeply unpleasant.</p>
-
-<h2 id='the-checker' class='section-header'><a href='#the-checker'>2.1 The Checker</a></h2>
-<p>The checker is trivial to implement. It already basically exists in rustc to implement dynamic drop flags; it&#39;s just a basic definite-initialization analysis. The only tweak that needs to be made is to produce an error if a must-use type isn&#39;t definitely uninitialized by the end of the function, or overwritten while already initialized. There would need to be some special handling if <code>&lt;T: Copy&gt;</code>, I think this is easy but wouldn&#39;t be surprised if weird stuff comes up.</p>
-
-<p>I&#39;m pretty sure you don&#39;t need to do anything special for closures that take must-use values as arguments. The creator of the closures just checks that the closure body moves the input, like any other function.</p>
-
-<p>I don&#39;t think anything at all needs to be done with the borrow checker? There&#39;s probably some new must-use reference type you could make but I can&#39;t think of what the point of that would be (it can&#39;t be &amp;uninit, because must-use types can be passed to mem::forget).</p>
-
-<p>(Edit: a commenter pointed out that instead of mem::forget as The Final Sink, you could use <em>destructuring</em>. This would basically give anyone with permission to access all of a type&#39;s fields the right to mark a must-use type as fully used. With this you could potentially make &amp;uninit useful.)</p>
-
+<h2 id="the-checker" class="section-header"><a href="#the-checker">2.1 The Checker</a></h2>
+<p>The checker is trivial to implement. It already basically exists in rustc to implement dynamic drop flags; it's just a basic definite-initialization analysis. The only tweak that needs to be made is to produce an error if a must-use type isn't definitely uninitialized by the end of the function, or overwritten while already initialized. There would need to be some special handling if <code>&lt;T: Copy&gt;</code>, I think this is easy but wouldn't be surprised if weird stuff comes up.</p>
+<p>I'm pretty sure you don't need to do anything special for closures that take must-use values as arguments. The creator of the closures just checks that the closure body moves the input, like any other function.</p>
+<p>I don't think anything at all needs to be done with the borrow checker? There's probably some new must-use reference type you could make but I can't think of what the point of that would be (it can't be &amp;uninit, because must-use types can be passed to mem::forget).</p>
+<p>(Edit: a commenter pointed out that instead of mem::forget as The Final Sink, you could use <em>destructuring</em>. This would basically give anyone with permission to access all of a type's fields the right to mark a must-use type as fully used. With this you could potentially make &amp;uninit useful.)</p>
 <p>Some of the holes that Drop has would remain in effect:</p>
-
 <ul>
 <li>building a reference counted cycle which will leak into infinity
-
 <ul>
-<li>solution?: Rc/Arc don&#39;t opt into support of must-use values</li>
-</ul></li>
+<li>solution?: Rc/Arc don't opt into support of must-use values</li>
+</ul>
+</li>
 <li>overwriting the value with ptr::write/copy
-
 <ul>
 <li>no solution, unsafe code</li>
-</ul></li>
+</ul>
+</li>
 <li>aborting the program
-
 <ul>
 <li>no solution, programs die</li>
-</ul></li>
+</ul>
+</li>
 <li>never leaving the scope the value is defined for
-
 <ul>
-<li>rustc&#39;s definite-init understands infinite loops and can error in many cases, but not all</li>
+<li>rustc's definite-init understands infinite loops and can error in many cases, but not all</li>
 <li>e.g. <code>loop { do_it() }</code> can be found, but not <code>while never_false() { do_it() }</code></li>
 <li>erroring out on any potentially-infinite loop sounds really bad though?</li>
-</ul></li>
 </ul>
-
+</li>
+</ul>
 <p>Panicking is however a major issue for the checker. Any panic can lead to the program continuing, but without an opportunity to process the value. I see two options:</p>
-
-<p>1) Introduce a no_panic effect/property/trait that functions can have. Only let no_panic functions be called while a must-use value is in scope.</p>
-
-<p>2) Give all must-use types a destructor bomb that aborts the program. Since all must-use types are eventually passed to mem::forget, the only way a must-use type&#39;s destructor can run is if unwinding tries to destroy it.</p>
-
-<p>Solution 1, like all effect systems, is a huge infectious burden. Solution 2 is a bit depressing but probably the right choice to make this even vaguely usable. Anyone who opts into a panic=abort build won&#39;t have to worry about this. </p>
-
-<h2 id='the-trait' class='section-header'><a href='#the-trait'>2.2 The Trait</a></h2>
-<p>First off, we have the issue of legacy defaults: all generic code today implicitly doesn&#39;t support must-useness. That&#39;s probably for the best, as generic must-use code is pretty awkward to write. <sup id="fnref3"><a href="#fn3" rel="footnote">3</a></sup> Thankfully, Rust has already faced this issue once before in the form of Sized, and developed a solution for it. </p>
-
+<ol>
+<li>
+<p>Introduce a no_panic effect/property/trait that functions can have. Only let no_panic functions be called while a must-use value is in scope.</p>
+</li>
+<li>
+<p>Give all must-use types a destructor bomb that aborts the program. Since all must-use types are eventually passed to mem::forget, the only way a must-use type's destructor can run is if unwinding tries to destroy it.</p>
+</li>
+</ol>
+<p>Solution 1, like all effect systems, is a huge infectious burden. Solution 2 is a bit depressing but probably the right choice to make this even vaguely usable. Anyone who opts into a panic=abort build won't have to worry about this.</p>
+<h2 id="the-trait" class="section-header"><a href="#the-trait">2.2 The Trait</a></h2>
+<p>First off, we have the issue of legacy defaults: all generic code today implicitly doesn't support must-useness. That's probably for the best, as generic must-use code is pretty awkward to write. <sup id="fnref3"><a href="#fn3">3</a></sup> Thankfully, Rust has already faced this issue once before in the form of Sized, and developed a solution for it.</p>
 <p>All generic types in Rust are implicitly Sized, but generic code may opt out of this assumption with the <code>T: ?Sized</code> bound. Here &quot;?&quot; is read as &quot;maybe&quot;. So rather than being definitely Sized, we are now saying that something is maybe Sized, which is exactly what the absence of any other trait bound means: the type specified by <code>&lt;T&gt;</code> is <em>maybe</em> Copy.</p>
-
-<p>I suggest introducing a new trait called Leave, which Drop extends. This is in analogy to Copy and Clone. Leave basically states &quot;this type can be left unused&quot;. If a type is Leave but not Drop, then dropping the value is a no-op (<code>intrinsics::needs_drop::&lt;T&gt;() == false</code>). All types implicitly derive Leave. All generic code has an implicit Leave bound. This bound can be opted out of by adding <code>T: ?Leave</code>. </p>
-
+<p>I suggest introducing a new trait called Leave, which Drop extends. This is in analogy to Copy and Clone. Leave basically states &quot;this type can be left unused&quot;. If a type is Leave but not Drop, then dropping the value is a no-op (<code>intrinsics::needs_drop::&lt;T&gt;() == false</code>). All types implicitly derive Leave. All generic code has an implicit Leave bound. This bound can be opted out of by adding <code>T: ?Leave</code>.</p>
 <p>A type that is definitely not Leave is said to be must-use. Any type that contains a must-use type must also be must-use. Generic types will derive must-use in much the same way as they do move-only:</p>
 
 <pre class="rust rust-example-rendered">
@@ -268,20 +224,15 @@
 <span class="comment">// must-use iff T: must-use              // move-only iff T: move-only</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Leave</span>)]</span>                         <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">struct</span> <span class="ident">MyType3</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Leave</span><span class="op">&gt;</span>(<span class="ident">T</span>);            <span class="kw">struct</span> <span class="ident">MyType4</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">T</span>);</pre>
-
-<p>This doesn&#39;t seem that complex of a language extension. The two big downsides are:</p>
-
+<p>This doesn't seem that complex of a language extension. The two big downsides are:</p>
 <ul>
 <li>It will pollute up all sorts of APIs which Now Feature ?Leave Support</li>
-<li>It will lead to pain whenever you run into an API which Doesn&#39;t Yet Support ?Leave (because it depends on other APIs which don&#39;t, which in turn depend on...)</li>
+<li>It will lead to pain whenever you run into an API which Doesn't Yet Support ?Leave (because it depends on other APIs which don't, which in turn depend on...)</li>
 </ul>
-
 <p>Having trouble thinking of exactly the right way to encode &quot;a function that must be called at least once&quot; for functions that capture must-use values. The negative bound of ?Leave combined with the backwards thinking of Fn traits hurts my brain right now.</p>
-
-<h2 id='usage-examples' class='section-header'><a href='#usage-examples'>2.3 Usage Examples</a></h2>
-<p>A bunch of the standard library will need to be &quot;upgraded&quot; to have ?Leave support. Here&#39;s some pain points I see.</p>
-
-<p>Let&#39;s look at Option:</p>
+<h2 id="usage-examples" class="section-header"><a href="#usage-examples">2.3 Usage Examples</a></h2>
+<p>A bunch of the standard library will need to be &quot;upgraded&quot; to have ?Leave support. Here's some pain points I see.</p>
+<p>Let's look at Option:</p>
 
 <pre class="rust rust-example-rendered">
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Leave</span>)]</span>
@@ -291,8 +242,7 @@
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Leave</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> { ... }</pre>
-
-<p>Ok that works fine. Let&#39;s try to use it...</p>
+<p>Ok that works fine. Let's try to use it...</p>
 
 <pre class="rust rust-example-rendered">
 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">token</span> <span class="op">=</span> <span class="prelude-val">None</span>;
@@ -306,13 +256,11 @@
     }
 }
 <span class="comment">// ERROR 2: must-use value must be used</span></pre>
-
-<p>In both of these cases, the compiler is correctly identifying places where we might be accidentally discarding a must-use value. Too bad if you&#39;re certain the value is None at these places! The general solution is to <code>map</code> over the value and process it there. In our case we always expect it to be None, so we just abort if that isn&#39;t true:</p>
+<p>In both of these cases, the compiler is correctly identifying places where we might be accidentally discarding a must-use value. Too bad if you're certain the value is None at these places! The general solution is to <code>map</code> over the value and process it there. In our case we always expect it to be None, so we just abort if that isn't true:</p>
 
 <pre class="rust rust-example-rendered">
 <span class="ident">token</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">abort</span>(<span class="string">&quot;token should have been None&quot;</span>))
 <span class="ident">token</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">val</span>); <span class="comment">// OK!</span></pre>
-
 <p>This will likely be a common enough idiom that we provide some special method that does this:</p>
 
 <pre class="rust rust-example-rendered">
@@ -328,45 +276,22 @@
     }
 }
 <span class="ident">token</span>.<span class="ident">assert_none</span>();</pre>
-
-<p>Collections like Vec and HashMap are just a generalization of the Option situation, but instead of asserting is_none(), you have to assert is_empty(), and instead of calling <code>map</code> you call <code>into_iter</code>. </p>
-
-<p>But, collections have many subtle things that wouldn&#39;t work anymore.</p>
-
+<p>Collections like Vec and HashMap are just a generalization of the Option situation, but instead of asserting is_none(), you have to assert is_empty(), and instead of calling <code>map</code> you call <code>into_iter</code>.</p>
+<p>But, collections have many subtle things that wouldn't work anymore.</p>
 <ul>
 <li><code>array[i] = val</code> (old val not returned)</li>
 <li>map.insert/remove (old K not returned)</li>
 <li>truncate, resize, clear, dedup, retain, filter, ...</li>
 </ul>
-
-<p>Some of these would be solved by dependent types, but that&#39;s like the most catastrophically complex language extension there is. Others like insert, remove, and retain would need replacement APIs that return all the values that might be replaced. This is a lot of API work. Basically a full audit of the standard lib, with lots of new API design work.</p>
-
-<p>Actually, now that I mention it, I&#39;m not actually certain how into_iter is supposed to work? The for loop consumes the iterator, but what if it held must-use data that isn&#39;t part of the yield? I think the loop just has to mem::forget all iterators passed to it unconditionally, and if you did something weird, that&#39;s your problem? Ick.</p>
-
-<h1 id='conclusion' class='section-header'><a href='#conclusion'>3 Conclusion</a></h1>
-<p>Ok having actually written this all out, it&#39;s better than I thought. That said, I still think it&#39;s <em>a lot</em> of paper cuts that pile up to make an overall unpleasant and difficult to implement system. The library work is probably the biggest burden. Something that would realistically take years to shake out.</p>
-
+<p>Some of these would be solved by dependent types, but that's like the most catastrophically complex language extension there is. Others like insert, remove, and retain would need replacement APIs that return all the values that might be replaced. This is a lot of API work. Basically a full audit of the standard lib, with lots of new API design work.</p>
+<p>Actually, now that I mention it, I'm not actually certain how into_iter is supposed to work? The for loop consumes the iterator, but what if it held must-use data that isn't part of the yield? I think the loop just has to mem::forget all iterators passed to it unconditionally, and if you did something weird, that's your problem? Ick.</p>
+<h1 id="conclusion" class="section-header"><a href="#conclusion">3 Conclusion</a></h1>
+<p>Ok having actually written this all out, it's better than I thought. That said, I still think it's <em>a lot</em> of paper cuts that pile up to make an overall unpleasant and difficult to implement system. The library work is probably the biggest burden. Something that would realistically take years to shake out.</p>
 <p>Feel free to call me a fool, or ask me questions, on twitter or any of the usual places The Rust Evangelism Strikeforce hangs out.</p>
-
-<div class="footnotes">
-<hr>
-<ol>
-
-<li id="fn1">
-<p>Technically it calls <code>drop_in_place()</code>, which calls <code>drop()</code> and then recursively calls <code>drop_in_place()</code> on all fields.&nbsp;<a href="#fnref1" rev="footnote">&#8617;</a></p>
-</li>
-
-<li id="fn2">
-<p>There&#39;s a bunch of hairy details about moving subfields and stuff I don&#39;t care about getting into here.&nbsp;<a href="#fnref2" rev="footnote">&#8617;</a></p>
-</li>
-
-<li id="fn3">
-<p>The Swift devs have basically the exact same argument for move-only code, and their implicit Copy bound. Hooray!&nbsp;<a href="#fnref3" rev="footnote">&#8617;</a></p>
-</li>
-
-</ol>
-</div>
-
+<div class="footnotes"><hr><ol><li id="fn1">
+<p>Technically it calls <code>drop_in_place()</code>, which calls <code>drop()</code> and then recursively calls <code>drop_in_place()</code> on all fields.&nbsp;<a href="#fnref1" rev="footnote">↩</a></p></li><li id="fn2">
+<p>There's a bunch of hairy details about moving subfields and stuff I don't care about getting into here.&nbsp;<a href="#fnref2" rev="footnote">↩</a></p></li><li id="fn3">
+<p>The Swift devs have basically the exact same argument for move-only code, and their implicit Copy bound. Hooray!&nbsp;<a href="#fnref3" rev="footnote">↩</a></p></li></ol></div>
     </div>
 
 </body>

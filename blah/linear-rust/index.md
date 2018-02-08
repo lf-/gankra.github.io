@@ -6,14 +6,24 @@ For whatever reason "linear" types in Rust came up at work today, at which point
 
 # Definitions And The State Of Rust
 
-So there's this thing called a [Substructural Type System](https://en.wikipedia.org/wiki/Substructural_type_system)™, that Rust takes some ideas from. It's poorly named, and so are most of the concepts it introduces. Just so you can look this stuff up in The Literature, I'll be providing all these bad names with a Trademark of Disdain™, but otherwise I'd prefer to use Rust-centric terminology.
+So there's this thing called a [Substructural Type System](https://en.wikipedia.org/wiki/Substructural_type_system)™, that Rust takes some ideas from. 
+
+--------
+
+First off, I need to explain something about naming. My experience from discussing this system and its application to Rust and other programming languages is that it's poorly named, and so are most of the concepts it introduces. As in, I frequently see conversations about this topic quickly get muddied and confused because two people are using the same terms to mean different things. 
+
+Yes, the names have a justification; Substructural Types are the natural consequence of applying Substructural Logic to Type Theory. However I haven't observed this duality to be actually helpful. Substructural Type Systems are actually fairly simple things which are very easy to reason about intuitively. Therefore I've found it much more helpful to use a naming scheme that appeals to this intuition and avoids the muddied baggage of the old names.
+
+That said, academia and research exists independent of my terminology gripes. As such, I'll be providing all the "standard" names (and explaining where they get mixed up) with a Trademark of Disdain™ while otherwise favouring the more intuitive Rust-centric terminology.
+
+---------
 
 So this type system defines three operations that a (instance of a) type might support. Two of them are interesting to us, and one of them we don't care about. Here's the two we care about:
 
 * can be used less than once (weakening™)
 * can be used more than once (contraction™)
 
-The definition of use is purposefully vague here, because as you'll see Rust plays around with "what is a use" a lot to make the type system do things we actually care about. 
+The definition of use is purposefully vague here, because as you'll see Rust plays around with "what is a use" a lot to make the type system do things we actually care about. Because remember: the reason we make type systems is to help us solve actual problems.
 
 All the combinations of having-and-not-having these properties gives us 4 interesting kinds of type:
 
