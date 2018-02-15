@@ -1,0 +1,15 @@
+<html>
+<head>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <img src="rust-tip.png" style="position: fixed; right: 0px; bottom: 0px; width:30%;">
+    <iframe id="target" src=""
+     style="width: 100%; height: 100%; padding: 0px; margin: 0px; border: none;">
+    </iframe>
+</body>
+
+<script>
+    document.getElementById("target").src = "https://"+window.location.hash.split("#")[1];
+</script>
+</html>
