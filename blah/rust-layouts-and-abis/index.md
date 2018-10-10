@@ -24,7 +24,7 @@ For Rust to support a platform *at all*, its standard C dialect must:
 * Have a boolean be a byte, where `true = 1` and `false = 0`
 * Have integers be two's complement
 * Have IEEE 754(-2008?) floats, if they exist (e.g. we're comfortable with just disabling floats)
-* Be at least 16-bit (pointer-size?)
+* Be at least 16-bit (just in terms of pointer size, I think?)
 * Have NULL be 0 (although things may be mapped to 0, but that's messy since references can't be NULL)
 
 (Additional constraints exist for running the actual standard library, like atomics support)
