@@ -22,8 +22,8 @@ For Rust to [support a platform][rust-platforms] *at all*, its standard C dialec
 
 * Have 8-bit, unaligned bytes (chars)
 * Have a boolean be a byte, where `true = 1` and `false = 0`
-* Have integers be two's complement
-* Have IEEE 754(-2008?) floats, if they exist (e.g. we're comfortable with just disabling floats)
+* Have integers be [two's complement][twos-complement]
+* Have [IEEE 754(-2008?) binary floats][ieee-floats], if they exist (e.g. we're comfortable with just disabling floats)
 * Be at least 16-bit (just in terms of pointer size, I think?)
 * Have NULL be 0 (although things may be mapped to 0, but that's messy since references can't be NULL)
 
@@ -33,12 +33,12 @@ To a modern programmer, these are all incredibly reasonable constraints. In fact
 
 Rust explicitly supports the following platform features, even though they're close to extinction:
 
-* Big-endian integers/floats
+* [Big-endian integers/floats][endianess]
 * 16-bit pointers (although it appears that this is currently only really maintained by community volunteers to minimally support MSP430 microcontrollers)
 
 And the following are *maybe* possible for Rust to support, but haven't really been sufficiently thought about, and it's likely we've made a decision that happens to mess these up (or should):
 
-* Segmented architectures
+* [Segmented architectures][segmented]
 * Platforms where `ptrdiff_t` = `intptr_t` = `ssize_t` doesn't hold
 
 
@@ -365,3 +365,7 @@ Unfortunately I am running out of steam here and really am only peripherally awa
 [llvm-int128]: https://github.com/rust-lang/rust/issues/54341
 [sysv-abi]: https://www.uclibc.org/docs/psABI-x86_64.pdf
 [rust-platforms]: https://forge.rust-lang.org/platform-support.html
+[twos-complement]: https://en.wikipedia.org/wiki/Two%27s_complement
+[ieee-floats]: https://en.wikipedia.org/wiki/IEEE_754
+[endianess]: #endianness
+[segmented]: #segmented-architectures

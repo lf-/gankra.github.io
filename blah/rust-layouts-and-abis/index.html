@@ -53,8 +53,8 @@
 <ul>
 <li>Have 8-bit, unaligned bytes (chars)</li>
 <li>Have a boolean be a byte, where <code>true = 1</code> and <code>false = 0</code></li>
-<li>Have integers be two's complement</li>
-<li>Have IEEE 754(-2008?) floats, if they exist (e.g. we're comfortable with just disabling floats)</li>
+<li>Have integers be <a href="https://en.wikipedia.org/wiki/Two%27s_complement">two's complement</a></li>
+<li>Have <a href="https://en.wikipedia.org/wiki/IEEE_754">IEEE 754(-2008?) binary floats</a>, if they exist (e.g. we're comfortable with just disabling floats)</li>
 <li>Be at least 16-bit (just in terms of pointer size, I think?)</li>
 <li>Have NULL be 0 (although things may be mapped to 0, but that's messy since references can't be NULL)</li>
 </ul>
@@ -62,12 +62,12 @@
 <p>To a modern programmer, these are all incredibly reasonable constraints. In fact I expect most programmers would be very surprised if any of these things weren't true! To my knowledge the last great bastion of these properties being violated is some DSPs (Digital Signal Processors), because they really don't like 8-bit bytes. Rust is fine with not supporting those DSPs for the sake of making things cleaner for 99.9999% of its users.</p>
 <p>Rust explicitly supports the following platform features, even though they're close to extinction:</p>
 <ul>
-<li>Big-endian integers/floats</li>
+<li><a href="#endianness">Big-endian integers/floats</a></li>
 <li>16-bit pointers (although it appears that this is currently only really maintained by community volunteers to minimally support MSP430 microcontrollers)</li>
 </ul>
 <p>And the following are <em>maybe</em> possible for Rust to support, but haven't really been sufficiently thought about, and it's likely we've made a decision that happens to mess these up (or should):</p>
 <ul>
-<li>Segmented architectures</li>
+<li><a href="#segmented-architectures">Segmented architectures</a></li>
 <li>Platforms where <code>ptrdiff_t</code> = <code>intptr_t</code> = <code>ssize_t</code> doesn't hold</li>
 </ul>
 <h1 id="the-anatomy-of-a-type" class="section-header"><a href="#the-anatomy-of-a-type">2 The Anatomy of a Type</a></h1>
