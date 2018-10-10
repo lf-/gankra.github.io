@@ -42,7 +42,7 @@
 <li><a href="#segmented-architectures">3.3 Segmented Architectures</a><ul></ul></li></ul></li></ul></nav><p><span class="author">Alexis Beingessner</span></p>
 <p><span class="date">October 9th, 2018 -- Rust Nightly 1.30.0</span></p>
 <p>Over the years I've found myself with a weird amount of knowledge about how types and ABIs in Rust work, and I wanted to write it all down in one place so that... it's written down in one place. Much of this information can or should be found in the <a href="https://doc.rust-lang.org/reference/">Rust Language Reference</a> and the <a href="https://doc.rust-lang.org/nomicon/">Rustonomicon</a>.</p>
-<p>Special thanks to ubsan (the person, not the tool) for doing tons of fact-checking on this one!</p>
+<p>Special thanks to Nicole Mazzuca for doing tons of fact-checking on this one!</p>
 <h1 id="the-anatomy-of-a-platform" class="section-header"><a href="#the-anatomy-of-a-platform">1 The Anatomy of a Platform</a></h1>
 <p>There are a lot of exotic platforms out there, and C is kinda jacked up from trying to support them all. Some of these distortions are annoying but technically fair, like not defining integers to be two's complement or not defining a byte (char) to be 8 bits, because those captured genuine differences between platforms at the time. Others are more just an artifact from C trying something that ended up being a mistake, like <a href="#the-c-integer-hierarchy">the weird integer size fuzziness and promotion stuff</a>.</p>
 <p>A lot of the things C was trying to cope with have largely died off or been relegated to incredibly niche platforms. As such Rust took the opportunity to define more of the properties of the platforms it supports without breaking compatibility with C on those platforms.</p>
@@ -54,8 +54,8 @@
 <li>Have 8-bit, unaligned bytes (chars)</li>
 <li>Have a boolean be a byte, where <code>true = 1</code> and <code>false = 0</code></li>
 <li>Have integers be two's complement</li>
-<li>Have IEEE 754(-2008?) floats, if they exist</li>
-<li>Be at least 16-bit</li>
+<li>Have IEEE 754(-2008?) floats, if they exist (e.g. we're comfortable with just disabling floats)</li>
+<li>Be at least 16-bit (pointer-size?)</li>
 <li>Have NULL be 0 (although things may be mapped to 0, but that's messy since references can't be NULL)</li>
 </ul>
 <p>(Additional constraints exist for running the actual standard library, like atomics support)</p>

@@ -6,7 +6,7 @@
 
 Over the years I've found myself with a weird amount of knowledge about how types and ABIs in Rust work, and I wanted to write it all down in one place so that... it's written down in one place. Much of this information can or should be found in the [Rust Language Reference][reference] and the [Rustonomicon][nomicon].
 
-Special thanks to ubsan (the person, not the tool) for doing tons of fact-checking on this one!
+Special thanks to Nicole Mazzuca for doing tons of fact-checking on this one!
 
 
 
@@ -23,8 +23,8 @@ For Rust to support a platform *at all*, its standard C dialect must:
 * Have 8-bit, unaligned bytes (chars)
 * Have a boolean be a byte, where `true = 1` and `false = 0`
 * Have integers be two's complement
-* Have IEEE 754(-2008?) floats, if they exist
-* Be at least 16-bit
+* Have IEEE 754(-2008?) floats, if they exist (e.g. we're comfortable with just disabling floats)
+* Be at least 16-bit (pointer-size?)
 * Have NULL be 0 (although things may be mapped to 0, but that's messy since references can't be NULL)
 
 (Additional constraints exist for running the actual standard library, like atomics support)
