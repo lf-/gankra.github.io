@@ -18,7 +18,7 @@ A lot of the things C was trying to cope with have largely died off or been rele
 
 > NOTE: this is not a normative document and the Rust devs haven't been very diligent in committing to these claims, so be a *bit* wary of relying on a property here that lacks a citation.
 
-For Rust to support a platform *at all*, its standard C dialect must:
+For Rust to [support a platform][rust-platforms] *at all*, its standard C dialect must:
 
 * Have 8-bit, unaligned bytes (chars)
 * Have a boolean be a byte, where `true = 1` and `false = 0`
@@ -364,3 +364,4 @@ Unfortunately I am running out of steam here and really am only peripherally awa
 [int-history]: #the-c-integer-hierarchy
 [llvm-int128]: https://github.com/rust-lang/rust/issues/54341
 [sysv-abi]: https://www.uclibc.org/docs/psABI-x86_64.pdf
+[rust-platforms]: https://forge.rust-lang.org/platform-support.html
