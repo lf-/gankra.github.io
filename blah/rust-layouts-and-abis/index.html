@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>Notes on Type Layouts and ABIs in Rust</title>
+
+    
+        <link href="../bootstrap.min.css" rel="stylesheet" type="text/css">
+    <link href="../bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
+    <link href="../rust.css" rel="stylesheet" type="text/css">
+   <link href="../style.css" rel="stylesheet" type="text/css">
+
+
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    <div class="content">
+
+
+    <h1 class="title">Notes on Type Layouts and ABIs in Rust</h1>
+    <nav id="TOC"><ul>
+<li><a href="#the-anatomy-of-a-platform">1 The Anatomy of a Platform</a><ul></ul></li>
+<li><a href="#the-anatomy-of-a-type">2 The Anatomy of a Type</a><ul>
+<li><a href="#size">2.1 Size</a><ul></ul></li>
+<li><a href="#alignment">2.2 Alignment</a><ul></ul></li>
+<li><a href="#offsets">2.3 Offsets</a><ul></ul></li>
+<li><a href="#layout">2.4 Layout</a><ul></ul></li>
+<li><a href="#abi">2.5 ABI</a><ul></ul></li>
+<li><a href="#the-layoutsabis-of-builtins">2.6 The Layouts/ABIs of Builtins</a><ul></ul></li>
+<li><a href="#specifying-layouts-and-abis">2.7 Specifying Layouts and ABIs</a><ul></ul></li></ul></li>
+<li><a href="#extended-random-notes">3 Extended Random Notes</a><ul>
+<li><a href="#the-c-integer-hierarchy">3.1 The C Integer Hierarchy</a><ul></ul></li>
+<li><a href="#endianness">3.2 Endianness</a><ul></ul></li>
+<li><a href="#segmented-architectures">3.3 Segmented Architectures</a><ul></ul></li></ul></li></ul></nav><p><span class="author">Alexis Beingessner</span></p>
+<p><span class="date">October 9th, 2018 -- Rust Nightly 1.30.0</span></p>
+<p>Over the years I've found myself with a weird amount of knowledge about how types and ABIs in Rust work, and I wanted to write it all down in one place so that... it's written down in one place. Much of this information can or should be found in the <a href="https://doc.rust-lang.org/reference/">Rust Language Reference</a> and the <a href="https://doc.rust-lang.org/nomicon/">Rustonomicon</a>.</p>
+<h1 id="the-anatomy-of-a-platform" class="section-header"><a href="#the-anatomy-of-a-platform">1 The Anatomy of a Platform</a></h1>
+<p>There are a lot of exotic platforms out there, and C(++) is kinda jacked up from trying to support them all. Some of these distortions are annoying but technically fair, like not defining integers to be two's complement or not defining a byte (char) to be 8 bits, because those captured genuine differences between platforms at the time. Others are more just an artifact from C trying something that ended up being a mistake, like <a href="#the-c-integer-hierarchy">the weird integer size fuzziness and promotion stuff</a>.</p>
+<p>A lot of the things C was trying to cope with have largely died off or been relegated to incredibly niche platforms. As such Rust took the opportunity to define more of the properties of the platforms it supports without breaking compatibility with C on those platforms.</p>
+<blockquote>
+<p>NOTE: this is not a normative document and the Rust devs haven't been very diligent in committing to these claims, so be a <em>bit</em> wary of relying on a property here that lacks a citation.</p>
+</blockquote>
+<p>For Rust to support a platform <em>at all</em>, its standard C dialect must:</p>
+<ul>
+<li>Have 8-bit, unaligned bytes (chars)</li>
+<li>Have a boolean be a byte, where <code>true = 1</code> and <code>false = 0</code></li>
+<li>Have integers be two's complement</li>
+<li>Have IEEE 754(-2008?) floats, if they exist</li>
+<li>Be at least 16-bit</li>
+<li>Have NULL be 0 (although things may be mapped to 0, but that's messy since references can't be NULL)</li>
+</ul>
+<p>(Additional constraints exist for running the actual standard library, like atomics support)</p>
+<p>To a modern programmer, these are all incredibly reasonable constraints. In fact I expect most programmers would be very surprised if any of these things weren't true! To my knowledge the last great bastion of these properties being violated is some DSPs (Digital Signal Processors), because they really don't like 8-bit bytes. Rust is fine with not supporting those DSPs for the sake of making things cleaner for 99.9999% of its users.</p>
+<p>Rust explicitly supports the following platform features, even though they're close to extinction:</p>
+<ul>
+<li>Big-endian integers/floats</li>
+<li>16-bit pointers (although it appears that this is currently only really maintained by community volunteers to minimally support MSP430 microcontrollers)</li>
+</ul>
+<p>And the following are <em>maybe</em> possible for Rust to support, but haven't really been sufficiently thought about, and it's likely we've made a decision that happens to mess these up (or should):</p>
+<ul>
+<li>Segmented architectures</li>
+<li>Platforms where <code>ptrdiff_t</code> = <code>intptr_t</code> = <code>ssize_t</code> doesn't hold</li>
+</ul>
+<h1 id="the-anatomy-of-a-type" class="section-header"><a href="#the-anatomy-of-a-type">2 The Anatomy of a Type</a></h1>
+<p>Types have several properties that define how they can be manipulated and accessed. It's possible to only know some of these properties, in which case it's only safe to do certain operations.</p>
+<p>It's also possible to know literally nothing about a type, in which case the only thing you can really do with it is pass around pointers to it in a type-safe way. A situation where this might be true is when using a library which defines the type, and needs you to hold onto some pointers for it, but doesn't want you to actually access the data in those pointers. For instance this might be how state is passed to callbacks. Rust calls such a type an <em><a href="https://github.com/rust-lang/rfcs/blob/master/text/1861-extern-types.md">extern type</a></em>.</p>
+<p>As of this writing, extern types are still experimental. <code>struct MyType { }</code> can be used for a similar purpose, although the compiler won't produce an error if you try to load/store values of that type, instead silently discarding the accesses.</p>
+<h2 id="size" class="section-header"><a href="#size">2.1 Size</a></h2>
+<p>The most fundamental property of a type is its <em>size</em>: how many bytes it occupies in memory. Knowing only the size of a type, it's possible to perform pointer offsets into arrays of that type and to copy values between pointers of that type. The stride of elements in an array is always equal to their size. Values of that type can also be loaded from or stored in registers, though registers generally aren't part of the semantic model of Rust.</p>
+<p>In Rust, unlike C(++), types may have a size of 0 (a zero-sized type, or ZST). This generally just means that it doesn't actually exist in memory, and therefore reads/writes of its values are no-ops.</p>
+<p>A type's size may be a dynamic property of its values, as is the case for types like <code>[T]</code> and <code>Trait</code>. Such types don't implement the assumed-to-be-implemented <code>Sized</code> trait. Generic functions which wish to work with such a type must opt-in with <code>&lt;T: ?Sized&gt;</code>.</p>
+<h2 id="alignment" class="section-header"><a href="#alignment">2.2 Alignment</a></h2>
+<p>The second most fundamental property of a type is its <em>alignment</em>: what number of bytes its position in memory must be a multiple of (when stored in memory). So for instance a type with alignment 4 can only be stored at address 0, 4, 8, etc. With size and alignment, it becomes possible to allocate memory where values of that type can be stored.</p>
+<p>Alignment is at least 1 and must always be a power of 2. Size is always a multiple of alignment. A type usually has the maximum alignment of its fields' alignments. Alignment requirements give rise to <em>padding</em> which is parts of the a type which are logically uninitialized because the size or relative position of something needed to be rounded to satisfy alignment. Reads to padding aren't guaranteed to produce reliable results, and writes to padding aren't guaranteed to be respected.</p>
+<p>Alignment is largely an artifact of hardware which either prefers or requires that operations have a certain alignment. In a lot of cases misaligned accesses are &quot;just&quot; a nasty performance cliff, but in other cases the hardware will actually raise an exception for misalignment. In some sense how the hardware behaves doesn't actually matter anymore, because the compiler may assume pointers are aligned and miscompile your code if they aren't!</p>
+<p>Zero-sized types may have an alignment greater than 1 (e.g. <code>[u32; 0]</code> has the alignment of <code>u32</code>, which is usually 4). Although ZSTs don't exist in memory, fields and pointers of that type must still be well-aligned, so a ZST may influence the layout, size, and alignment of a composite type that contains it.</p>
+<p>As a slight aside, some older ABIs like the i386 System V ABI (the x86 linux C ABI) will align things in a slightly weird way. When placed in a struct, a <code>double</code> will be aligned to <code>4</code>, but on the stack it will always be aligned to <code>8</code>. However Rust is able to be compatible with this by just always aligning to <code>4</code>, as C can't tell if a pointer to a double is part of a struct or its own local.</p>
+<h2 id="offsets" class="section-header"><a href="#offsets">2.3 Offsets</a></h2>
+<p>The <em>offsets</em> of a type are the relative positions of each of its fields. There are three possibilities for offsets in Rust:</p>
+<ul>
+<li>Offsets are non-deterministic</li>
+<li>The <em>order</em> of offsets are deterministic, but their precise values aren't</li>
+<li>The exact values of the offsets are deterministic</li>
+</ul>
+<p>Here the definition of deterministic is subtle. What I mean is that you could look at the struct and the target platform's definition and determine the offsets. By default, a user-defined Rust type's offsets are non-deterministic in the sense that different version of the compiler may choose different offsets, or subsequent builds may produce different offsets (though we will never link together two pieces of rust code that don't agree on the offsets of a type).</p>
+<p>Here are a couple notable examples:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="comment">// The Rust compiler is not required to give these two structs</span>
+<span class="comment">// the same offsets for their fields, even though they are identical.</span>
+<span class="kw">struct</span> <span class="ident">A</span>(<span class="ident">u32</span>, <span class="ident">u64</span>);
+<span class="kw">struct</span> <span class="ident">B</span>(<span class="ident">u32</span>, <span class="ident">u64</span>);
+
+<span class="comment">// The Rust compiler is not required to emit the fields for this</span>
+<span class="comment">// struct in the given order. e.g. it may put y before x in memory.</span>
+<span class="kw">struct</span> <span class="ident">Rect</span> {
+    <span class="ident">x</span>: <span class="ident">f32</span>,
+    <span class="ident">y</span>: <span class="ident">f32</span>,
+    <span class="ident">w</span>: <span class="ident">f32</span>,
+    <span class="ident">h</span>: <span class="ident">f32</span>,
+}</pre>
+<p>There are two motivations for this: optimization and fuzzing.</p>
+<p>In terms of optimizations, usually exact struct layout isn't something that is actually being relied on, so this is a fertile ground for easy optimizations. Especially for generic structs, where a single optimal layout for all type substitutions may not exist. For instance, this struct cannot have a single optimal ordering of its fields:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="kw">struct</span> <span class="ident">Impossible</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">U</span>, <span class="ident">V</span><span class="op">&gt;</span> {
+    <span class="ident">t</span>: <span class="ident">T</span>,
+    <span class="ident">u</span>: <span class="ident">U</span>,
+    <span class="ident">v</span>: <span class="ident">V</span>,
+}</pre>
+<p>Consider substituting <code>u16</code>, <code>u16</code>, and <code>u32</code> for T, U, and V. The struct will be tightly packed as long as the <code>u32</code> is not the second element. However any ordering we choose must make <em>some</em> element be in the middle, and then we may change that type to u32 to make the ordering suboptimal. Therefore there is no optimal single ordering for fields in generic structs.</p>
+<p>The fuzzing motivation (which to date has not been taken advantage of) is to allow field orderings to be randomized to more readily expose latent bugs.</p>
+<p>As will be discussed in later sections, certain annotations will induce a deterministic field ordering. But if a field has a type which doesn't have a deterministic ordering, its size may also be non-determinstic, and that may lead to the outer type still having non-deterministic offsets.</p>
+<p>So for instance, this struct has a deterministic ordering of its fields, but not deterministic offset values:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
+<span class="kw">struct</span> <span class="ident">MyStruct</span> {
+    <span class="ident">x</span>: <span class="ident">u32</span>,
+    <span class="ident">y</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
+    <span class="ident">z</span>: <span class="ident">u32</span>,
+}</pre>
+<p><code>Vec</code> doesn't have any deterministic ordering, so although we deterministically know the exact offsets <code>x</code> and <code>y</code> will be stored at, we can't know the offset of <code>z</code> or the size of <code>MyStruct</code>, because those facts depend on the size of <code>y</code> which isn't deterministically knowable. As such this type isn't suitable for FFI with C.</p>
+<h2 id="layout" class="section-header"><a href="#layout">2.4 Layout</a></h2>
+<p>The <em>layout</em> of a type is its size, alignment, offsets, and the recursive layouts of its fields.</p>
+<p>Having the full layout of a type allows one to access the fields of a type. It also makes it possible to convert between types with <em>compatible</em> layouts. TODO: explain/define layout compatibility</p>
+<p>With the layout of a type, you can do tricky things like convert between two types with compatible layouts, such as from <code>[u64; 2]</code> to <code>[u32; 4]</code>. Although care must be taken</p>
+<h2 id="abi" class="section-header"><a href="#abi">2.5 ABI</a></h2>
+<p>The layout of a type is enough to do anything you want to do with a type <em>within Rust</em>, but it's insufficient for full communication with C. In particular, it's insufficient for passing things <em>by value</em> to a C function. This is because there are additional properties that define the <em>ABI</em> (Application Binary Interface) of a type. The ABI of a type determines how it is passed to a C function by-value.</p>
+<p>To my knowledge the only property that is unique to ABI is that of <em>type-kind</em>. Although <code>#[repr(C)] struct MyType(u32)</code>, <code>u32</code>, and <code>f32</code> may be layout compatible on a given target, they may still have incompatible ABIs because they have a different type-kind.</p>
+<p>As of this writing, there are 4 type-kinds that Rust can care about:</p>
+<ul>
+<li>Integer (pointers are treated as integers here, though this may change in the future)</li>
+<li>Float</li>
+<li>Aggregate</li>
+<li>Vector</li>
+</ul>
+<blockquote>
+<p>NOTE: type-kind is a non-normative concept that makes talking about ABIs clearer to me. All of this could be correctly specified without appealing to it.</p>
+</blockquote>
+<p>The integer and float type-kinds represent the two kinds a primitive can have. If two types have the the same size, alignment, and primitive type-kind, then they are completely ABI compatible (e.g. u64 and usize have identical ABIs on x64 linux).</p>
+<p>The aggregate type-kind is the default for any struct, enum, or union. However aggregate type-kind can be changed to any of the other 3 under the right conditions and with the right annotations. This will be detailed in a later section.</p>
+<p>All C structs and unions have the aggregate type-kind. C SIMD types have the vector type-kind. C enums have integer type-kind.</p>
+<p>The precise ABI of aggregates and vectors depends on the precise layouts of their fields. So for instance these two types have different ABIs on x64 linux even though they have identical size, alignment, and type-kind:</p>
+
+<pre class="rust rust-example-rendered">
+<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
+<span class="kw">struct</span> <span class="ident">Homo</span>(<span class="ident">u64</span>, <span class="ident">u64</span>);
+
+<span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
+<span class="kw">struct</span> <span class="ident">Hetero</span>(<span class="ident">u64</span>, <span class="ident">u32</span>, <span class="ident">u32</span>);</pre>
+<h2 id="the-layoutsabis-of-builtins" class="section-header"><a href="#the-layoutsabis-of-builtins">2.6 The Layouts/ABIs of Builtins</a></h2>
+<p>Here is a table of the ABIs of the core primitives in Rust, which C(++) types they are guaranteed to be ABI compatible with, and what values are defined for these types (storing other values in such a type may lead to Undefined Behaviour):</p>
+<table><thead><tr><th>                </th><th> size </th><th> align </th><th> kind    </th><th> C(++) type        </th><th> defined values              </th></tr></thead><tbody>
+<tr><td> u8             </td><td> 1    </td><td> 1     </td><td> integer </td><td> uint8_t           </td><td> all                         </td></tr>
+<tr><td> u16            </td><td> 2    </td><td> ≤2    </td><td> integer </td><td> uint16_t          </td><td> all                         </td></tr>
+<tr><td> u32            </td><td> 4    </td><td> ≤4    </td><td> integer </td><td> uint32_t          </td><td> all                         </td></tr>
+<tr><td> u64            </td><td> 8    </td><td> ≤8    </td><td> integer </td><td> uint64_t          </td><td> all                         </td></tr>
+<tr><td> u128           </td><td> 16   </td><td> ≤16   </td><td> integer </td><td> unsigned __int128 </td><td> all                         </td></tr>
+<tr><td> usize          </td><td> ptr  </td><td> ptr   </td><td> integer </td><td> uintptr_t         </td><td> all                         </td></tr>
+<tr><td> i8             </td><td> 1    </td><td> 1     </td><td> integer </td><td> int8_t            </td><td> all                         </td></tr>
+<tr><td> i16            </td><td> 2    </td><td> ≤2    </td><td> integer </td><td> int16_t           </td><td> all                         </td></tr>
+<tr><td> i32            </td><td> 4    </td><td> ≤4    </td><td> integer </td><td> int32_t           </td><td> all                         </td></tr>
+<tr><td> i64            </td><td> 8    </td><td> ≤8    </td><td> integer </td><td> int64_t           </td><td> all                         </td></tr>
+<tr><td> i128           </td><td> 16   </td><td> ≤16   </td><td> integer </td><td> __int128          </td><td> all                         </td></tr>
+<tr><td> isize          </td><td> ptr  </td><td> ptr   </td><td> integer </td><td> intptr_t          </td><td> all                         </td></tr>
+<tr><td> *const T       </td><td> ptr  </td><td> ptr   </td><td> integer </td><td> T*                </td><td> all                         </td></tr>
+<tr><td> *mut T         </td><td> ptr  </td><td> ptr   </td><td> integer </td><td> T*                </td><td> all                         </td></tr>
+<tr><td> &amp;T             </td><td> ptr  </td><td> ptr   </td><td> integer </td><td> T*                </td><td> not 0                       </td></tr>
+<tr><td> &amp;mut T         </td><td> ptr  </td><td> ptr   </td><td> integer </td><td> T*                </td><td> not 0                       </td></tr>
+<tr><td> Option&lt;&amp;T&gt;     </td><td> ptr  </td><td> ptr   </td><td> integer </td><td> T*                </td><td> all                         </td></tr>
+<tr><td> Option&lt;&amp;mut T&gt; </td><td> ptr  </td><td> ptr   </td><td> integer </td><td> T*                </td><td> all                         </td></tr>
+<tr><td> bool           </td><td> 1    </td><td> 1     </td><td> integer </td><td> bool (_Bool)      </td><td> 0=false, 1=true             </td></tr>
+<tr><td> char           </td><td> 4    </td><td> ≤4    </td><td> N/A     </td><td> N/A               </td><td> 0x0-0xD7FF, 0xE000-0x10FFFF </td></tr>
+<tr><td> f32            </td><td> 4    </td><td> ≤4    </td><td> float   </td><td> float             </td><td> all                         </td></tr>
+<tr><td> f64            </td><td> 8    </td><td> ≤8    </td><td> float   </td><td> double            </td><td> all                         </td></tr>
+</tbody></table>
+<p>Note that in practice primitives are <em>usually</em> aligned to their size. A smaller alignment is usually an indication that the type is software-emulated on that platform (e.g. <code>u64</code> has align 4 on x86, and <code>u128</code> has align 8 on x64). Ultimately the size and alignment is just &quot;whatever the target's standard C implementation does&quot;, as compatibility is our primary concern here.</p>
+<p>Arrays (<code>[T; n]</code>) have the same layout as C arrays: aligned to <code>T</code>, with <code>n * size_of::&lt;T&gt;()</code> size, and element <code>i</code> is at byte offset <code>i * size_of::&lt;T&gt;()</code>. However arrays currently have no specified type-kind, as arrays cannot actually be passed by-value in C (<code>void func(int x[5])</code> is semantically identical to <code>void func(int* x)</code>).</p>
+<p>Tuples have completely unspecified layout, except for <code>()</code> which is size 0 and align 1.</p>
+<p>I think that covers all the interesting builtins.</p>
+<h2 id="specifying-layouts-and-abis" class="section-header"><a href="#specifying-layouts-and-abis">2.7 Specifying Layouts and ABIs</a></h2>
+<p>The following annotations have the following effects on layout and ABI:</p>
+<ul>
+<li>
+<p><code>#[repr(C)]</code> on a struct forces the fields to be laid out in the order of their declaration with the same greedy padding rules as C. If all the fields have a fully defined layout, then the type has a fully defined layout. Note that this annotation has pure-rust applications such as type-punning or inheritance, and that <code>#[repr(C)]</code> doesn't actually guarantee that the type is FFI-safe.</p>
+</li>
+<li>
+<p><code>#[repr(simd)]</code> on a struct is the same as <code>#[repr(C)]</code>, except it gives the type the vector type-kind. This feature is currently unstable without any proposed path to stabilization. Longterm, stable vector-kind types should be available in the stdlib. Short-term they are unstably available in the <code>simd</code> crate.</p>
+</li>
+<li>
+<p><code>#[repr(transparent)]</code> on a struct with a single field gives it the ABI of its field. So if it contains an <code>i32</code>, it has the ABI of <code>i32</code>. Generally this is only necessary to get a matching type-kind, as size and alignment will otherwise naturally match the field. This is especially useful for making FFI-safe newtyped integers (like for typed units).</p>
+</li>
+<li>
+<p><code>#[repr(packed)]</code> on a struct removes any padding and sets the type's alignment to 1, making it compatible with packed structs in C. Note that this will lead to fields being misaligned. Direct accesses to the fields will generate code to manage this misalignment, but taking pointers to these fields is dangerous as the compiler will &quot;forget&quot; that they are misaligned and subsequently assume that they are, leading to Undefined Behaviour.</p>
+</li>
+<li>
+<p><code>#[repr(align=X)]</code> on a struct forces the struct to be aligned to at least <code>X</code>. This may in turn affect size.</p>
+</li>
+<li>
+<p><code>#[repr(C)]</code> on a fieldless enum makes the enum have the same ABI as a C enum with the same declaration. So it will have integer type-kind and the size and alignment of whatever integer type the target's C enums are desugarred to (usually <code>int</code>?). Note that unlike C, unspecified values are still forbidden.</p>
+</li>
+<li>
+<p><code>#[repr(int)]</code> (where <code>int</code> is any of the primitive integer types, such as <code>u8</code>) on a fieldless enum makes the enum have the same ABI as the given integer type. Note that unlike C, unspecified values are still forbidden.</p>
+</li>
+<li>
+<p><code>#[repr(int)]</code> or <code>#[repr(C)]</code> on an enum with fields will give it <a href="https://github.com/rust-lang/rfcs/blob/master/text/2195-really-tagged-unions.md">a defined C-compatible tagged union representation</a>.</p>
+</li>
+</ul>
+<p>And that's everything I know about defining type layouts and ABIs in Rust!</p>
+<h1 id="extended-random-notes" class="section-header"><a href="#extended-random-notes">3 Extended Random Notes</a></h1>
+<p>Welcome to The Turbo Footnotes, where I just dump random stuff that is tangentially related.</p>
+<h2 id="the-c-integer-hierarchy" class="section-header"><a href="#the-c-integer-hierarchy">3.1 The C Integer Hierarchy</a></h2>
+<p>So C had two problems it was trying to solve: different platforms have different values for the size of a byte (the smallest unit of addressable memory), and different platforms have different &quot;native&quot; (most efficient/important) integer sizes.</p>
+<p>Their solution to this was two-fold: define a type for the platform's unit of memory (<code>char</code>) and then define a hierarchy of integers with different sizing constraints between them. In this way code could theoretically be portable and run reasonably well on 10-bit-byte platforms, 16-bit platforms, 32-bit platforms, and so on.</p>
+<p>The constraints for the core integer types are as follows:</p>
+<ul>
+<li><code>char</code> is at least 8 bits, and all other types must be a multiple of its size (<code>CHAR_BIT</code>)</li>
+<li><code>short</code> is at least 16 bits, but also at least a <code>char</code></li>
+<li><code>int</code> is at least a <code>short</code> (intended to be the &quot;native&quot; integer size)</li>
+<li><code>long</code> is at least 32 bits, but also at least an <code>int</code></li>
+<li><code>long long</code> is at least 64 bits, but also at least a <code>long</code></li>
+</ul>
+<p>So on the surface this is a fairly reasonable hierarchy: if you want 16-bit value, use a short. If you want a 32-bit value, use a long. They might be bigger, but that's probably fine... right?</p>
+<p>Well no because it turns out exact size is kinda important! For instance if you need to read/write exactly 32 bits out of some binary format, how are you supposed to do that? If you use a <code>long</code>, it could access 64 bits! Also which of these is suitable to store the bits of a pointer? (<code>intptr_t</code> was only added in C99!)</p>
+<p>This isn't just a theoretical concern. During the 32-bit era, assuming <code>int</code> was <em>exactly</em> 32 bits became so rampant that when 64-bit hardware started to show up, compiler developers were forced to define <code>int</code> to still be 32 bits, as too much software was completely busted when <code>int</code> was anything else.</p>
+<p>Of course the whole point of <code>int</code> is that its <em>supposed</em> to be the native integer size, so this in turn pushed compiler developers to abuse the fact that signed overflow is undefined to allow <code>int</code> to be implicitly promoted to 64-bit in places where it really mattered.</p>
+<p>There was a really great compiler dev (gcc?) email about this history but I can't seem to find it anymore. So for the time-being I'll settle for <a href="https://gist.github.com/rygorous/e0f055bfb74e3d5f0af20690759de5a7">Fabien Gysen's discussion on the matter</a>.</p>
+<h2 id="endianness" class="section-header"><a href="#endianness">3.2 Endianness</a></h2>
+<p>For integers and floats, endianness (AKA byte-order) specifies how the individual bytes of the value are ordered. In a big-endian encoding they're written out like you would write numbers on paper: the most significant bytes come first. In a little-endian system the least significant bytes come first. As far as I can tell this is basically the systems programming version of oxford commas, in that it really doesn't matter much but everyone has strong opinions so you regularly see both.</p>
+<p>These days little-endian has largely won the battle for what new hardware uses as its native format (e.g. all x64 chips and most ARM chips), while big-endian has been relegated to being the storage/wire encoding for a bunch of random formats.</p>
+<p>With that said, it's really easy to write programs that are agnostic to the native endianness of a platform, so it's really not a big deal for Rust to support the remaining big-endian platforms.</p>
+<h2 id="segmented-architectures" class="section-header"><a href="#segmented-architectures">3.3 Segmented Architectures</a></h2>
+<p>A segmented architecture, for our purposes, is one in which pointers that have an identical runtime representation may actually refer to different regions of memory, because they are associated with different <em>segments</em>.</p>
+<p>One example generously provided to me by John Regehr is the <a href="http://www.kjit.bme.hu/images/stories/targyak/jarmufedelzeti_rendszerek/atmel_atmega128_manual.pdf">ATmega128</a>, an 8-bit arduino microcontroller which has 4 segments: SRAM, EEPROM, ROM, and I/O.</p>
+<p>I am aware of three reasons why segmentation can be messy to the programming model:</p>
+<ul>
+<li>Pointers to segments may have different properties/requirements.</li>
+<li>How pointer equality/comparison between pointers to different segments should work is unclear.</li>
+<li>Segmentation may involve decoupling the size of a pointer and the size of a pointer offset, which Rust currently mandates are equal (usize).</li>
+</ul>
+<p>Unfortunately I am running out of steam here and really am only peripherally aware of these issues, so uh, I'm just gonna leave it at that for now. Someone else figure this out!</p>
+
+    </div>
+
+</body>
+</html>

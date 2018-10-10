@@ -18,10 +18,34 @@
 }
 
 .simple-list{
-  list-style:none;  
+  list-style:none;
 }
 
 .content{
 	max-width: 55em;
 	margin: auto;
+}
+
+tr:nth-child(even) {
+  background-color: #eee;
+}
+
+table {
+  table-layout: fixed;
+}
+
+th, td {
+  padding-left: 15px;
+  padding-right: 15px;
+  padding-top: 2px;
+}
+
+.author {
+  font-weight: bold;
+  font-size: 24px;
+}
+
+.date {
+  font-style: italic;
+  font-size: 24px;
 }
