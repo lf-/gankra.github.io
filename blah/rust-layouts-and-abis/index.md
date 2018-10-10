@@ -6,13 +6,13 @@
 
 Over the years I've found myself with a weird amount of knowledge about how types and ABIs in Rust work, and I wanted to write it all down in one place so that... it's written down in one place. Much of this information can or should be found in the [Rust Language Reference][reference] and the [Rustonomicon][nomicon].
 
-
+Special thanks to ubsan (the person, not the tool) for doing tons of fact-checking on this one!
 
 
 
 # The Anatomy of a Platform
 
-There are a lot of exotic platforms out there, and C(++) is kinda jacked up from trying to support them all. Some of these distortions are annoying but technically fair, like not defining integers to be two's complement or not defining a byte (char) to be 8 bits, because those captured genuine differences between platforms at the time. Others are more just an artifact from C trying something that ended up being a mistake, like [the weird integer size fuzziness and promotion stuff][int-history].
+There are a lot of exotic platforms out there, and C is kinda jacked up from trying to support them all. Some of these distortions are annoying but technically fair, like not defining integers to be two's complement or not defining a byte (char) to be 8 bits, because those captured genuine differences between platforms at the time. Others are more just an artifact from C trying something that ended up being a mistake, like [the weird integer size fuzziness and promotion stuff][int-history].
 
 A lot of the things C was trying to cope with have largely died off or been relegated to incredibly niche platforms. As such Rust took the opportunity to define more of the properties of the platforms it supports without breaking compatibility with C on those platforms.
 
@@ -60,7 +60,7 @@ As of this writing, extern types are still experimental. `struct MyType { }` can
 
 The most fundamental property of a type is its *size*: how many bytes it occupies in memory. Knowing only the size of a type, it's possible to perform pointer offsets into arrays of that type and to copy values between pointers of that type. The stride of elements in an array is always equal to their size. Values of that type can also be loaded from or stored in registers, though registers generally aren't part of the semantic model of Rust.
 
-In Rust, unlike C(++), types may have a size of 0 (a zero-sized type, or ZST). This generally just means that it doesn't actually exist in memory, and therefore reads/writes of its values are no-ops.
+In Rust, unlike C/C++, types may have a size of 0 (a zero-sized type, or ZST). This generally just means that it doesn't actually exist in memory, and therefore reads/writes of its values are no-ops.
 
 A type's size may be a dynamic property of its values, as is the case for types like `[T]` and `Trait`. Such types don't implement the assumed-to-be-implemented `Sized` trait. Generic functions which wish to work with such a type must opt-in with `<T: ?Sized>`.
 
@@ -151,12 +151,38 @@ struct MyStruct {
 
 The *layout* of a type is its size, alignment, offsets, and the recursive layouts of its fields.
 
-Having the full layout of a type allows one to access the fields of a type. It also makes it possible to convert between types with *compatible* layouts. TODO: explain/define layout compatibility
+Having the full layout of a type allows one to access the fields of a type. It also makes it possible to convert between types with *compatible* layouts. There isn't really a strict definition of compatible layout I can come up with. Basically if you know some memory has the same location in both types, you can reinterpret one type as the other and know what happens to that memory. This is perfectly legal in Rust because we have no type-based alias analysis (TBAA, AKA "strict aliasing").
 
-With the layout of a type, you can do tricky things like convert between two types with compatible layouts, such as from `[u64; 2]` to `[u32; 4]`. Although care must be taken
+For instance, you can create your own kind of inheritance this way:
 
+```rust
+#[repr(C)]
+struct Base {
+    x: u32,
+    y: u64,
+    is_derived: bool,
+}
 
+#[repr(C)]
+struct Derived {
+    base: Base,
+    z: f32,
+}
 
+fn process<'a>(data: &'a Base) {
+    print!("x: {}, y: {}", base.x, base.y);
+
+    if data.is_derived {
+        // upcast from Base to Derived
+        let derived = unsafe { mem::transmute::<&'a Base, &'a Derived>(data) };
+        print!(", z: {}", derived.z);
+    }
+
+    println!("");
+}
+```
+
+Also if you can create a type declaration with compatible layout in C/C++, you can pass that value across the FFI boundary by-reference and have both sides be able to read/write all the fields.
 
 
 
@@ -173,7 +199,7 @@ As of this writing, there are 4 type-kinds that Rust can care about:
 * Aggregate
 * Vector
 
-> NOTE: type-kind is a non-normative concept that makes talking about ABIs clearer to me. All of this could be correctly specified without appealing to it.
+> NOTE: type-kind is a non-normative concept that makes talking about ABIs clearer to me. All of this could be correctly specified without appealing to it. Although it *is* similar to the concept of a type's "class" used in [sysv x64 ABI section 3.2.3][sysv-abi].
 
 The integer and float type-kinds represent the two kinds a primitive can have. If two types have the the same size, alignment, and primitive type-kind, then they are completely ABI compatible (e.g. u64 and usize have identical ABIs on x64 linux).
 
@@ -181,14 +207,14 @@ The aggregate type-kind is the default for any struct, enum, or union. However a
 
 All C structs and unions have the aggregate type-kind. C SIMD types have the vector type-kind. C enums have integer type-kind.
 
-The precise ABI of aggregates and vectors depends on the precise layouts of their fields. So for instance these two types have different ABIs on x64 linux even though they have identical size, alignment, and type-kind:
+The precise ABI of aggregates and vectors depends on the precise ABIs of their fields. So for instance, I believe these two types have different ABIs on x64 linux even though they have identical size, alignment, and type-kind:
 
 ```rust
 #[repr(C)]
 struct Homo(u64, u64);
 
 #[repr(C)]
-struct Hetero(u64, u32, u32);
+struct Hetero(u64, f64);
 ```
 
 
@@ -197,26 +223,26 @@ struct Hetero(u64, u32, u32);
 
 ## The Layouts/ABIs of Builtins
 
-Here is a table of the ABIs of the core primitives in Rust, which C(++) types they are guaranteed to be ABI compatible with, and what values are defined for these types (storing other values in such a type may lead to Undefined Behaviour):
+Here is a table of the ABIs of the core primitives in Rust, which C/C++ types they are guaranteed to be ABI compatible with, and what values are defined for these types (storing other values in such a type may lead to Undefined Behaviour):
 
-|                | size | align | kind    | C(++) type        | defined values              |
+|                | size | align | kind    | C/C++ type        | defined values              |
 |----------------|------|-------|---------|-------------------|-----------------------------|
 | u8             | 1    | 1     | integer | uint8_t           | all                         |
 | u16            | 2    | ≤2    | integer | uint16_t          | all                         |
 | u32            | 4    | ≤4    | integer | uint32_t          | all                         |
 | u64            | 8    | ≤8    | integer | uint64_t          | all                         |
-| u128           | 16   | ≤16   | integer | unsigned __int128 | all                         |
+| u128           | 16   | ≤16   | N/A     | N/A               | all                         |
 | usize          | ptr  | ptr   | integer | uintptr_t         | all                         |
 | i8             | 1    | 1     | integer | int8_t            | all                         |
 | i16            | 2    | ≤2    | integer | int16_t           | all                         |
 | i32            | 4    | ≤4    | integer | int32_t           | all                         |
 | i64            | 8    | ≤8    | integer | int64_t           | all                         |
-| i128           | 16   | ≤16   | integer | __int128          | all                         |
+| i128           | 16   | ≤16   | N/A     | N/A               | all                         |
 | isize          | ptr  | ptr   | integer | intptr_t          | all                         |
 | *const T       | ptr  | ptr   | integer | T*                | all                         |
 | *mut T         | ptr  | ptr   | integer | T*                | all                         |
-| &T             | ptr  | ptr   | integer | T*                | not 0                       |
-| &mut T         | ptr  | ptr   | integer | T*                | not 0                       |
+| &T             | ptr  | ptr   | integer | T*                | not null                    |
+| &mut T         | ptr  | ptr   | integer | T*                | not null                    |
 | Option<&T>     | ptr  | ptr   | integer | T*                | all                         |
 | Option<&mut T> | ptr  | ptr   | integer | T*                | all                         |
 | bool           | 1    | 1     | integer | bool (_Bool)      | 0=false, 1=true             |
@@ -224,8 +250,9 @@ Here is a table of the ABIs of the core primitives in Rust, which C(++) types th
 | f32            | 4    | ≤4    | float   | float             | all                         |
 | f64            | 8    | ≤8    | float   | double            | all                         |
 
+In theory `u128` and `i128` should match the ABI of `__int128` but [they don't right now due to a bug in llvm][llvm-int128].
 
-Note that in practice primitives are *usually* aligned to their size. A smaller alignment is usually an indication that the type is software-emulated on that platform (e.g. `u64` has align 4 on x86, and `u128` has align 8 on x64). Ultimately the size and alignment is just "whatever the target's standard C implementation does", as compatibility is our primary concern here.
+Note that in practice primitives are *usually* aligned to their size. A smaller alignment is often an indication that the type is software-emulated on that platform (e.g. `u64` has align 4 on x86 linux). Ultimately the size and alignment is just "whatever the target's standard C implementation does", as compatibility is our primary concern here.
 
 Arrays (`[T; n]`) have the same layout as C arrays: aligned to `T`, with `n * size_of::<T>()` size, and element `i` is at byte offset `i * size_of::<T>()`. However arrays currently have no specified type-kind, as arrays cannot actually be passed by-value in C (`void func(int x[5])` is semantically identical to `void func(int* x)`).
 
@@ -252,9 +279,9 @@ The following annotations have the following effects on layout and ABI:
 
 * `#[repr(align=X)]` on a struct forces the struct to be aligned to at least `X`. This may in turn affect size.
 
-* `#[repr(C)]` on a fieldless enum makes the enum have the same ABI as a C enum with the same declaration. So it will have integer type-kind and the size and alignment of whatever integer type the target's C enums are desugarred to (usually `int`?). Note that unlike C, unspecified values are still forbidden.
+* `#[repr(C)]` on a fieldless enum makes the enum have the same ABI as a C enum with the same declaration. So it will have integer type-kind and the size and alignment of whatever integer type the target's C enums are desugarred to (usually `int`?). Note that unlike C, all unspecified values are still forbidden.
 
-* `#[repr(int)]` (where `int` is any of the primitive integer types, such as `u8`) on a fieldless enum makes the enum have the same ABI as the given integer type. Note that unlike C, unspecified values are still forbidden.
+* `#[repr(int)]` (where `int` is any of the primitive integer types, such as `u8`) on a fieldless enum makes the enum have the same ABI as the given integer type. This is useful for matching the ABI of `enum MyEnum: some-int-type` in C++. Note that unlike C, all unspecified values are still forbidden.
 
 * `#[repr(int)]` or `#[repr(C)]` on an enum with fields will give it [a defined C-compatible tagged union representation][really-tagged-unions].
 
@@ -294,7 +321,7 @@ This isn't just a theoretical concern. During the 32-bit era, assuming `int` was
 
 Of course the whole point of `int` is that its *supposed* to be the native integer size, so this in turn pushed compiler developers to abuse the fact that signed overflow is undefined to allow `int` to be implicitly promoted to 64-bit in places where it really mattered.
 
-There was a really great compiler dev (gcc?) email about this history but I can't seem to find it anymore. So for the time-being I'll settle for [Fabien Gysen's discussion on the matter][ryg-ints].
+There was a really great compiler dev (gcc?) email about this history but I can't seem to find it anymore. So for the time-being I'll settle for [Fabien Giesen's discussion on the matter][ryg-ints].
 
 
 
@@ -335,3 +362,5 @@ Unfortunately I am running out of steam here and really am only peripherally awa
 [really-tagged-unions]: https://github.com/rust-lang/rfcs/blob/master/text/2195-really-tagged-unions.md
 [ryg-ints]: https://gist.github.com/rygorous/e0f055bfb74e3d5f0af20690759de5a7
 [int-history]: #the-c-integer-hierarchy
+[llvm-int128]: https://github.com/rust-lang/rust/issues/54341
+[sysv-abi]: https://www.uclibc.org/docs/psABI-x86_64.pdf
