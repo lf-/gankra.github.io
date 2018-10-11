@@ -130,6 +130,7 @@
     <span class="ident">z</span>: <span class="ident">u32</span>,
 }</pre>
 <p><code>Vec</code> doesn't have any deterministic ordering, so although we deterministically know the exact offsets <code>x</code> and <code>y</code> will be stored at, we can't know the offset of <code>z</code> or the size of <code>MyStruct</code>, because those facts depend on the size of <code>y</code> which isn't deterministically knowable. As such this type isn't suitable for FFI with C.</p>
+<p>Ok actually it might be the case that alignment also isn't deterministic by default? In which case <code>y</code>'s offset would also be unknown. This is under-defined, and <a href="https://github.com/rust-rfcs/unsafe-code-guidelines/issues/11">is actively being discussed by the Rust developers</a>.</p>
 <h2 id="layout" class="section-header"><a href="#layout">2.4 Layout</a></h2>
 <p>The <em>layout</em> of a type is its size, alignment, offsets, and the recursive layouts of its fields.</p>
 <p>Having the full layout of a type allows one to access the fields of a type. It also makes it possible to convert between types with <em>compatible</em> layouts. There isn't really a strict definition of compatible layout I can come up with. Basically if you know some memory has the same location in both types, you can reinterpret one type as the other and know what happens to that memory. This is perfectly legal in Rust because we have no type-based alias analysis (TBAA, AKA &quot;strict aliasing&quot;).</p>

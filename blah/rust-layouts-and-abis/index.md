@@ -143,7 +143,7 @@ struct MyStruct {
 
 `Vec` doesn't have any deterministic ordering, so although we deterministically know the exact offsets `x` and `y` will be stored at, we can't know the offset of `z` or the size of `MyStruct`, because those facts depend on the size of `y` which isn't deterministically knowable. As such this type isn't suitable for FFI with C.
 
-
+Ok actually it might be the case that alignment also isn't deterministic by default? In which case `y`'s offset would also be unknown. This is under-defined, and [is actively being discussed by the Rust developers][repr-rust].
 
 
 
@@ -369,3 +369,4 @@ Unfortunately I am running out of steam here and really am only peripherally awa
 [ieee-floats]: https://en.wikipedia.org/wiki/IEEE_754
 [endianess]: #endianness
 [segmented]: #segmented-architectures
+[repr-rust]: https://github.com/rust-rfcs/unsafe-code-guidelines/issues/11
