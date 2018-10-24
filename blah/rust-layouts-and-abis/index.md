@@ -412,7 +412,7 @@ For instance, if the caller keeps all of its working set in non-volatile registe
 
 Rather than detail entire calling conventions here, I'm mostly just going to focus on where the distinctions made in the earlier sections of this document affect how different conventions behave. In particular I believe it is sufficient to look at some examples of value passing for the System V ABIs for [x86][sysvx86-abi] ("cdecl") and [x64][sysvx64-abi] (these are the standard Linux/BSD/MacOS calling conventions, although x86 was a bit more wild-west so assume I'm talking about GCC on Linux here while I pray that that has any kind of consistent meaning).
 
-A note on notation: I use `stack -x` to indicate that the value is stored `x` bytes before the frame of the callee (because this system V ABIs store stack arguments in the caller).
+A note on notation: I use `stack -x` to indicate that the value is stored `x` bytes before the frame of the callee (because the System V ABIs store stack arguments in the caller).
 
 Given this decl:
 
