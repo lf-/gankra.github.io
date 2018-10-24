@@ -199,7 +199,7 @@ As of this writing, there are 4 type-kinds that Rust can care about:
 * Aggregate
 * Vector
 
-> NOTE: type-kind is a non-normative concept that makes talking about ABIs clearer to me. All of this could be correctly specified without appealing to it. Although it *is* similar to the concept of a type's "class" used in [sysv x64 ABI section 3.2.3][sysv-abi].
+> NOTE: type-kind is a non-normative concept that makes talking about ABIs clearer to me. All of this could be correctly specified without appealing to it. Although it *is* similar to the concept of a type's "class" used in [sysv x64 ABI section 3.2.3][sysvx64-abi].
 
 The integer and float type-kinds represent the two kinds a primitive can have. If two types have the the same size, alignment, and primitive type-kind, then they are completely ABI compatible (e.g. u64 and usize have identical ABIs on x64 linux).
 
@@ -250,7 +250,7 @@ Here is a table of the ABIs of the core primitives in Rust, which C/C++ types th
 | f32            | 4    | ≤4    | float   | float             | all                         |
 | f64            | 8    | ≤8    | float   | double            | all                         |
 
-In theory `u128` and `i128` should match the ABI of `__int128` but [they don't right now due to a bug in llvm][llvm-int128].
+In theory `u128` and `i128` should match the ABI of `__int128` but [they don't right now due to a bug in llvm][llvm-int128]. Similarly we *could* probably define Rust's `char` to match C++'s `char32_t` but so far no one has cared enough to look into the details and champion the issue.
 
 Note that in practice primitives are *usually* aligned to their size. A smaller alignment is often an indication that the type is software-emulated on that platform (e.g. `u64` has align 4 on x86 linux). Ultimately the size and alignment is just "whatever the target's standard C implementation does", as compatibility is our primary concern here.
 
@@ -275,7 +275,7 @@ The following annotations have the following effects on layout and ABI:
 
 * `#[repr(transparent)]` on a struct with a single field gives it the ABI of its field. So if it contains an `i32`, it has the ABI of `i32`. Generally this is only necessary to get a matching type-kind, as size and alignment will otherwise naturally match the field. This is especially useful for making FFI-safe newtyped integers (like for typed units).
 
-* `#[repr(packed)]` on a struct removes any padding and sets the type's alignment to 1, making it compatible with packed structs in C. Note that this will lead to fields being misaligned. Direct accesses to the fields will generate code to manage this misalignment, but taking pointers to these fields is dangerous as the compiler will "forget" that they are misaligned and subsequently assume that they are, leading to Undefined Behaviour.
+* `#[repr(packed(N))]` on a struct removes any non-trailing padding and sets the type's alignment to N, making it compatible with packed structs in C. Note that this will lead to fields being misaligned. Direct accesses to the fields will generate code to manage this misalignment, but taking pointers to these fields is dangerous as the compiler will "forget" that they are misaligned and subsequently assume that they are, leading to Undefined Behaviour.
 
 * `#[repr(align=X)]` on a struct forces the struct to be aligned to at least `X`. This may in turn affect size.
 
@@ -355,6 +355,150 @@ Unfortunately I am running out of steam here and really am only peripherally awa
 
 
 
+
+## Calling Conventions
+
+ABI can mean a lot of different things to different people. At the end of the day it's a catch-all term
+for "implementation details that at least two things need to agree on for everything to work". In this document we refer to ABI as covering type layout and how the different types/values are passed between C functions, as these are the aspects of the Rust ABI that are guaranteed and useful.
+
+The are additional details of Rust's ABI which are currently unspecified and unstable, such as vtable layouts for trait objects, and how linker/debug symbols are mangled. It's fine if that was gibberish to you, because you aren't really allowed to care about those things right now! (Although that doesn't necessarily stop people from trying...)
+
+Anyway, here I want to zoom in on *calling convention*, which is the argument/return-passing aspect of ABI, since I received a fair amount of questions about it.
+
+For the sake of simplicity I'm only going to focus on the things relevant to calling conventions in C on popular modernish hardware and OSes (read: x86, x64, and AArch64; Mac, Windows, Linux, Android, and iOS). Some exotica off the top of my head that I won't be covering, but might be interesting to you:
+
+* [Lisp machines][lisp-machines]
+* [Stack machines][stack-machines]
+* [Segmented Stacks in Go][go-stacks]
+* [Swift's ownership/ARC ABI][swift-arc]
+* [Non-trivial types in C++][cpp-trivial]
+
+
+
+### Problem and Motivation for Calling Conventions
+
+So first off, the problem: it's pretty common for CPUs to have some kind of native notion of calling a function, but it's generally much simpler than a programming language function call. In its simplest form, a call instruction just tells the CPU to jump to a new set of instructions and start executing those. But functions as we know them in most languages have arguments, and so we need to define some way for the *caller* to set up state so that the *callee* can find those arguments. Function returns are similar, requiring the *callee* to set up state so that the *caller* can pick up where it left off, and also acquire any returned values.
+
+There's two major ways to pass state between the two sides of a function call: in registers, and on the stack. There's a bunch of competing concerns here that make one of the other more desirable and I don't pretend to fully understand them, but I'll try to give a sketch of some of them here.
+
+[Registers][registers] are your CPU's primary observable global (well, thread-local-ish) state. They're incredibly fast to access, but also generally very small. Also registers are usually mandatory to get anything done. CPU instructions can be thought of as little builtin functions with their own adhoc ABIs, and those ABIs generally pass arguments/returns in registers. A nice beefy modern cpu might give you general purpose registers on the order of 32 64-bit values. Less than a KB of working space! SIMD registers might beef this up to a few KB, but they're also much less flexible to use. See also [register renaming][register-renaming] for fun details on how the size of your working set is a lot more complicated than just a number!
+
+Values are passed in registers by just... having them be there! If an argument should be passed in register 1, the caller ensures that value is in register 1 before performing the call, and when the callee starts up it knows register 1 holds that value. Similarly if something should be returned in register 1, the caller just ensures that value is in register 1 before returning control to the callee.
+
+[The stack][stack] is a simple abstraction for extending the working set for your thread with RAM. Stacks are contiguously allocated with some fixed maximum size that should be much larger than registers (often on the order of 8MB these days). In its simplest form, when a function is called it requests that the stack "push" enough space to fit all the state it might need upfront, and when it returns that size is "popped" off. This chunk of space each function requests is known as a *stack frame*. For fun complications, see [alloca][alloca] and [the red zone][red-zone].
+
+The precise details of pushing and popping frames is another thing specific to the calling convention, but I don't think we need to concern ourselves with those details for this discussion. All we need to know is that the stack is predictable enough that values can be passed between functions on the stack by either putting values at the end of the callers stack frame or at the start of the callees frame. In either case the function that isn't responsible for storing the values may assume that enough space for the arguments or return value is in the other's frame, and freely read and write that memory as required.
+
+The main tradeoff for the stack's size is that using it is usually going to be slower than registers. Although as always with modern hardware, that's a complicated matter due to the magic of [caches][caches] and [speculation][speculation]. Regardless, let's proceed under the assumption that keeping stuff off the stack and in registers is ideal.
+
+Note also that, to avoid copying large values into the right registers or right place on the stack, we may instead simply pass a *pointer* to that value (either on the stack or in a register), even if the function signature otherwise suggests that it should be passed by-value. This is particularly effective in cases where a large value gets used in a series of function calls.
+
+The last thing we need to keep in mind to understand calling conventions is our constraints. We need our ABI to work in a fully *virtual* or *dynamic* context. That is, the only thing that the caller and callee both know is the signature of the callee. It must be possible for any other function to call the callee, and for the callee's implementation to be swapped out between calls (such as with vtables or [dynamic linking][dynamic-linking]).
+
+Before we even get into the issue of passing arguments, everything we now know leads to a conflict: both functions want to use registers as much as possible to Go Fast, both functions have the same registers, and neither has any idea which registers the other is actually using!
+
+Here's one very simple (bad) solution: at the start of the callee, save *all* the registers to the stack. Then when the callee is ready to return, restore all the registers from the stack. We call this idea of the callee preserving registers *callee saving* or *non-volatile registers*. This solution is pretty bad because, well, the registers are pretty big! Copying all that data to and from the stack takes a bunch of time. We can do better. (Total aside: this is how [context-switching][context-switching] works, although OSes have tricks to avoid saving/restoring all the registers all the time.)
+
+Here's a slightly better solution: right before performing the call, the caller saves all the registers it actually cares about to the stack. Then the callee can assume it can do whatever it wants with the registers, and the caller just assumes the callee has stomped over all the registers, and reinitializes them as it sees fit. This is *caller saving* or *volatile registers*. By default, this is a lot better because the caller generally won't actually be using many of the registers (especially because most of the register size is in harder-to-use SIMD). Another advantage of this approach is that it now completely frees up all the registers to be used for argument/return value passing!
+
+Modern calling conventions generally have a more hybrid approach which, presumably, is based on typical patterns. Some registers are marked as callee-saved, while others are caller-saved. This gives the callee and caller some flexibility to try to cooperate to avoid register saving.
+
+For instance, if the caller keeps all of its working set in non-volatile registers while the callee keeps all of its working set in volatile registers, then no registers need to be saved at all. This gives a reasonable motivation to keep around a *few* callee-saved registers. Similarly, callee-saving is desirable for code that passes around a "context" pointer to lots of functions (see: `this`/`self` in a huge amount of languages, and I assume several Very Cursed C Frameworks).
+
+
+
+
+### Some Examples of Calling Conventions
+
+Rather than detail entire calling conventions here, I'm mostly just going to focus on where the distinctions made in the earlier sections of this document affect how different conventions behave. In particular I believe it is sufficient to look at some examples of value passing for the System V ABIs for [x86][sysvx86-abi] ("cdecl") and [x64][sysvx64-abi] (these are the standard Linux/BSD/MacOS calling conventions, although x86 was a bit more wild-west so assume I'm talking about GCC on Linux here while I pray that that has any kind of consistent meaning).
+
+A note on notation: I use `stack -x` to indicate that the value is stored `x` bytes before the frame of the callee (because this system V ABIs store stack arguments in the caller).
+
+Given this decl:
+
+```C
+struct Meter { int32_t len; }
+struct Point { int32_t x; int32_t y; };
+
+int32_t process(void* a, float b, struct Meter c, struct Point d);
+```
+
+We get these lowerings:
+
+```text
+process (x86 System V):
+a           void*:  stack -4
+b           float:  stack -8
+c         {int32}:  stack -12
+d  {int32, int32}:  stack -20
+----------------------------------
+return      int32:  register eax
+```
+
+```text
+process (x64 System V):
+a           void*:  register rdi
+b           float:  register xmm0
+c         {int32}:  register rsi
+d  {int32, int32}:  register rdx
+----------------------------------
+return      int32:  register rax
+```
+
+Right away we see the older ABI mostly just passes things on the stack, while the newer ABI aggressively passes things in registers. Note that the `float b` argument is passed in the `xmm` registers instead of the general purpose `r` ones, as floats and integers are treated differently (motivating our distinction of the two).
+
+The distinction between a composite and primitive is motivated by how return values are handled in the x86 ABI. If we change `process` to return a `Meter`, we get the following:
+
+```text
+process (x86 System V):
+return    {int32}:  stack -4
+a           void*:  stack -8
+b           float:  stack -12
+c         {int32}:  stack -16
+d  {int32, int32}:  stack -24
+----------------------------------
+return   {int32}*:  register eax (pointer to stack -4)
+```
+
+```text
+process (x64 System V)
+a           void*:  register rdi
+b           float:  register xmm0
+c         {int32}:  register rsi
+d  {int32, int32}:  register rdx
+----------------------------------
+return    {int32}:  register rax
+```
+
+Even though the layout of the type is identical, the x86 ABI always passes structs and unions on the stack as an implicit first argument. The x64 ABI "fixes" this, and just treats the two identically.
+
+However the x64 ABI is very complex in how it passes composites by-value. Consider these two declarations:
+
+```C
+struct Ints         { int32_t a; int32_t b; int32_t c; int32_t d; };
+struct IntAndFloats { int32_t a;   float b;   float c;   float d; };
+
+void process1(struct Ints vals);
+void process2(struct IntAndFloats vals):
+```
+
+```text
+process1 (x64 System V)
+(vals.a, vals.b):  register rdi
+(vals.c, vals.d):  register rsi
+```
+
+```text
+process2 (x64 System V)
+(vals.a, vals.b):  register rdi
+(vals.c, vals.d):  register xmm0
+```
+
+The x64 ABI chunks structs into 8-byte chunks and does a recursive classification of the fields. In this case, we see that for the first half of `IntAndFloats` the integer `a` "dominates" the float `b`, and so that chunk is passed in general purpose registers. However the second chunk consists entirely of floats, and so is passed in `xmm0`. This shows us that we need to know the exact ABIs of all of the fields of a composite to properly pass it in the x64 ABI.
+
+
+
+
 [reference]: https://doc.rust-lang.org/reference/
 [nomicon]: https://doc.rust-lang.org/nomicon/
 [ATmega128]: http://www.kjit.bme.hu/images/stories/targyak/jarmufedelzeti_rendszerek/atmel_atmega128_manual.pdf
@@ -363,10 +507,25 @@ Unfortunately I am running out of steam here and really am only peripherally awa
 [ryg-ints]: https://gist.github.com/rygorous/e0f055bfb74e3d5f0af20690759de5a7
 [int-history]: #the-c-integer-hierarchy
 [llvm-int128]: https://github.com/rust-lang/rust/issues/54341
-[sysv-abi]: https://www.uclibc.org/docs/psABI-x86_64.pdf
+[sysvx86-abi]: https://www.uclibc.org/docs/psABI-i386.pdf#section.2.2
+[sysvx64-abi]: https://software.intel.com/sites/default/files/article/402129/mpx-linux64-abi.pdf#section.3.2
 [rust-platforms]: https://forge.rust-lang.org/platform-support.html
 [twos-complement]: https://en.wikipedia.org/wiki/Two%27s_complement
 [ieee-floats]: https://en.wikipedia.org/wiki/IEEE_754
 [endianess]: #endianness
 [segmented]: #segmented-architectures
 [repr-rust]: https://github.com/rust-rfcs/unsafe-code-guidelines/issues/11
+[register-renaming]: https://en.wikipedia.org/wiki/Register_renaming
+[stack-machines]: https://en.wikipedia.org/wiki/Stack_machine
+[lisp-machines]: https://en.wikipedia.org/wiki/Lisp_machine
+[go-stacks]: https://blog.cloudflare.com/how-stacks-are-handled-in-go/
+[swift-arc]: https://github.com/apple/swift/blob/edfb86f09aaf8cfcc1a0608bdcd6fe21b7a35460/docs/CallingConvention.rst#responsibility
+[alloca]: http://man7.org/linux/man-pages/man3/alloca.3.html
+[red-zone]: https://en.wikipedia.org/wiki/Red_zone_(computing)
+[registers]: https://en.wikipedia.org/wiki/Processor_register
+[stack]: https://en.wikipedia.org/wiki/Call_stack
+[caches]: https://en.wikipedia.org/wiki/CPU_cache
+[speculation]: https://en.wikipedia.org/wiki/Speculative_execution
+[dynamic-linking]: https://en.wikipedia.org/wiki/Dynamic_linker
+[context-switching]: https://en.wikipedia.org/wiki/Context_switch
+[cpp-trivial]: https://quuxplusone.github.io/blog/2018/05/02/trivial-abi-101/
