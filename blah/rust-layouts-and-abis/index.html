@@ -166,7 +166,7 @@
 }</pre>
 <p>Also if you can create a type declaration with compatible layout in C/C++, you can pass that value across the FFI boundary by-reference and have both sides be able to read/write all the fields.</p>
 <h2 id="abi" class="section-header"><a href="#abi">2.5 ABI</a></h2>
-<p>The layout of a type is enough to do anything you want to do with a type <em>within Rust</em>, but it's insufficient for full communication with C. In particular, it's insufficient for passing things <em>by value</em> to a C function. This is because there are additional properties that define the <em>ABI</em> (Application Binary Interface) of a type. The ABI of a type determines how it is passed to a C function by-value.</p>
+<p>The layout of a type is enough to do anything you want to do with a type <em>within Rust</em>, but it's insufficient for full communication with C. In particular, it's insufficient for passing things <em>by value</em> to a C function. This is because there are additional properties that define the <em>ABI</em> (Application Binary Interface) of a type. The ABI of a type determines how it is passed to a C function by-value (<a href="#calling-conventions">see the section on calling conventions for details</a>).</p>
 <p>To my knowledge the only property that is unique to ABI is that of <em>type-kind</em>. Although <code>#[repr(C)] struct MyType(u32)</code>, <code>u32</code>, and <code>f32</code> may be layout compatible on a given target, they may still have incompatible ABIs because they have a different type-kind.</p>
 <p>As of this writing, there are 4 type-kinds that Rust can care about:</p>
 <ul>

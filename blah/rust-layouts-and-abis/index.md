@@ -188,7 +188,7 @@ Also if you can create a type declaration with compatible layout in C/C++, you c
 
 ## ABI
 
-The layout of a type is enough to do anything you want to do with a type *within Rust*, but it's insufficient for full communication with C. In particular, it's insufficient for passing things *by value* to a C function. This is because there are additional properties that define the *ABI* (Application Binary Interface) of a type. The ABI of a type determines how it is passed to a C function by-value.
+The layout of a type is enough to do anything you want to do with a type *within Rust*, but it's insufficient for full communication with C. In particular, it's insufficient for passing things *by value* to a C function. This is because there are additional properties that define the *ABI* (Application Binary Interface) of a type. The ABI of a type determines how it is passed to a C function by-value ([see the section on calling conventions for details][calling-conventions]).
 
 To my knowledge the only property that is unique to ABI is that of *type-kind*. Although `#[repr(C)] struct MyType(u32)`, `u32`, and `f32` may be layout compatible on a given target, they may still have incompatible ABIs because they have a different type-kind.
 
@@ -529,3 +529,4 @@ The x64 ABI chunks structs into 8-byte chunks and does a recursive classificatio
 [dynamic-linking]: https://en.wikipedia.org/wiki/Dynamic_linker
 [context-switching]: https://en.wikipedia.org/wiki/Context_switch
 [cpp-trivial]: https://quuxplusone.github.io/blog/2018/05/02/trivial-abi-101/
+[calling-conventions]: #calling-conventions
