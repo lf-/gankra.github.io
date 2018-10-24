@@ -361,7 +361,7 @@ Unfortunately I am running out of steam here and really am only peripherally awa
 ABI can mean a lot of different things to different people. At the end of the day it's a catch-all term
 for "implementation details that at least two things need to agree on for everything to work". In this document we refer to ABI as covering type layout and how the different types/values are passed between C functions, as these are the aspects of the Rust ABI that are guaranteed and useful.
 
-The are additional details of Rust's ABI which are currently unspecified and unstable, such as vtable layouts for trait objects, and how linker/debug symbols are mangled. It's fine if that was gibberish to you, because you aren't really allowed to care about those things right now! (Although that doesn't necessarily stop people from trying...)
+There are additional details of Rust's ABI which are currently unspecified and unstable, such as vtable layouts for trait objects, and how linker/debug symbols are mangled. It's fine if that was gibberish to you, because you aren't really allowed to care about those things right now! (Although that doesn't necessarily stop people from trying...)
 
 Anyway, here I want to zoom in on *calling convention*, which is the argument/return-passing aspect of ABI, since I received a fair amount of questions about it.
 

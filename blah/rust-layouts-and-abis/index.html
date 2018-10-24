@@ -284,7 +284,7 @@
 <h2 id="calling-conventions" class="section-header"><a href="#calling-conventions">3.4 Calling Conventions</a></h2>
 <p>ABI can mean a lot of different things to different people. At the end of the day it's a catch-all term
 for &quot;implementation details that at least two things need to agree on for everything to work&quot;. In this document we refer to ABI as covering type layout and how the different types/values are passed between C functions, as these are the aspects of the Rust ABI that are guaranteed and useful.</p>
-<p>The are additional details of Rust's ABI which are currently unspecified and unstable, such as vtable layouts for trait objects, and how linker/debug symbols are mangled. It's fine if that was gibberish to you, because you aren't really allowed to care about those things right now! (Although that doesn't necessarily stop people from trying...)</p>
+<p>There are additional details of Rust's ABI which are currently unspecified and unstable, such as vtable layouts for trait objects, and how linker/debug symbols are mangled. It's fine if that was gibberish to you, because you aren't really allowed to care about those things right now! (Although that doesn't necessarily stop people from trying...)</p>
 <p>Anyway, here I want to zoom in on <em>calling convention</em>, which is the argument/return-passing aspect of ABI, since I received a fair amount of questions about it.</p>
 <p>For the sake of simplicity I'm only going to focus on the things relevant to calling conventions in C on popular modernish hardware and OSes (read: x86, x64, and AArch64; Mac, Windows, Linux, Android, and iOS). Some exotica off the top of my head that I won't be covering, but might be interesting to you:</p>
 <ul>
