@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>The Kinds of Implementation-Defined?</title>
+
+    
+        <link href="../bootstrap.min.css" rel="stylesheet" type="text/css">
+    <link href="../bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
+    <link href="../rust.css" rel="stylesheet" type="text/css">
+   <link href="../style.css" rel="stylesheet" type="text/css">
+
+
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    <div class="content">
+
+
+    <h1 class="title">The Kinds of Implementation-Defined?</h1>
+    <p><span class="author">Alexis Beingessner</span></p>
+<p><span class="date">November 13th, 2018</span></p>
+<p>This post is intended to try to shake loose a distinction I found myself trying to make.</p>
+<p>When designing a specification you will inevitably run into a corner case. The compiler world has generally adopted a 4-tier system for these non-obvious situations:</p>
+<ul>
+<li><strong>Defined Behaviour:</strong> here's exactly what implementations should do (at least semantically)</li>
+<li><strong>Undefined Behaviour</strong>: implementation may freely assume this <em>cannot</em> happen</li>
+<li><strong>Unspecified Behaviour</strong>: implementations may do whatever (&quot;soft&quot; undefined behaviour)</li>
+<li><strong>Implementation-Defined Behaviour</strong>: implementations must pick a solution and document it.</li>
+</ul>
+<p>I could write a bunch about these different approaches and how they have internal sub-strategies, but today I want to focus in on the last one: implementation-defined behaviour.</p>
+<p>In my mind there are two distinct reasons to adopt implementation-defined behaviour, and they're different enough that I want them to just be distinct categories:</p>
+<ol>
+<li>
+<p>This is modeling something inherently platform-specific, and so we need to be able to make this do different things on different platforms. But on all (or most) platforms, the decision is fairly straight-forward, and it would be strange for two implementations that target the same platform to make a different decision here. Let's call this <strong>platform-defined</strong>.</p>
+</li>
+<li>
+<p>There's some kind of fundamental tradeoff here that reasonable implementations could disagree on. An implementation may even want to make this configurable since it's a policy decision best made by the end-user. Let's call this <strong>configurable</strong>.</p>
+</li>
+</ol>
+<p>Let's look at some examples.</p>
+<p>The size of a pointer is a good example of something which is largely platform-defined. Once you know you're targeting x64 windows, you know the size of a pointer should be 64-bit. But we consider this &quot;implementation-defined&quot; because we lack that level of nuance.</p>
+<p>Many other implementation-defined choices in C are pretty clearly concessions to things which might reasonably (at the time) vary from platform-to-platform: the value of NULL, the size of int (intended to be the platform's &quot;native&quot; integer size), what a float even is, and so on. In many of these cases, the OS or hardware tend to make these decision pretty straight-forward. (Except for int on 64-bit systems, which has ended up being more defined by backwards compatibility concerns, but that is in some sense still an aspect of the platform.)</p>
+<p>ABIs, which generally directly reference hardware-specific elements like registers, are also necessarily implementation-defined. But at the same time, if you want to interoperate with your OS's libraries, you better stick to their definition!</p>
+<p>At the moment the best examples of &quot;configurable&quot; I can think of are what has become of some of the more controversial instances of Undefined Behaviour in C. Major compilers have moved towards a model where flags can be provided to make some of these normally undefined behaviours <em>only</em> implementation-defined.</p>
+<p>Althought signed integer overflow is Undefined Behaviour, the major C compilers let users specify implementation-defined strategies instead. Specifically, developers may choose &quot;trap on overflow&quot; (ftrapv) and &quot;wrap on overflow&quot; (fwrapv). Integer overflow is a problem no one can agree on with very real tradeoffs, while also having little impact on modern platform-compatibility. Making it implementation-defined in this way is a reasonable strategy.</p>
+<p>The Rust team actually adopted this strategy as part of the language specification: overflow is <em>defined</em> to either wrap or panic, and that should be defined by the compiler (also the panic may be deferred slightly by an implementation to allow overflow checks to be coalesced for better codegen).</p>
+<p>In rustc, this is accomplished by:</p>
+<ul>
+<li>panic in debug (so hopefully you catch it in testing)</li>
+<li>wrap in release (in the hopes that it's benign, and also to get better codegen)</li>
+<li>A <code>-C overflow-checks=on|off</code> flag to explicitly request panics (on) or wrapping (off)</li>
+</ul>
+<p>Anyway, that's just my thoughts on implementation-defined behaviour. What do you think?</p>
+
+    </div>
+
+</body>
+</html>
