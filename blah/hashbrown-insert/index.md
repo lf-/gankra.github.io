@@ -11,10 +11,11 @@ most surprising things I found was in the implementation of `insert`, which was 
 
 ```rust
 fn insert(&mut self, key: K, val: V) {
-    if let Some(old_val) = self.get_mut(&key) {
+    let hash = self.hash(&key);
+    if let Some(old_val) = self.get_mut(hash, &key) {
         *old_val = val;
     } else {
-        self.really_insert(key, val);
+        self.really_insert(hash, key, val);
     }
 }
 ```
@@ -198,10 +199,11 @@ But hey, that double simple loop looks familiar, what was that implementation th
 
 ```rust
 fn insert(&mut self, key: K, val: V) {
-    if let Some(old_val) = self.get_mut(&key) {
+    let hash = self.hash(&key);
+    if let Some(old_val) = self.get_mut(hash, &key) {
         *old_val = val;
     } else {
-        self.really_insert(key, val);
+        self.really_insert(hash, key, val);
     }
 }
 ```
@@ -234,8 +236,8 @@ fn insert(&mut self, key: K, val: V) {
         }
 
         // SIMD-equals to get a bitvector, and just check if it's 0
-        // (if not, this cluster is entirely keys and tombstones)
-        if bucket_cluster.get_all_matches(EMPTY) == 0 {
+        // (if it is, this cluster is entirely keys and tombstones, so keep going)
+        if bucket_cluster.get_all_matches(EMPTY) != 0 {
             // EXTREMELY likely that we do this on the first iteration
             break;
         }
