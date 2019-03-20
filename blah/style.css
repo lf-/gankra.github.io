@@ -49,3 +49,8 @@ th, td {
   font-style: italic;
   font-size: 24px;
 }
+
+
+body {
+  margin-bottom: 15em;
+}
