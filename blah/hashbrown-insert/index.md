@@ -259,3 +259,21 @@ fn insert(&mut self, key: K, val: V) {
 
 And that's why insertion in hashbrown does a double-lookup.
 
+edit: a bunch of people have asked so just to be clear, the Entry API still saves
+a good amount of work:
+
+```rust
+if !map.contains(&k) {
+    map.insert(k, v);
+}
+```
+
+
+This will result in `hash(); get(); hash(); get(); really_insert();` in the worst-case. The
+entry API:
+
+```rust
+map.entry(k).or_insert(v);
+```
+
+only ever does `hash(); get(); really_insert();`
