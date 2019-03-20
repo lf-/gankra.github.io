@@ -129,6 +129,7 @@ most surprising things I found was in the implementation of <code>insert</code>,
         <span class="kw">if</span> <span class="op">!</span><span class="ident">bucket</span>.<span class="ident">has_key</span>() {
             <span class="comment">// insert into the first non-key bucket (empty or tombstone)</span>
             <span class="ident">bucket</span>.<span class="ident">set</span>(<span class="ident">key</span>, <span class="ident">val</span>);
+            <span class="kw">return</span>;
         }
     }
 }</pre></div>

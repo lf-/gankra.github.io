@@ -152,6 +152,7 @@ fn insert(&mut self, key: K, val: V) {
         if !bucket.has_key() {
             // insert into the first non-key bucket (empty or tombstone)
             bucket.set(key, val);
+            return;
         }
     }
 }
