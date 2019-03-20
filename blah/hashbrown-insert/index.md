@@ -19,7 +19,7 @@ fn insert(&mut self, key: K, val: V) {
 }
 ```
 
-This shocked me because it was doing something that was so offensive to people who care about collection performance that we had [designed an entire API so to help people avoid it](https://doc.rust-lang.org/std/collections/index.html#entries): it did two lookups in the map.
+This shocked me because it was doing something that was so offensive to people who care about collection performance that we had [designed an entire API to help people avoid it](https://doc.rust-lang.org/std/collections/index.html#entries): it did two lookups in the map.
 
 However, after some more discussion and review, I concluded that this implementation was reasonable. This post will try to cover why that is.
 

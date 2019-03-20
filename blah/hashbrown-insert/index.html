@@ -39,7 +39,7 @@ most surprising things I found was in the implementation of <code>insert</code>,
         <span class="self">self</span>.<span class="ident">really_insert</span>(<span class="ident">key</span>, <span class="ident">val</span>);
     }
 }</pre></div>
-<p>This shocked me because it was doing something that was so offensive to people who care about collection performance that we had <a href="https://doc.rust-lang.org/std/collections/index.html#entries">designed an entire API so to help people avoid it</a>: it did two lookups in the map.</p>
+<p>This shocked me because it was doing something that was so offensive to people who care about collection performance that we had <a href="https://doc.rust-lang.org/std/collections/index.html#entries">designed an entire API to help people avoid it</a>: it did two lookups in the map.</p>
 <p>However, after some more discussion and review, I concluded that this implementation was reasonable. This post will try to cover why that is.</p>
 <h1 id="hashmap-basics" class="section-header"><a href="#hashmap-basics">Hashmap Basics</a></h1>
 <p>Before we get into the details, we need a quick primer on how hashmaps work.</p>
