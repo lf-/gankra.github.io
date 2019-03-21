@@ -165,7 +165,7 @@ fn insert(&mut self, key: K, val: V) {
 fn insert(&mut self, key: K, val: V) {
     let index = self.hash(key);
 
-    let first_tombstone = None;
+    let mut first_tombstone = None;
 
     for bucket in self.iterate_buckets_from(index) {
         if bucket.has_key() {
