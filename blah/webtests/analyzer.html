@@ -1,0 +1,87 @@
+<html>
+<head>
+<style>
+    body { width: 100%;}
+    .pair { width: 100%; }
+    iframe { width: 40%; height: 40em; }
+    
+</style>
+</head>
+
+<body>
+  <input id="tests"></input>
+  <button id="submit" onclick="submit()"></button>
+
+  <div id="content">
+  </div>
+  <div class="pair">
+  <iframe src="file:///Users/ABeingessner/dev/gecko/layout/reftests/text-shadow/blur-opacity.html"></iframe>
+  <iframe src="file:///Users/ABeingessner/dev/gecko/layout/reftests/text-shadow/blur-opacity-ref.html"></iframe>
+  </div>
+  
+  
+
+
+<script>
+
+function submit() {
+    let input = document.getElementById("tests").textContent;
+    let tests = input.split("\n");
+
+    let content = document.getElementById("content");
+    content.innerHTML = "";
+    for (test in tests) {
+        let pair = document.createElement("div");
+        pair.classList.add("pair");
+        
+        let title = document.createElement("div");
+        title.classList.add("testname");
+        title.innerHTML = test;
+
+        processReftest(test, "", pair);
+        
+        content.appendChild(pair);
+    }
+}
+
+function processReftest(input, userBase, targetElem) {
+
+    var halves = input.split(" == ");
+    let shouldBeEqual = (halves.length == 2);
+    if (!shouldBeEqual) {
+      halves = input.split(" != ");
+    }
+
+    
+    let first = localizePath(halves[0], userBase, targetElem);
+    let second = localizePath(halves[1], userBase, targetElem);
+}
+
+function localizePath(input, userBase, targetElem) {
+    // example file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/position-sticky/inline-3.html 
+    let commonPrefix = "file:///builds/worker/workspace/build/tests/reftest/tests/";
+    let parts = input.split(commonPrefix);
+    var suffix;
+
+    if (parts.length == 1) {
+        // example http://localhost:46691/1505412828906/601/text-shadow/blur-opacity-ref.html
+        let localHostPrefix = "://localhost:";
+        let parts = input.split(localHostPrefix)[1].split("/");
+        suffix = "layout/reftests/" + parts.slice(3).join("/"); 
+    } else {
+        suffix = parts[1];
+    }
+
+    let path = userPrefix + suffix;
+    let iframe = document.createElement("iframe");
+    iframe.src = path;
+    targetElem.appendChild(iframe);
+}
+
+/*
+!   file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/position-sticky/inline-3.html == file:///builds/worker/workspace/build/tests/reftest/tests/layout/reftests/position-sticky/inline-3-ref.html
+*/
+
+</script>
+</body>
+</html>
