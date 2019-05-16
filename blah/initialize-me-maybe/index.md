@@ -4,7 +4,7 @@
 
 <span class="date">May 16th, 2019 -- Rust Nightly 1.36.0</span>
 
-Rust's infamous mem::unitialized method has been deprecated. Its replacement, MaybeUninit, has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.
+Rust's infamous mem::uninitialized method has been deprecated. Its replacement, MaybeUninit, has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.
 
 Most of this post is dedicated to discussing the nature of uninitialized memory and how it can be worked with in Rust. [Feel free to skip to the details on why mem::uninitialized is broken][section-what-went-wrong].
 
@@ -119,7 +119,7 @@ if some_other_condition() {
                         // - if init, drop it
 ```
 
-That lets the compiler know when destructors should be run, but doesn't allow us to actually work with dynamically initialzed values. We're still only allowed to insert an explicit read if the value is *statically* known to be initialized. For truly dynamic initialization, rust has the Option type (or any enum, really):
+That lets the compiler know when destructors should be run, but doesn't allow us to actually work with dynamically initialized values. We're still only allowed to insert an explicit read if the value is *statically* known to be initialized. For truly dynamic initialization, rust has the Option type (or any enum, really):
 
 ```rust
 #fn some_condition() -> bool { true }
@@ -195,7 +195,7 @@ error[E0381]: borrow of possibly uninitialized variable: `x`
   |                    ^^^^^^^ use of possibly uninitialized `x.case1`
 ```
 
-But the cases of our union have assymteric sizes. What happens if we initialize the small case, but read from the large one?
+But the cases of our union have asymmetric sizes. What happens if we initialize the small case, but read from the large one?
 
 ```rust
 union MyUnion {
@@ -246,9 +246,9 @@ Unlike C++, Rust does not have the notion of an ["active" union member][cpp-acti
 
 Finally, we come to the focus of this post.
 
-The intended semantic of `mem::uninitialized` is that it pretends to create a value to initialize some memory, but it doesn't actually do anything. In doing this, the static initialization checker becomes convinced the memory is initialized, but no work has been done. The motivation for this function is cases where you want to dynamically initialize a value in a way that the compiler just can't understand, with no overhead at all.
+The intended semantic of mem::uninitialized is that it pretends to create a value to initialize some memory, but it doesn't actually do anything. In doing this, the static initialization checker becomes convinced the memory is initialized, but no work has been done. The motivation for this function is cases where you want to dynamically initialize a value in a way that the compiler just can't understand, with no overhead at all.
 
-For the compiler people out there, `mem::uninitialized` simply lowers to [llvm's undef][undef].
+For the compiler people out there, mem::uninitialized simply lowers to [llvm's undef][undef].
 
 Of course, you need to be careful how you use this, especially if the type you're pretending to initialize has a destructor, but you could imagine being able to do it right with `ptr::write` and `ptr::read`. For Copy types, it's seemingly not that hard at all. Here's the kind of program that motivated this feature:
 
@@ -300,7 +300,7 @@ For me, on the day of writing this, this program compiles and executes fine. Unf
 * a `char` outside the ranges [0x0, 0xD7FF] and [0xE000, 0x10FFFF]
 * A non-utf8 `str`
 
-Remember when I said that compilers can magically make uninitialized memory any value they want? And how they want everything to be Undefined Behaviour? Well because we tell the compiler that a bool is either 0 or 1, if the compiler can prove that a value of type bool is uninitialized memory it has succesfully proven the program has Undefined Behaviour. No, it doesn't matter that we didn't read the uninitialized memory.
+Remember when I said that compilers can magically make uninitialized memory any value they want? And how they want everything to be Undefined Behaviour? Well because we tell the compiler that a bool is either 0 or 1, if the compiler can prove that a value of type bool is uninitialized memory it has successfully proven the program has Undefined Behaviour. No, it doesn't matter that we didn't read the uninitialized memory.
 
 So although mem::uninitialized *can* possibly be used correctly, for some types it's *impossible* to use correctly. As such, we're tossing it in the trash. It's a bad design. You should use its replacement, MaybeUninit.
 
