@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>Here&#39;s My Type, So Initialize Me Maybe</title>
+
+    
+        <link href="../bootstrap.min.css" rel="stylesheet" type="text/css">
+    <link href="../bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
+    <link href="../rust.css" rel="stylesheet" type="text/css">
+   <link href="../style.css" rel="stylesheet" type="text/css">
+
+
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    <div class="content">
+
+
+    <h1 class="title">Here&#39;s My Type, So Initialize Me Maybe</h1>
+    <p><span class="author">Alexis Beingessner</span></p>
+<p><span class="date">May 16th, 2019 -- Rust Nightly 1.36.0</span></p>
+<p>Rust's infamous mem::unitialized method has been deprecated. Its replacement, MaybeUninit, has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.</p>
+<p>Most of this post is dedicated to discussing the nature of uninitialized memory and how it can be worked with in Rust. <a href="#what-went-wrong">Feel free to skip to the details on why mem::uninitialized is broken</a>.</p>
+<h1 id="whats-uninitialized-memory" class="section-header"><a href="#whats-uninitialized-memory">What's Uninitialized Memory?</a></h1>
+<p>When you allocate memory in Rust it arrives to you in an <em>uninitialized</em> state. What exactly that means is a surprisingly subtle issue.</p>
+<p>From a low-level implementation perspective, this generally just means that some region of memory has been declared to be &quot;yours&quot;, but because that memory could have been previously used for something else, there's no guarantee what the bits in that memory are set to. Why are old values from somewhere else still there? Because it's faster and easier to not bother to clear out the memory. If you read from uninitialized memory, you are essentially reading random bits, and so your program may behave randomly. From this perspective, it's almost always a serious bug to read from uninitialized memory. Although you could certainly construct cases where that's not the case.</p>
+<p>Note that this model is one of a single process that recycles memory it is has acquired from the operating system without returning it. For security reasons, memory freshly acquired from your operating system is guaranteed to be initialized to all 0's. <a href="http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1381.pdf">Although there are certainly security-minded folks who would love for processes to do this internally as well</a>.</p>
+<p>The theoretical perspective is a bit more strict, <a href="http://www.cs.utah.edu/%7Eregehr/papers/undef-pldi17.pdf">and also very poorly specified</a>. The long and the short of it is that compilers consider uninitialized memory to be a much more exotic thing. Something of a magical substance that turns into whatever value makes the compiler's life easiest. Would it be nice if x was 1 here, so you could apply the simplification <code>y &amp; x =&gt; y</code>. Oh it's uninitialized memory? Ok let's assume it's 1.</p>
+<p>Unfortunately, what compilers most love in the world is to prove that something is Undefined Behaviour. Undefined Behaviour means they can apply aggressive optimizations and make everything go fast! ...Usually by deleting all your code.</p>
+<p>So, as a conservative model it's reasonable to just declare that <strong>it is Undefined Behaviour to read uninitialized memory</strong>. Full stop.</p>
+<h1 id="safely-working-with-uninitialized-memory-in-rust" class="section-header"><a href="#safely-working-with-uninitialized-memory-in-rust">Safely Working With Uninitialized Memory In Rust</a></h1>
+<p>Given a model where we must never read Uninitialized Memory, what tools does Rust give us?</p>
+<p>Let's look at the simple case of a local variable. Normally, when you declare a local variable, you also initialize it:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="number">0</span>;
+<span class="kw">let</span> (<span class="ident">a</span>, <span class="ident">b</span>) <span class="op">=</span> (<span class="number">1</span>, <span class="number">2</span>);</pre></div>
+<p>In this case, there's no concern for Uninitialized Memory. As soon as we're given the <em>ability</em> to refer to our new piece of memory, it has already been initialized. But Rust lets us write this code:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">x</span>;
+<span class="kw">if</span> <span class="ident">some_condition</span>() {
+    <span class="ident">x</span> <span class="op">=</span> <span class="number">5</span>;
+} <span class="kw">else</span> {
+    <span class="ident">x</span> <span class="op">=</span> <span class="number">7</span>;
+}
+<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>);</pre></div>
+<p>Unlike <a href="https://blog.ajduke.in/2012/03/25/variable-initialization-and-default-values/">Java</a> and <a href="https://en.cppreference.com/w/cpp/language/default_initialization">C++</a>, Rust does not have the concept of default-initialization. In this code x is initialized <em>exactly once</em>. However we clearly are allowed to refer to x before it's initialized. What if we change our program to try to read x when it could be uninitialized?</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">x</span>;
+<span class="kw">if</span> <span class="ident">some_condition</span>() {
+    <span class="ident">x</span> <span class="op">=</span> <span class="number">5</span>;
+}
+<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>);</pre></div>
+<pre><code class="language-text">error[E0381]: borrow of possibly uninitialized variable: `x`
+ --&gt; src/main.rs:8:20
+  |
+8 |     println!(&quot;{}&quot;, x);
+  |                    ^ use of possibly uninitialized `x`
+</code></pre>
+<p>Aha, Rust statically prevents us from reading x when it could be initialized. Interestingly, this <em>does not</em> mean that we must always initialize <code>x</code>. This program compiles:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">x</span>;
+<span class="kw">if</span> <span class="ident">some_condition</span>() {
+    <span class="ident">x</span> <span class="op">=</span> <span class="number">5</span>;
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>);
+}</pre></div>
+<p>In addition, rust can dynamically track the initialization of values with destructors (Drop impls),
+with a system called <em><a href="https://github.com/rust-lang/rfcs/blob/master/text/0320-nonzeroing-dynamic-drop.md">drop flags</a></em>:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+#<span class="kw">fn</span> <span class="ident">some_condition</span>() <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="bool-val">false</span> }
+#<span class="kw">fn</span> <span class="ident">some_other_condition</span>() <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="bool-val">true</span> }
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">x</span>;              <span class="comment">// x may be dynamically init</span>
+                        <span class="comment">// drop_flag(x) = uninit</span>
+
+<span class="kw">if</span> <span class="ident">some_condition</span>() {
+    <span class="ident">x</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="number">12</span>);   <span class="comment">// statically uninit, init it</span>
+                        <span class="comment">// drop_flag(x) = init</span>
+
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>);  <span class="comment">// statically init here, ok to read!</span>
+}
+
+<span class="ident">x</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="number">13</span>);       <span class="comment">// dynamically init, check drop_flag(x):</span>
+                        <span class="comment">// - if init: drop it, then init it</span>
+                        <span class="comment">// - if uninit: init it</span>
+                        <span class="comment">// drop_flag(x) = init</span>
+
+<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>);      <span class="comment">// statically init, ok to read!</span>
+
+<span class="kw">if</span> <span class="ident">some_other_condition</span>() {
+    <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">drop</span>(<span class="ident">x</span>);  <span class="comment">// statically init, ok to read</span>
+}
+                        <span class="comment">// dynamically init, check drop_flag(x):</span>
+                        <span class="comment">// - if init, drop it</span></pre></div>
+<p>That lets the compiler know when destructors should be run, but doesn't allow us to actually work with dynamically initialzed values. We're still only allowed to insert an explicit read if the value is <em>statically</em> known to be initialized. For truly dynamic initialization, rust has the Option type (or any enum, really):</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+#<span class="kw">fn</span> <span class="ident">some_condition</span>() <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="bool-val">true</span> }
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">x</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="prelude-val">None</span>;    <span class="comment">// Only init a tag in the enum</span>
+                                <span class="comment">// indicating the value is uninit</span>
+
+<span class="kw">if</span> <span class="ident">some_condition</span>() {
+    <span class="ident">x</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="number">36</span>);               <span class="comment">// Set the tag and init the value</span>
+}
+
+<span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">val</span>) <span class="op">=</span> <span class="ident">x</span> {          <span class="comment">// Acquire the value in x if it&#39;s init</span>
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">val</span>);
+}
+
+<span class="kw">let</span> <span class="ident">y</span> <span class="op">=</span> <span class="ident">x</span>.<span class="ident">unwrap</span>();             <span class="comment">// Assert the value is definitely init</span>
+                                <span class="comment">// crash the program if not</span>
+<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">y</span>);</pre></div>
+<p>As a minor aside, all of this initialization logic is the main motivation for Rust's <code>loop { }</code> construct. The compiler can understand that it always runs, and if you ever exit the loop you must have hit a <code>break</code> or <code>return</code>. In this way it can more easily reason about paths of execution and initialization.</p>
+<h1 id="unsafely-working-with-uninitialized-memory-in-rust" class="section-header"><a href="#unsafely-working-with-uninitialized-memory-in-rust">Unsafely Working With Uninitialized Memory in Rust</a></h1>
+<p>All of the tools we have looked at before now have been completely safe, but as you may know, Rust has an <a href="https://doc.rust-lang.org/nightly/nomicon/meet-safe-and-unsafe.html">unsafe side</a>.</p>
+<p>To my knowledge, Rust has 3 <code>unsafe</code> ways to acquire uninitialized memory that it can't prevent you from reading:</p>
+<ul>
+<li><a href="https://doc.rust-lang.org/alloc/alloc/fn.alloc.html">raw heap allocation</a></li>
+<li><a href="https://doc.rust-lang.org/reference/items/unions.html">untagged unions</a></li>
+<li><a href="https://doc.rust-lang.org/std/mem/fn.uninitialized.html">mem::uninitialized</a> (BUSTED AND DEPRECATED)</li>
+</ul>
+<h2 id="raw-heap-allocation" class="section-header"><a href="#raw-heap-allocation">Raw Heap Allocation</a></h2>
+<p>Calling <code>std::alloc::alloc</code> will give you a pointer to brand-new allocation, which means it's a pointer to uninitialized memory. To correctly work with this memory, you must carefully initialize it with <a href="https://doc.rust-lang.org/std/primitive.pointer.html">raw pointer methods</a> like <code>write</code> and <code>copy_from</code>. These methods assume the target is uninitialized, and let you initialize it. It is up to you to maintain enough state to know when the memory is uninitialized. Ideally, you will also <code>read</code> or <code>drop_in_place</code> any initialized memory whose type has a Drop impl when you're done with it, although forgetting to is <em>technically</em> allowed.</p>
+<p>Nothing too complex here.</p>
+<h2 id="untagged-unions" class="section-header"><a href="#untagged-unions">Untagged Unions</a></h2>
+<p>Untagged unions, on the other hand, are a little more subtle. For the most part, Rust treats unions the same as any other type. You can't just not initialize them. This still won't compile:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">union</span> <span class="ident">MyUnion</span> {
+    <span class="ident">case1</span>: <span class="ident">u32</span>,
+    <span class="ident">case2</span>: <span class="ident">u64</span>,
+}
+
+<span class="kw">unsafe</span> {
+    <span class="kw">let</span> <span class="ident">x</span>: <span class="ident">MyUnion</span>;
+
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>.<span class="ident">case2</span>);
+}</pre></div>
+<pre><code class="language-text">error[E0381]: borrow of possibly uninitialized variable: `x`
+ --&gt; src/main.rs:9:20
+  |
+9 |     println!(&quot;{}&quot;, x.case1);
+  |                    ^^^^^^^ use of possibly uninitialized `x.case1`
+</code></pre>
+<p>But the cases of our union have assymteric sizes. What happens if we initialize the small case, but read from the large one?</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">union</span> <span class="ident">MyUnion</span> {
+    <span class="ident">case1</span>: <span class="ident">u32</span>,
+    <span class="ident">case2</span>: <span class="ident">u64</span>,
+}
+
+<span class="kw">unsafe</span> {
+    <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">MyUnion</span> { <span class="ident">case1</span>: <span class="number">0</span> };
+
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>.<span class="ident">case2</span>);
+}</pre></div>
+<pre><code class="language-text">&gt; 140720308486144
+</code></pre>
+<p>Whoops! Rust won't prevent us from doing this, and so we have a way to read uninitialized memory without needing to perform a heap allocation. Interestingly, we can take this to its logical limit and build UntaggedOption, which lets us dynamically initialize any value:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">union</span> <span class="ident">UntaggedOption</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="ident">none</span>: (),
+    <span class="ident">some</span>: <span class="ident">T</span>,
+}
+
+<span class="kw">unsafe</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">UntaggedOption</span> { <span class="ident">none</span>: () };
+
+    <span class="kw">if</span> <span class="ident">some_condition</span>() {
+        <span class="ident">x</span>.<span class="ident">some</span> <span class="op">=</span> <span class="number">7</span>;
+    }
+
+    <span class="comment">// Boy we better have taken the some_condition branch!</span>
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>.<span class="ident">some</span>);
+}</pre></div>
+<p>Unlike C++, Rust does not have the notion of an <a href="https://en.cppreference.com/w/cpp/language/union">&quot;active&quot; union member</a>. Nor does Rust have C++'s <a href="https://blog.regehr.org/archives/1307">strict type-based aliasing</a>. As such, Rust freely allows you to use unions for type punning. Just be careful not to read uninitialized memory! (including padding bytes)</p>
+<h2 id="memuninitialized" class="section-header"><a href="#memuninitialized">mem::uninitialized</a></h2>
+<p>Finally, we come to the focus of this post.</p>
+<p>The intended semantic of <code>mem::uninitialized</code> is that it pretends to create a value to initialize some memory, but it doesn't actually do anything. In doing this, the static initialization checker becomes convinced the memory is initialized, but no work has been done. The motivation for this function is cases where you want to dynamically initialize a value in a way that the compiler just can't understand, with no overhead at all.</p>
+<p>For the compiler people out there, <code>mem::uninitialized</code> simply lowers to <a href="http://www.cs.utah.edu/%7Eregehr/papers/undef-pldi17.pdf">llvm's undef</a>.</p>
+<p>Of course, you need to be careful how you use this, especially if the type you're pretending to initialize has a destructor, but you could imagine being able to do it right with <code>ptr::write</code> and <code>ptr::read</code>. For Copy types, it's seemingly not that hard at all. Here's the kind of program that motivated this feature:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">unsafe</span> {
+    <span class="comment">// Trick the compiler into thinking we initialized this!</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">results</span>: [<span class="ident">u32</span>; <span class="number">16</span>] <span class="op">=</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">uninitialized</span>();
+
+    <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">16</span> {
+        <span class="comment">// complex logic...</span>
+        <span class="ident">results</span>[<span class="ident">i</span>] <span class="op">=</span> <span class="ident">some_val</span>();
+    }
+
+    <span class="comment">// All values carefully proven by programmer to be init</span>
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">results</span>[..]);
+}</pre></div>
+<h1 id="what-went-wrong" class="section-header"><a href="#what-went-wrong">What Went Wrong?</a></h1>
+<p>Ok so you have determined that you're in a special case where you need to convince the compiler's safety checks that a value is initialized without actually initializing it. Say you write this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">unsafe</span> {
+    <span class="comment">// Trick the compiler into thinking we initialized this!</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">results</span>: [<span class="ident">bool</span>; <span class="number">16</span>] <span class="op">=</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">uninitialized</span>();
+
+    <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">16</span> {
+        <span class="ident">results</span>[<span class="ident">i</span>] <span class="op">=</span> <span class="ident">some_condition</span>(<span class="ident">i</span>);
+    }
+
+    <span class="comment">// All values carefully proven by programmer to be init</span>
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">results</span>[..]);
+}</pre></div>
+<p>For me, on the day of writing this, this program compiles and executes fine. Unfortunately, this program has Undefined Behaviour. Why? Because bool is a primitive that has <em>invalid values</em>. To quote the Rustonomicon, it is Undefined Behaviour to produce an invalid primitive value such as:</p>
+<ul>
+<li>dangling/null references</li>
+<li>null <code>fn</code> pointers</li>
+<li>a <code>bool</code> that isn't 0 or 1</li>
+<li>an undefined <code>enum</code> discriminant</li>
+<li>a <code>char</code> outside the ranges [0x0, 0xD7FF] and [0xE000, 0x10FFFF]</li>
+<li>A non-utf8 <code>str</code></li>
+</ul>
+<p>Remember when I said that compilers can magically make uninitialized memory any value they want? And how they want everything to be Undefined Behaviour? Well because we tell the compiler that a bool is either 0 or 1, if the compiler can prove that a value of type bool is uninitialized memory it has succesfully proven the program has Undefined Behaviour. No, it doesn't matter that we didn't read the uninitialized memory.</p>
+<p>So although mem::uninitialized <em>can</em> possibly be used correctly, for some types it's <em>impossible</em> to use correctly. As such, we're tossing it in the trash. It's a bad design. You should use its replacement, MaybeUninit.</p>
+<h1 id="what-is-maybeuninit" class="section-header"><a href="#what-is-maybeuninit">What Is MaybeUninit?</a></h1>
+<p>In the section on <a href="#untagged-unions">untagged unions</a>, I noted that in the extreme case you could make an UntaggedOption type:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="ident">union</span> <span class="ident">UntaggedOption</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="ident">none</span>: (),
+    <span class="ident">some</span>: <span class="ident">T</span>,
+}</pre></div>
+<p>Well it turns out that's all that MaybeUninit is. Well actually, it's defined as:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">pub</span> <span class="ident">union</span> <span class="ident">MaybeUninit</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="ident">uninit</span>: (),
+    <span class="ident">init</span>: <span class="ident">ManuallyDrop</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
+}</pre></div>
+<p>But that's it. The compiler doesn't even know about it as a special type. It's just a union with a dummy &quot;uninit&quot; case. With this, we can make our program correct:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">MaybeUninit</span>;
+
+<span class="kw">unsafe</span> {
+    <span class="comment">// Tell the compiler that we&#39;re initializing a union to an empty case</span>
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">results</span> <span class="op">=</span> <span class="ident">MaybeUninit</span>::<span class="op">&lt;</span>[<span class="ident">bool</span>; <span class="number">16</span>]<span class="op">&gt;</span>::<span class="ident">uninit</span>();
+
+    <span class="comment">// VERY CAREFULLY: initialize all the memory</span>
+    <span class="comment">// DO NOT: create an &amp;mut [bool; 16]</span>
+    <span class="comment">// DO NOT: create an &amp;mut bool</span>
+    <span class="kw">let</span> <span class="ident">arr_ptr</span> <span class="op">=</span> <span class="ident">results</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">bool</span>;
+    <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">16</span> {
+        <span class="ident">arr_ptr</span>.<span class="ident">add</span>(<span class="ident">i</span>).<span class="ident">write</span>(<span class="ident">some_condition</span>(<span class="ident">i</span>));
+    }
+
+    <span class="comment">// All values carefully proven by programmer to be init</span>
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">results</span>.<span class="ident">get_ref</span>()[..]);
+}</pre></div>
+<p>Why is this different from when we used mem::uninitialized? Because the compiler can <em>clearly</em> see that our memory has type &quot;either an array of bools, or nothing&quot;. So it knows not to assert that the memory must have any particular value.</p>
+<p>Note that we must still be careful. While this isn't finalized, the preferred semantics of references allows the compiler to assume that they're non-dangling and point to valid memory. Under those semantics, if we create an <code>&amp;mut [bool; u16]</code> or <code>&amp;mut bool</code>, it could be Undefined Behaviour.</p>
+<p>To avoid this issue, we only manipulate the memory using raw pointers, in the same way we would initialize a heap allocation. I wasn't 100% sure if I could claim that <code>arr[i] = x</code> doesn't create a reference, so I just used pointer arithmetic to be safe.</p>
+<p>Have fun writing your terribly unsafe, but definitely, absolutely, rigorously proven correct programs!</p>
+
+    </div>
+
+</body>
+</html>
