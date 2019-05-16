@@ -20,7 +20,7 @@ From a low-level implementation perspective, this generally just means that some
 
 Note that this model is one of a single process that recycles memory it is has acquired from the operating system without returning it. For security reasons, memory freshly acquired from your operating system is guaranteed to be initialized to all 0's. [Although there are certainly security-minded folks who would love for processes to do this internally as well][memset].
 
-The theoretical perspective is a bit more strict, [and also very poorly specified][undef]. The long and the short of it is that compilers consider uninitialized memory to be a much more exotic thing. Something of a magical substance that turns into whatever value makes the compiler's life easiest. Would it be nice if x was 1 here, so you could apply the simplification `y & x => y`. Oh it's uninitialized memory? Ok let's assume it's 1.
+The theoretical perspective is a bit more strict, [and also very poorly specified][undef]. The long and the short of it is that compilers consider uninitialized memory to be a much more exotic thing. Something of a magical substance that turns into whatever value makes the compiler's life easiest. Say you wanted to apply the simplification `y & x => y`. That requires proving that `x` is all 1's. Oh it's uninitialized memory? Ok let's just assume it's all 1's. For `y | x` you can assume it's all 0's. Whatever's most convenient at the time!
 
 Unfortunately, what compilers most love in the world is to prove that something is Undefined Behaviour. Undefined Behaviour means they can apply aggressive optimizations and make everything go fast! ...Usually by deleting all your code.
 
