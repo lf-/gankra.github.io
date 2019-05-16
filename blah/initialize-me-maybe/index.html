@@ -68,7 +68,7 @@
 8 |     println!(&quot;{}&quot;, x);
   |                    ^ use of possibly uninitialized `x`
 </code></pre>
-<p>Aha, Rust statically prevents us from reading x when it could be initialized. Interestingly, this <em>does not</em> mean that we must always initialize <code>x</code>. This program compiles:</p>
+<p>Aha, Rust statically prevents us from reading x when it could be uninitialized. Interestingly, this <em>does not</em> mean that we must always initialize <code>x</code>. This program compiles:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
 <span class="kw">let</span> <span class="ident">x</span>;

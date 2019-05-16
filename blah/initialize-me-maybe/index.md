@@ -76,7 +76,7 @@ error[E0381]: borrow of possibly uninitialized variable: `x`
   |                    ^ use of possibly uninitialized `x`
 ```
 
-Aha, Rust statically prevents us from reading x when it could be initialized. Interestingly, this *does not* mean that we must always initialize `x`. This program compiles:
+Aha, Rust statically prevents us from reading x when it could be uninitialized. Interestingly, this *does not* mean that we must always initialize `x`. This program compiles:
 
 ```rust
 # fn some_condition() -> bool { false }
