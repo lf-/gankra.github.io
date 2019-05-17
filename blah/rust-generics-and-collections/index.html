@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="generator" content="rustdoc">
+    <title>Rust, Generics, and Collections</title>
+    <link href="../../libs/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css">
+    <link href="../../libs/bootstrap/css/bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
+    <link href="../rust.css" rel="stylesheet" type="text/css">
+    <link href="../style.css" rel="stylesheet" type="text/css">
+
+
+
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+<div class="content">
+    <h1 class="title">Rust, Generics, and Collections</h1>
+<span class="author">Alexis Beingessner</span>
+
+<span class="date">January 3, 2015 -- Rust Nightly 0.12.0</span>
+<p><a href="/%7Eabeinges/blah/rust-lifetimes-and-collections/">Last time</a> I wrote about how Rust&#39;s notion of lifetimes lets us write and use collections much in the same way that we would in other languages, while protecting us from many of the classic mistakes you can make when working with collections. Things like iterator invalidation and mutating a collection while holding an internal reference just can&#39;t happen. All with purely compile-time checks!</p>
+
+<p>Today I want to talk about another really cool part of Rust&#39;s type system: generics.</p>
+
+<p>In programming, there are two major families of generic code: compile-time generics, and run-time generics. Like C++, Rust provides facilities for both mechanisms. It provides compile-time generics (which we just call generics, since this is the preferred mechanism) in much the same way that C++ does through templates, but in a more restrictive and type-safe way. It also provides run-time generics through a system called <em>trait objects</em>, which is similar to virtual functions in C++, and generics in Java.</p>
+
+<p>Here&#39;s an example of Rust generics:</p>
+<pre class='rust '>
+<span class='kw'>fn</span> <span class='ident'>main</span>(){
+    <span class='comment'>// u32 suffix literal denotes an unsigned 32-bit integer; i16 is signed 16-bit.</span>
+    <span class='comment'>// All other values in the arrays are inferred to be of the same type.</span>
+    <span class='kw'>let</span> <span class='ident'>a</span> <span class='op'>=</span> <span class='ident'>find_min</span>(<span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>1u32</span>,<span class='number'>2</span>,<span class='number'>3</span>,<span class='number'>4</span>]);
+    <span class='kw'>let</span> <span class='ident'>b</span> <span class='op'>=</span> <span class='ident'>find_min</span>(<span class='macro'>vec</span><span class='macro'>!</span>[<span class='number'>10i16</span>,<span class='number'>20</span>,<span class='number'>30</span>,<span class='number'>40</span>]);
+    <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{} {}&quot;</span>, <span class='ident'>a</span>, <span class='ident'>b</span>);
+}
+
+<span class='comment'>// Dat Code Reuse</span>
+<span class='kw'>fn</span> <span class='ident'>find_min</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Ord</span><span class='op'>&gt;</span>(<span class='ident'>data</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>it</span> <span class='op'>=</span> <span class='ident'>data</span>.<span class='ident'>into_iter</span>();
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>min</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>it</span>.<span class='ident'>next</span>() {
+        <span class='prelude-val'>Some</span>(<span class='ident'>elem</span>) <span class='op'>=&gt;</span> <span class='ident'>elem</span>,
+        <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>None</span>,
+    };
+    <span class='kw'>for</span> <span class='ident'>elem</span> <span class='kw'>in</span> <span class='ident'>it</span> {
+        <span class='kw'>if</span> <span class='ident'>elem</span> <span class='op'>&lt;</span> <span class='ident'>min</span> {
+            <span class='ident'>min</span> <span class='op'>=</span> <span class='ident'>elem</span>;
+        }
+    }
+    <span class='prelude-val'>Some</span>(<span class='ident'>min</span>)
+}
+</pre>
+
+<p>The key line is this one:</p>
+<pre class='rust '>
+<span class='kw'>fn</span> <span class='ident'>find_min</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Ord</span><span class='op'>&gt;</span>(<span class='ident'>data</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
+</pre>
+
+<p>The <code>&lt;T: Ord&gt;</code> is declaring this function to be generic over any type <code>T</code> that implements the Ord trait. Ord provides comparison, which allows us to do <code>elem &lt; min</code>. Note also that Vec and Option are generic <em>types</em>, which means they can be instantiated for any concrete type <code>T</code>. By writing our <code>find_min</code> function generically, we can call it for any choice of <code>T</code> that satisfies these bounds. In this case, we pass in u32&#39;s and i16&#39;s. Note that the function implementation is verified to work for <em>any</em> type that could possibly implement <code>Ord</code>. If <code>find_min</code> used any functionality that <code>Ord</code> didn&#39;t imply, the compiler would refuse to compile <code>find_min</code>. This analysis is independent of the concrete types we actually try to call this function on. Note that this is also a fairly simple generic bound. You can do some pretty elaborate stuff with this system. We&#39;ll get to some more advanced stuff later.</p>
+
+<p>Like C++ templates, generic code is actually compiled by <em>monomorphization</em> of the code. This is just a fancy word for &quot;take the code written here, and copy-paste it with the actual concrete types when it&#39;s used&quot;. So presumably our <code>find_min</code> example should generate the same executable as if we hand-wrote a special implementation of <code>find_min</code> for i16 and u32. This is great for the optimizer, as it can do all the crazy inlining and type-specific optimizations it wants. However it comes at the cost of producing a lot of code and bloating up resultant binaries. Also, generic code in libraries needs to preserved even after compilation so consumers can monomorphize the code to their own types.</p>
+
+<p>However what if you wanted to have a <code>Vec&lt;T&gt;</code> where the T&#39;s can be anything that implements <code>MyTrait</code>, but aren&#39;t necessarily all the same concrete type. For intance, a <code>Vec&lt;Ord&gt;</code> containing u32&#39;s <em>and</em> u16&#39;s. Generics as we&#39;ve seen them don&#39;t really work here, because when you monomorphize <code>T</code>, it can&#39;t be <em>multiple</em> concrete types. That&#39;s exactly what the <em>mono</em> part of the word is all about. Further, allowing this wouldn&#39;t really make sense because a <code>u16</code> takes up a different amount of space as a <code>u32</code>.</p>
+
+<p>This is the problem that trait objects solve. Trait objects as currently designed are actually very new to the language, so standard library support is pretty shaky for them. In reality they've been around in some form for a while, but they were recently redesigned in a more principled manner that makes them much cleaner to use. As such, here&#39;s a slightly contrived example of their usage:</p>
+<pre class='rust '>
+<span class='kw'>use</span> <span class='ident'>std</span>::<span class='ident'>num</span>::{<span class='ident'>Num</span>, <span class='ident'>Zero</span>, <span class='ident'>One</span>};
+
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Counter</span> {
+    <span class='kw'>fn</span> <span class='ident'>increment</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>);
+    <span class='kw'>fn</span> <span class='ident'>is_zero</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span>;
+}
+
+<span class='comment'>// Ooh, implementing a trait for all types that satisfy a generic bound! AKA a blanket impl.</span>
+<span class='comment'>// Note that this can be problematic if you want other implementations to coexist with this one.</span>
+<span class='comment'>// For instance, if I manually implement this for MyCoolCounter, the compiler has to be able</span>
+<span class='comment'>// to prove that there&#39;s no way this implementation can apply to it. Otherwise there would be</span>
+<span class='comment'>// an ambiguity as to what implementation to use!</span>
+<span class='comment'>//</span>
+<span class='comment'>// Also note that Num/Zero/One are deprecated as of this writing, but that&#39;s not super</span>
+<span class='comment'>// important for this.</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span>: <span class='ident'>Num</span> <span class='op'>+</span> <span class='ident'>Add</span><span class='op'>&lt;</span><span class='ident'>T</span>, <span class='ident'>T</span><span class='op'>&gt;&gt;</span> <span class='ident'>Counter</span> <span class='kw'>for</span> <span class='ident'>T</span> {
+    <span class='kw'>fn</span> <span class='ident'>increment</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
+        <span class='op'>*</span><span class='self'>self</span> <span class='op'>=</span> <span class='op'>*</span><span class='self'>self</span> <span class='op'>+</span> <span class='ident'>One</span>::<span class='ident'>one</span>();
+    }
+
+    <span class='kw'>fn</span> <span class='ident'>is_zero</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>bool</span> {
+        <span class='op'>*</span><span class='self'>self</span> <span class='op'>==</span> <span class='ident'>Zero</span>::<span class='ident'>zero</span>()
+    }
+}
+
+<span class='kw'>fn</span> <span class='ident'>main</span>(){
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>data</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>Counter</span><span class='op'>&gt;&gt;</span> <span class='op'>=</span> <span class='ident'>Vec</span>::<span class='ident'>new</span>();
+    <span class='ident'>data</span>.<span class='ident'>push</span>(<span class='kw'>box</span> <span class='number'>1u32</span>);
+    <span class='ident'>data</span>.<span class='ident'>push</span>(<span class='kw'>box</span> <span class='number'>0u16</span>);
+    <span class='ident'>data</span>.<span class='ident'>push</span>(<span class='kw'>box</span> <span class='number'>0i8</span>);
+
+    <span class='kw'>for</span> <span class='ident'>x</span> <span class='kw'>in</span> <span class='ident'>data</span>.<span class='ident'>iter_mut</span>() { <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{}&quot;</span>, <span class='ident'>x</span>.<span class='ident'>is_zero</span>()); }
+    <span class='kw'>for</span> <span class='ident'>x</span> <span class='kw'>in</span> <span class='ident'>data</span>.<span class='ident'>iter_mut</span>() { <span class='ident'>x</span>.<span class='ident'>increment</span>(); }
+    <span class='kw'>for</span> <span class='ident'>x</span> <span class='kw'>in</span> <span class='ident'>data</span>.<span class='ident'>iter_mut</span>() { <span class='macro'>println</span><span class='macro'>!</span>(<span class='string'>&quot;{}&quot;</span>, <span class='ident'>x</span>.<span class='ident'>is_zero</span>()); }
+}
+</pre>
+
+<p>Here the key piece of code is <code>Vec&lt;Box&lt;Counter&gt;&gt;</code>. Counter is not a concrete type, it&#39;s a trait. In this way we signal that our Vec can contain any Box of any type that implements Counter. Note that it&#39;s important that we use a Box here (which is our unique_ptr equivalent). u32 and u16 have different sizes, and our Vec can&#39;t handle that. In Rust parlance Counter is a <em>dynamically sized type</em> (DST). We can&#39;t just directly store DSTs because it&#39;s impossible to know their size at compile time (how much stack space does the variable <code>x: Counter</code> require?). So we heap allocate the numbers and store a <em>pointer</em> to them in the Vec. All of these pointers are the same size, so that will work. It&#39;s worth noting that Rust&#39;s doing a bit of magic here for us. The pointers are actually &quot;fat&quot;, in that they consist of <em>two</em> pointers. One to the data on the heap, and one to a vtable of the Counter functions that each element provides. This is necessary to actually figure out what the methods to call at runtime are. Also note that the heap allocation is actually unnecessary, we could have also created a <code>Vec&lt;&amp;mut Counter&gt;</code>. But with Boxes the Vec owns all its data and can be moved around freely.</p>
+
+<p>Trait objects are actually basically what generics in Java are. If you make an <code>ArrayList&lt;Counter&gt;</code> in Java, that&#39;s the same as our <code>Vec&lt;Box&lt;Counter&gt;&gt;</code> (modulo GC). Since Java <em>only</em> has boxed trait objects for generics, you can get a lot of nasty patterns when working with data structures. For instance, you have to make checks like &quot;are these two types actually the same type?&quot;. This is also where we get the infamous wrapper types for primitives. In Java, types like <code>int</code> and <code>bool</code> aren&#39;t on the heap normally, so to use them with generics, you need to send them to the heap by wrapping them in Integer and Boolean types that <em>are</em> on the heap.</p>
+
+<p>In Rust we don&#39;t have the problem, because we can just <em>monomorphize</em> our collections to work with a particular type. <code>Vec&lt;int&gt;</code>, <code>Vec&lt;Vec&lt;Vec&lt;int&gt;&gt;&gt;</code>, and<code>Vec&lt;Box&lt;int&gt;&gt;</code> all work. And if you want Java-style run-time generics, you can <em>opt into</em> that behaviour using trait objects.</p>
+
+<p>Trait objects can be powerful and useful, but they&#39;re going to be more expensive and restrictive to use in most cases. Generics are definitely to be preferred when possible. Although you may want to design your libraries with trait objects in mind. This is because trait objects come with a special restriction we call <em>object safety</em>. An object-safe trait has no methods which take or return a value dependent on the implementer&#39;s own type. That is, a trait like Clone:</p>
+<pre class='rust '>
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Clone</span> {
+    <span class='kw'>fn</span> <span class='ident'>clone</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Self</span>;
+}
+</pre>
+
+<p>is <em>not</em> object-safe, because it returns a value of type Self (which is the implementer&#39;s type). If you had an <code>&amp;Clone</code> and called <code>clone()</code> on it, it would produce a value whose type is unknown at compile time. The space it would occupy on the stack would be indeterminate. Rust&#39;s solution to this problem (at the moment) is to just forbid traits like this from being used as a trait object at all. This is why we&#39;ve recently had to split up our Iterator trait into the following methods:</p>
+<pre class='rust '>
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>next</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span>
+}
+</pre>
+
+<p>and</p>
+<pre class='rust '>
+<span class='kw'>pub</span> <span class='kw'>trait</span> <span class='ident'>IteratorExt</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span> {
+    <span class='comment'>// Note: all of these methods are implemented by default, as denoted by the `{ ... }`&#39;s</span>
+    <span class='comment'>// that follow the method declaration. Because IteratorExt inherits Iterator,</span>
+    <span class='comment'>// the trait can assume all implementors impl Iterator, and use that in the default</span>
+    <span class='comment'>// impls.</span>
+
+    <span class='kw'>fn</span> <span class='ident'>chain</span><span class='op'>&lt;</span><span class='ident'>U</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>U</span>) <span class='op'>-&gt;</span> <span class='ident'>Chain</span><span class='op'>&lt;</span><span class='ident'>Self</span>, <span class='ident'>U</span><span class='op'>&gt;</span> { ... }
+    <span class='kw'>fn</span> <span class='ident'>zip</span><span class='op'>&lt;</span><span class='ident'>B</span>, <span class='ident'>U</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>B</span><span class='op'>&gt;&gt;</span>(<span class='self'>self</span>, <span class='ident'>other</span>: <span class='ident'>U</span>) <span class='op'>-&gt;</span> <span class='ident'>Zip</span><span class='op'>&lt;</span><span class='ident'>Self</span>, <span class='ident'>U</span><span class='op'>&gt;</span> { ... }
+    <span class='kw'>fn</span> <span class='ident'>map</span><span class='op'>&lt;</span><span class='ident'>B</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>f</span>: <span class='op'>|</span><span class='ident'>A</span><span class='op'>|</span> <span class='op'>-&gt;</span> <span class='ident'>B</span>) <span class='op'>-&gt;</span> <span class='ident'>Map</span><span class='op'>&lt;</span><span class='lifetime'>&#39;r</span>, <span class='ident'>A</span>, <span class='ident'>B</span>, <span class='ident'>Self</span><span class='op'>&gt;</span> { ... }
+    <span class='kw'>fn</span> <span class='ident'>filter</span>(<span class='self'>self</span>, <span class='ident'>predicate</span>: <span class='op'>|</span><span class='kw-2'>&amp;</span><span class='ident'>A</span><span class='op'>|</span> <span class='op'>-&gt;</span> <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='ident'>Filter</span><span class='op'>&lt;</span><span class='lifetime'>&#39;r</span>, <span class='ident'>A</span>, <span class='ident'>Self</span><span class='op'>&gt;</span> { ... }
+    <span class='comment'>// ... and so on</span>
+}
+</pre>
+
+<p>Iterator is totally object-safe, but the IteratorExt methods aren&#39;t. So we can have a <code>Box&lt;Iterator&gt;</code>, but not a <code>Box&lt;IteratorExt&gt;</code>. Thankfully, we can add the following generic impls:</p>
+<pre class='rust '>
+<span class='comment'>// Every concrete instance of iterator automatically implements IteratorExt.</span>
+<span class='comment'>// No need for an implementation body because IteratorExt provides everything by</span>
+<span class='comment'>// default.</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>I</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span>, <span class='ident'>A</span><span class='op'>&gt;</span> <span class='ident'>IteratorExt</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>I</span> {}
+
+<span class='comment'>// Automatically implement Iterator for a Box&lt;Iterator&gt;, so that</span>
+<span class='comment'>// IteratorExt now works for them too.</span>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span> <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Box</span><span class='op'>&lt;</span><span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>next</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>deref</span>().<span class='ident'>next</span>()
+    }
+}
+</pre>
+
+<p>Now all iterators get the &quot;extension&quot; methods for free, and <code>Box&lt;Iterator&gt;</code> can be used as
+a concrete iterator with the extensions as well.</p>
+
+<p>Monomorphization also interacts in a <em>really</em> cool way with one of the more exotic concepts in Rust: zero-sized types (ZSTs). Zero-sized types are exactly what the name implies. They&#39;re a type that takes up absolutely no space. As a data-type, this makes them essentially useless: every member of a ZST is... exactly the same value! For a concrete example, we can look at Rust&#39;s most popular ZST: the empty tuple <code>()</code>. What values can the empty tuple take on? Exactly one. <code>()</code>. Totally useless, right? Well, it sure would be... if it weren&#39;t for generics!</p>
+
+<p>Rust knows that zero-sized types are totally useless. As such, any time you tell it to do something with a zero-sized type, it completely ignores you. Want to pass around some <code>()</code>&#39;s by value? Sure thing. Let me just go pass around all this <em>absolutely nothing at all</em>. Want to dereference this reference to a <code>()</code>? Sure thing. Let me do <em>absolutely nothing at all</em>. Heap allocate a <code>()</code>? Totally. Here&#39;s a pointer to some garbage. Go ahead, try to make me deref it, I <em>dare you</em>.</p>
+
+<p>So wait, why is it useful again? Well, the classic example is Rust&#39;s <code>Result&lt;T, E&gt;</code> type. Result is defined to be the union of two possibilities: <code>Ok(T)</code>, or <code>Err(E)</code>. It&#39;s our primary error handling mechanism. You ask a function to do something fallible, and it comes back with a Result. Then you match on whether you got back an <code>Ok(thing_i_wanted)</code> or <code>Err(oh_noooo)</code>. But a lot of the time there&#39;s no reasonable value to give back in the <code>Err</code> case. Sometimes there&#39;s not even a reasonable use for the <code>Ok</code> case! So what do we do then? Use the empty tuple! Don&#39;t have anything useful to give back on error? <code>Result&lt;T, ()&gt;</code>. Just want to respond with success/failure, and don&#39;t have any value to give back either way? <code>Result&lt;(), ()&gt;</code>. Congratulations on that last one by the way, you&#39;ve just re-invented the <em>boolean</em>. But it&#39;s a super-boolean because it works with all the code built for working with Results!</p>
+
+<p>So that&#39;s pretty cool, but we&#39;re here to talk about collections. How does this relate to them? Well you see <code>Result&lt;T, ()&gt;</code> is basically a Monad and Monads ar-- J/K there&#39;s actual data structure-y things to talk about here.</p>
+
+<p>Two big classes of collections are Maps and Sets. It&#39;s a common observation that a Set is just a really bad Map. That is, if you implement your favourite kind of Map, you&#39;ve basically built a Set on the keys you insert into it. Those keys just happen to map to values. Now, it would be <em>really</em> nice if we could re-use that same implementation for Sets. Write a HashMap, get a HashSet for free. Write a TreeMap, get a TreeSet for free. And of course you can: Just make <code>Set&lt;T&gt; = Map&lt;T, bool&gt;</code>. Great! Although we&#39;re doing a lot of pointless work. We&#39;re allocating space for a bunch of booleans we don&#39;t care about, and actually reading and writing them all over the place. If we took the time to custom write a HashSet, there&#39;s no way we&#39;d do this!</p>
+
+<p>But we&#39;re lazy, why would we rewrite our HashMap? Instead, we can just tell Rust that we don&#39;t care what the second type is with zero-sized types: Make <code>Set&lt;T&gt; = Map&lt;T, ()&gt;</code>. Allocating space for the values? Sure. I&#39;ll go ahead and allocate you all the nothing you could ever hope for! Reading and writing those values? Oh, absolutely. I&#39;ll get <em>right on that</em>. Just like that, we&#39;ve got code for a Set type as if we custom wrote it, but we&#39;re just using the unmodified Map type! Pretty slick. And this isn&#39;t just theoretical.
+<a href="https://github.com/rust-lang/rust/blob/ff88510535611f8497047584b18b819b7fe5cb3a/src/libcollections/btree/set.rs#L33">This</a>
+<a href="https://github.com/rust-lang/rust/blob/5eec666c8c4be3706a79755e6cb1119990390c79/src/libcollections/tree/set.rs#L101">is</a>
+<a href="https://github.com/rust-lang/rust/blob/16c8cd931cd5ccc9c73b87cac488938556018019/src/libcollections/trie/set.rs#L57">exactly</a>
+<a href="https://github.com/rust-lang/rust/blob/80a2867ea736007397aa2fbaa0e4c539c80e162c/src/libstd/collections/hash/set.rs#L97">how</a>
+the standard libraries do it.</p>
+
+<p>Now, were messing around with collections, so here&#39;s where I mention unsafe code. Unsafe code is generally pretty happy about zero-sized types. They can&#39;t be uninitialized, can&#39;t be in an inconsistent state, and you can&#39;t really read or write to them at all. Sounds great. But there&#39;s two things to watch out for with zero-sized types:</p>
+
+<p>First, naively applying the usual code you would use to manually allocate an object on the heap will (correctly) have you asking your allocator to allocate 0 bytes. You best believe the allocator is treating that as all kinds of Undefined Behaviour. If you&#39;re talking directly to the allocator (rather than using <code>Vec</code> or <code>Box</code> to handle it for you), you&#39;ll probably need to explicitly have a guard for <code>size_of&lt;T&gt; == 0</code>, and return a garbage sentinel value. In fact, Rust <a href="http://doc.rust-lang.org/nightly/alloc/heap/">defines</a> one for us to use:</p>
+<pre class='rust '>
+<span class='doccomment'>/// An arbitrary non-null address to represent zero-size allocations.</span>
+<span class='doccomment'>///</span>
+<span class='doccomment'>/// This preserves the non-null invariant for types like `Box&lt;T&gt;`. The address may overlap with</span>
+<span class='doccomment'>/// non-zero-size memory allocations.</span>
+<span class='kw'>pub</span> <span class='kw'>const</span> <span class='ident'>EMPTY</span>: <span class='op'>*</span><span class='kw-2'>mut</span> () <span class='op'>=</span> <span class='number'>0x1</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> ();
+</pre>
+
+<p>Similarly, asking the allocator to free a zero-sized type is going to cause some trouble. Just guard against that too. But there&#39;s a subtlety here. See, zero-sized types can have destructors (Actually this isn&#39;t strictly true. For legacy design reasons, a zero-sized type with a destructor currently stops being zero-sized. But it will be true Very Soon). So you still need to read the value out of the pointer so that its destructor will run. Just don&#39;t free the pointer afterwards.</p>
+
+<p>The second problem is a funner one. A reasonable pattern you might see in C to iterate over an array of values is to make a pointer at both ends, and advance them towards each other. When they point to the same address, you&#39;re done iterating. Right? But what if you have an array of ZSTs? Well, you compute both pointers and... they&#39;re exactly the same. If you try to offset a pointer to a zero-sized type, it (correctly) does absolutely nothing. You just asked the program to offset by 0 bytes. Oops. The way you would normally write it, iteration of a zero-sized array will yield absolutely no elements. This is sort of benign in the sense that it doesn&#39;t trigger undefined behaviour or anything, but it&#39;s almost certainly Not Correct.</p>
+
+<p>As a result, here&#39;s what by-value iteration ends up looking like for std&#39;s Vec (slightly modified for simplicity):</p>
+<pre class='rust '>
+...
+<span class='kw'>if</span> <span class='ident'>mem</span>::<span class='ident'>size_of</span>::<span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>() <span class='op'>==</span> <span class='number'>0</span> {
+    <span class='comment'>// purposefully don&#39;t use &#39;ptr.offset&#39; because for</span>
+    <span class='comment'>// vectors with 0-size elements this would return the</span>
+    <span class='comment'>// same pointer.</span>
+    <span class='self'>self</span>.<span class='ident'>ptr</span> <span class='op'>=</span> (<span class='self'>self</span>.<span class='ident'>ptr</span> <span class='kw'>as</span> <span class='ident'>uint</span> <span class='op'>+</span> <span class='number'>1</span>) <span class='kw'>as</span> <span class='op'>*</span><span class='kw'>const</span> <span class='ident'>T</span>;
+
+    <span class='comment'>// Read whatever, doesn&#39;t matter</span>
+    <span class='prelude-val'>Some</span>(<span class='ident'>ptr</span>::<span class='ident'>read</span>(<span class='self'>self</span>.<span class='ident'>ptr</span>))
+} <span class='kw'>else</span> {
+    <span class='kw'>let</span> <span class='ident'>old</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>ptr</span>;
+    <span class='self'>self</span>.<span class='ident'>ptr</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>ptr</span>.<span class='ident'>offset</span>(<span class='number'>1</span>);
+
+    <span class='prelude-val'>Some</span>(<span class='ident'>ptr</span>::<span class='ident'>read</span>(<span class='ident'>old</span>))
+}
+</pre>
+
+<p>It just casts the pointers to integers, increments those, and casts them back to pointers. That way we know the pointer values will actually change, and that iteration will yield the right amount of values. That&#39;s kind of the funny thing about <code>Vec&lt;()&gt;</code>. It&#39;s just a glorified integer counter! You tell it to insert and remove elements, and all that does is change its recorded length. Then when you tell it to iterate, it counts up to its length, and &quot;returns&quot; the same value over and over.</p>
+
+<p>I&#39;ll just re-emphasize this point from the previous post though: this is totally something you don&#39;t have to care about in safe code, which is what you should be writing 99.9% of the time. Unsafe code is for writing basic computational primitives, and optimizing that one hot path of code that total safety gets in the way of. And these particular problems only come up if you&#39;re writing <em>generic</em> unsafe code.</p>
+
+<p>The allocate/free ZST issue is also only around because we don&#39;t have any raw allocation middle-ware in the standard library. Either you&#39;re using totally safe Boxes and Vecs, or you&#39;re talking to jemalloc pretty much directly. Work is being done to introduce better abstractions that will let us be generic over allocators (custom and non-global allocators, yay!), while also handling a lot of the allocator boiler-plate that unsafe code does. No need for us to rewrite ZST handling and size/alignment computation everywhere. Also if you&#39;re committed to just aborting on out-of-memory, no need to manually check the result for a null.</p>
+
+<p>As always, Rust is a work in progress. But at least we&#39;ve got a good idea of where it&#39;s headed.</p>
+
+<p>To close things off, I want to share one of the coolest things we&#39;ve worked out with generics and collections. First off, here&#39;s the problem: most of Rust&#39;s collections are expected to define three kinds of iterators: by-reference, by-mutable-reference, and by-value. Due to the way that ownership works in Rust, you often need to just re-write the iteration logic for these from scratch, which sucks. That&#39;s serious code duplication of often non-trivial code. As discussed in the previous post, iterators are basically required to use unsafe code internally too! Copy-pasting unsafe code is a quick road to disaster.</p>
+
+<p>Previously, there have been a few solutions to this. The old TreeMap and TrieMap codebases address this problem using macros. This is... pretty nasty. Here&#39;s a quick snippet of what TreeMap&#39;s iterator code looks like today:</p>
+<pre class='rust '>
+<span class='comment'>// FIXME #5846 we want to be able to choose between &amp;x and &amp;mut x</span>
+<span class='comment'>// (with many different `x`) below, so we need to optionally pass mut</span>
+<span class='comment'>// as a tt, but the only thing we can do with a `tt` is pass them to</span>
+<span class='comment'>// other macros, so this takes the `&amp; &lt;mutability&gt; &lt;operand&gt;` token</span>
+<span class='comment'>// sequence and forces their evaluation as an expression.</span>
+<span class='macro'>macro_rules</span><span class='macro'>!</span> <span class='ident'>addr</span> { (<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>e</span>:<span class='ident'>expr</span>) <span class='op'>=&gt;</span> { <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>e</span> }}
+<span class='comment'>// putting an optional mut into type signatures</span>
+<span class='macro'>macro_rules</span><span class='macro'>!</span> <span class='ident'>item</span> { (<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>i</span>:<span class='ident'>item</span>) <span class='op'>=&gt;</span> { <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>i</span> }}
+
+<span class='macro'>macro_rules</span><span class='macro'>!</span> <span class='ident'>define_iterator</span> {
+    (<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>name</span>:<span class='ident'>ident</span>,
+     <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>rev_name</span>:<span class='ident'>ident</span>,
+
+     <span class='comment'>// the function to go from &amp;m Option&lt;Box&lt;TreeNode&gt;&gt; to *m TreeNode</span>
+     <span class='ident'>deref</span> <span class='op'>=</span> <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>deref</span>:<span class='ident'>ident</span>,
+
+     <span class='comment'>// see comment on `addr!`, this is just an optional `mut`, but</span>
+     <span class='comment'>// there&#39;s no support for 0-or-1 repeats.</span>
+     <span class='ident'>addr_mut</span> <span class='op'>=</span> $(<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>addr_mut</span>:<span class='ident'>tt</span>)<span class='op'>*</span>
+     ) <span class='op'>=&gt;</span> {
+        <span class='comment'>// private methods on the forward iterator (item!() for the</span>
+        <span class='comment'>// addr_mut in the next_ return value)</span>
+        <span class='macro'>item</span><span class='macro'>!</span>(<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>name</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+            <span class='attribute'>#[<span class='ident'>inline</span>(<span class='ident'>always</span>)]</span>
+            <span class='kw'>fn</span> <span class='ident'>next_</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>forward</span>: <span class='ident'>bool</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span>(<span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>K</span>, <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> $(<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>addr_mut</span>)<span class='op'>*</span> <span class='ident'>V</span>)<span class='op'>&gt;</span> {
+                <span class='kw'>while</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>stack</span>.<span class='ident'>is_empty</span>() <span class='op'>||</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>node</span>.<span class='ident'>is_null</span>() {
+                    <span class='kw'>if</span> <span class='op'>!</span><span class='self'>self</span>.<span class='ident'>node</span>.<span class='ident'>is_null</span>() {
+                        <span class='kw'>let</span> <span class='ident'>node</span> <span class='op'>=</span> <span class='kw'>unsafe</span> {<span class='macro'>addr</span><span class='macro'>!</span>(<span class='kw-2'>&amp;</span> $(<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>addr_mut</span>)<span class='op'>*</span> <span class='op'>*</span><span class='self'>self</span>.<span class='ident'>node</span>)};
+                        {
+                            <span class='kw'>let</span> <span class='ident'>next_node</span> <span class='op'>=</span> <span class='kw'>if</span> <span class='ident'>forward</span> {
+                                <span class='macro'>addr</span><span class='macro'>!</span>(<span class='kw-2'>&amp;</span> $(<span class='macro-nonterminal'>$</span><span class='macro-nonterminal'>addr_mut</span>)<span class='op'>*</span> <span class='ident'>node</span>.<span class='ident'>left</span>)
+    ... <span class='ident'>and</span> <span class='ident'>so</span> <span class='ident'>on</span>
+</pre>
+
+<p>That&#39;s... ugh. Have fun reviewing <code>let node = unsafe {addr!(&amp; $($addr_mut)* *self.node)};</code>.</p>
+
+<p>HashMap then swept in with a really cool design for handling by-ref and by-mutable-ref. You can be generic over <code>&amp;T</code> and <code>&amp;mut T</code> via the Deref and DerefMut traits. Basically, anything that implements <code>Deref&lt;T&gt;</code>, you provide logic for moving the iterator around, and then if the type implements <code>DerefMut&lt;T&gt;</code>, you specialize the iterator implementation to yield an <code>&amp;mut T</code> instead of an <code>&amp;T</code>. <code>&amp;T</code> implements <code>Deref&lt;T&gt;</code>, and <code>&amp;mut T</code> implements both, so with a little maneuvering, this works and you achieve some code reuse. Pretty slick.</p>
+
+<p>However we came up with an even sweeter pattern for BTreeMap. I was also able to port this to my <a href="https://github.com/Gankro/collect-rs/blob/master/src/blist.rs">experimental BList implementation</a> (doubly-linked-list of array-deques). You can&#39;t always implement this pattern. In particular, it depends on building on top of lower-level iterators. BTreeMap can do this because it needs to iterate its nodes. BList can do it because it&#39;s built on top of two iterable collections. However I believe TreeMap and TrieMap can similarly implement this pattern, as BTreeMap does.</p>
+
+<p>I&#39;m going to look at the BList implementation, since it&#39;s a bit simpler.</p>
+
+<p>We start by defining the following trait:</p>
+<pre class='rust '>
+<span class='doccomment'>/// Abstracts over getting the appropriate iterator from a T, &amp;T, or &amp;mut T</span>
+<span class='kw'>trait</span> <span class='ident'>Traverse</span><span class='op'>&lt;</span><span class='ident'>I</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>traverse</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>I</span>;
+}
+</pre>
+
+<p>And implement it for <code>&amp;RingBuf&lt;T&gt;</code>, <code>&amp;mut RingBuf</code> and <code>RingBuf</code>:</p>
+<pre class='rust '>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Traverse</span><span class='op'>&lt;</span><span class='ident'>ring_buf</span>::<span class='ident'>Items</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;&gt;</span> <span class='kw'>for</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>RingBuf</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>traverse</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ring_buf</span>::<span class='ident'>Items</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> { <span class='self'>self</span>.<span class='ident'>iter</span>() }
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Traverse</span><span class='op'>&lt;</span><span class='ident'>ring_buf</span>::<span class='ident'>MutItems</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;&gt;</span> <span class='kw'>for</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>RingBuf</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>traverse</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ring_buf</span>::<span class='ident'>MutItems</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> { <span class='self'>self</span>.<span class='ident'>iter_mut</span>() }
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Traverse</span><span class='op'>&lt;</span><span class='ident'>ring_buf</span>::<span class='ident'>MoveItems</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;&gt;</span> <span class='kw'>for</span> <span class='ident'>RingBuf</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>traverse</span>(<span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>ring_buf</span>::<span class='ident'>MoveItems</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> { <span class='self'>self</span>.<span class='ident'>into_iter</span>() }
+}
+</pre>
+
+<p>Then we define the following generic iterator:</p>
+<pre class='rust '>
+<span class='doccomment'>/// An iterator that abstracts over all three kinds of ownership for a BList</span>
+<span class='kw'>struct</span> <span class='ident'>AbsItems</span><span class='op'>&lt;</span><span class='ident'>DListIter</span>, <span class='ident'>RingBufIter</span><span class='op'>&gt;</span> {
+    <span class='ident'>list_iter</span>: <span class='ident'>DListIter</span>,
+    <span class='ident'>left_block_iter</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>RingBufIter</span><span class='op'>&gt;</span>,
+    <span class='ident'>right_block_iter</span>: <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>RingBufIter</span><span class='op'>&gt;</span>,
+    <span class='ident'>len</span>: <span class='ident'>uint</span>,
+}
+</pre>
+
+<p>So now we have an iterator that is generic over <em>something</em> that iterates over a DList, and <em>something</em> that iterates over RingBuf. We also have a generic trait for converting some kind of RingBuf into an appropriate kind of RingBuf iterator.</p>
+
+<p>And then we  just go <em>nuts</em> with generics on the implementation:</p>
+<pre class='rust '>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>A</span>,
+    <span class='ident'>RingBufIter</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span>,
+    <span class='ident'>DListIter</span>: <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>,
+    <span class='ident'>T</span>: <span class='ident'>Traverse</span><span class='op'>&lt;</span><span class='ident'>RingBufIter</span><span class='op'>&gt;&gt;</span>
+        <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>AbsItems</span><span class='op'>&lt;</span><span class='ident'>DListIter</span>, <span class='ident'>RingBufIter</span><span class='op'>&gt;</span> {
+
+    <span class='comment'>// I would like to thank all my friends and the fact that Iterator::next doesn&#39;t</span>
+    <span class='comment'>// borrow self, for this passing borrowck with minimal gymnastics</span>
+    <span class='kw'>fn</span> <span class='ident'>next</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span> {
+        <span class='kw'>if</span> <span class='self'>self</span>.<span class='ident'>len</span> <span class='op'>&gt;</span> <span class='number'>0</span> { <span class='self'>self</span>.<span class='ident'>len</span> <span class='op'>-=</span> <span class='number'>1</span>; }
+        <span class='comment'>// Keep loopin&#39; till we hit gold</span>
+        <span class='kw'>loop</span> {
+            <span class='comment'>// Try to read off the left iterator</span>
+            <span class='kw'>let</span> (<span class='ident'>ret</span>, <span class='ident'>iter</span>) <span class='op'>=</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>left_block_iter</span>.<span class='ident'>as_mut</span>() {
+                <span class='comment'>// No left iterator, try to get one from the list iterator</span>
+                <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>list_iter</span>.<span class='ident'>next</span>() {
+                    <span class='comment'>// No blocks left in the list, use the right iterator</span>
+                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='self'>self</span>.<span class='ident'>right_block_iter</span>.<span class='ident'>as_mut</span>() {
+                        <span class='comment'>// Truly exhausted</span>
+                        <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>None</span>,
+                        <span class='comment'>// Got right iter; don&#39;t care about fixing right_block in forward iteration</span>
+                        <span class='prelude-val'>Some</span>(<span class='ident'>iter</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>iter</span>.<span class='ident'>next</span>(),
+                    },
+                    <span class='comment'>// Got new block from list iterator, make it the new left iterator</span>
+                    <span class='prelude-val'>Some</span>(<span class='ident'>block</span>) <span class='op'>=&gt;</span> {
+                        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>next_iter</span> <span class='op'>=</span> <span class='ident'>block</span>.<span class='ident'>traverse</span>();
+                        <span class='kw'>let</span> <span class='ident'>next</span> <span class='op'>=</span> <span class='ident'>next_iter</span>.<span class='ident'>next</span>();
+                        (<span class='ident'>next</span>, <span class='prelude-val'>Some</span>(<span class='ident'>next_iter</span>))
+                    },
+                },
+                <span class='prelude-val'>Some</span>(<span class='ident'>iter</span>) <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='ident'>iter</span>.<span class='ident'>next</span>() {
+                    <span class='comment'>// None out the iterator so we ask for a new one, or go to the right</span>
+                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> (<span class='prelude-val'>None</span>, <span class='prelude-val'>None</span>),
+                    <span class='prelude-val'>Some</span>(<span class='ident'>next</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>next</span>),
+                },
+            };
+
+            <span class='comment'>// If we got here, we want to change what left_block_iter is, so do that</span>
+            <span class='comment'>// Also, if we got a return value, return that. Otherwise, just loop until we do.</span>
+            <span class='self'>self</span>.<span class='ident'>left_block_iter</span> <span class='op'>=</span> <span class='ident'>iter</span>;
+            <span class='kw'>if</span> <span class='ident'>ret</span>.<span class='ident'>is_some</span>() {
+                <span class='kw'>return</span> <span class='ident'>ret</span>;
+            }
+        }
+    }
+
+    <span class='kw'>fn</span> <span class='ident'>size_hint</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> (<span class='ident'>uint</span>, <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>uint</span><span class='op'>&gt;</span>) {
+        (<span class='self'>self</span>.<span class='ident'>len</span>, <span class='prelude-val'>Some</span>(<span class='self'>self</span>.<span class='ident'>len</span>))
+    }
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>A</span>,
+    <span class='ident'>RingBufIter</span>: <span class='ident'>DoubleEndedIterator</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span>,
+    <span class='ident'>DListIter</span>: <span class='ident'>DoubleEndedIterator</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span>,
+    <span class='ident'>T</span>: <span class='ident'>Traverse</span><span class='op'>&lt;</span><span class='ident'>RingBufIter</span><span class='op'>&gt;&gt;</span>
+        <span class='ident'>DoubleEndedIterator</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>AbsItems</span><span class='op'>&lt;</span><span class='ident'>DListIter</span>, <span class='ident'>RingBufIter</span><span class='op'>&gt;</span> {
+
+    <span class='comment'>// see `next` for details. This should be an exact mirror.</span>
+    <span class='kw'>fn</span> <span class='ident'>next_back</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>A</span><span class='op'>&gt;</span> {
+       <span class='comment'>//... basically symmetric logic</span>
+    }
+}
+</pre>
+
+<p>The key line being <code>let mut next_iter = block.traverse();</code> which is the only place where we
+actually use the Traverse trait to convert some-kind-of RingBuf into the right kind of RingBuf
+iterator. Now, at this point we can just create the three kinds of iterators as type synonyms for AbsItems with the appropriate concrete types. But that would expose our implementation details. So for completions sake, we have to do some trivial boiler-plate to &quot;wrap&quot; AbsItems:</p>
+<pre class='rust '>
+<span class='comment'>// only showing by-ref because it&#39;s identical logic for all of them:</span>
+
+<span class='doccomment'>/// A by-ref iterator for a BList</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Items</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span>: <span class='lifetime'>&#39;a</span><span class='op'>&gt;</span> {
+    <span class='ident'>iter</span>: <span class='ident'>AbsItems</span><span class='op'>&lt;</span><span class='ident'>dlist</span>::<span class='ident'>Items</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>RingBuf</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;&gt;</span>, <span class='ident'>ring_buf</span>::<span class='ident'>Items</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;&gt;</span>,
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>Iterator</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>T</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Items</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>next</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>T</span><span class='op'>&gt;</span> { <span class='self'>self</span>.<span class='ident'>iter</span>.<span class='ident'>next</span>() }
+    <span class='kw'>fn</span> <span class='ident'>size_hint</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> (<span class='ident'>uint</span>, <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>uint</span><span class='op'>&gt;</span>) { <span class='self'>self</span>.<span class='ident'>iter</span>.<span class='ident'>size_hint</span>() }
+}
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>DoubleEndedIterator</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>T</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Items</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> {
+    <span class='kw'>fn</span> <span class='ident'>next_back</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>T</span><span class='op'>&gt;</span> { <span class='self'>self</span>.<span class='ident'>iter</span>.<span class='ident'>next_back</span>() }
+}
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> <span class='ident'>ExactSizeIterator</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='ident'>T</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>Items</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>T</span><span class='op'>&gt;</span> {}
+</pre>
+
+<p>Finally, out actual <code>BList::iter</code> method needs to initialize the thing:</p>
+<pre class='rust '>
+<span class='doccomment'>/// Gets a by-reference iterator over the elements in the list.</span>
+<span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>iter</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>Items</span><span class='op'>&lt;</span><span class='ident'>T</span><span class='op'>&gt;</span> {
+    <span class='kw'>let</span> <span class='ident'>len</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>len</span>();
+    <span class='ident'>Items</span> { <span class='ident'>iter</span>: <span class='ident'>AbsItems</span> {
+        <span class='ident'>list_iter</span>: <span class='self'>self</span>.<span class='ident'>list</span>.<span class='ident'>iter</span>(),
+        <span class='ident'>right_block_iter</span>: <span class='prelude-val'>None</span>,
+        <span class='ident'>left_block_iter</span>: <span class='prelude-val'>None</span>,
+        <span class='ident'>len</span>: <span class='ident'>len</span>,
+    } }
+}
+</pre>
+
+<p>and AbsItems does all the work. We&#39;ve only written our quite complicated iteration logic once, and we&#39;ve gotten three conceptually distinct iterators as a result. All we have to do is some trivial one-time boiler-plate. If we want to change any of the &quot;real&quot; logic, it&#39;s all in one place! No macros, and no specialization for DerefMut. Also, since we&#39;re using generics this will all monomorphize to custom iterator impls at compilation time!</p>
+
+<p>I think that&#39;s all I have to say about generics in Rust for now. See you all next time!</p>
+
+<p>Edit: I lied. There's so much more I want to talk about. Maybe next time.</p>
+</div>
+    <script type="text/javascript">
+        window.playgroundUrl = "";
+    </script>
+
+</body>
+</html>

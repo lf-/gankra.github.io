@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="generator" content="rustdoc">
+    <link href="../../src/css/style.css" rel="stylesheet" type="text/css">
+    <link href="../../libs/bootstrap/css/bootstrap.min.css" rel="stylesheet" type="text/css">
+    <link href="../../libs/bootstrap/css/bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
+    <link href="../rust.css" rel="stylesheet" type="text/css">
+
+
+    <title>Rust Collections Case Study: BTreeMap</title>
+</head>
+<body class="rustdoc"><div class="content">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+
+    <h1 class="title">Rust Collections Case Study: BTreeMap</h1>
+
+<h2 id="alexis-beingessner" class='section-header'>Alexis Beingessner</h2>
+<p>In my previous two posts I talked a lot about some high-level patterns and issues that make implementing collections in Rust an interesting problem. Today I&#39;d like to really dig into one of my two favourite collections in the standard library: BTreeMap. There are a few reasons why I like it a lot:</p>
+
+<ul>
+<li>I wrote the original implementation (so I know it well)</li>
+<li>It&#39;s some of the &quot;newest&quot; code in the whole standard library, which means it leverages modern idioms and ideas</li>
+<li>It&#39;s actually a pretty complicated collection</li>
+<li>Several tricks were &quot;invented&quot; to handle this complexity</li>
+</ul>
+
+<p>Now what exactly BTreeMap <em>is</em> is in flux. Between gereeter and I, there have already been something like 6 major revisions of the design, with pczarn doing some iterator work as I write this. The later versions are more complex because they push the boundaries of performance and safety quite a bit. My first merged version (v3) was <em>very</em> naive in several places because my primary goal was to write up a version of the collection that was safe and correct, <em>but</em> reasonably upgradeable into a less naive implementation. Several revisions later (all credit to gereeter there), and I think that&#39;s largely held up. A lot of the high-level structure and ideas from my implementation are still there, but optimized using several tricks.</p>
+
+<p>So I&#39;m going to do this case study by looking at <em>several</em> version of the collection to highlight some of the design choices made at different stages of development. Also the current version is fairly overwhelming at first, so it&#39;s nice to start with my naive implementation.</p>
+
+<h2 id="there&#39;s-something-about-binary-search-trees" class='section-header'><a
+                           href="#there&#39;s-something-about-binary-search-trees">There&#39;s Something About Binary Search Trees</a></h2>
+<p>Traditionally, sorted maps have been the domain of <a href="http://en.wikipedia.org/wiki/Binary_search_tree"><em>binary</em> search trees (BSTs)</a>. BSTs enjoy a huge ecosystem of literature, implementations, and promotion in the education system. They&#39;re really nice to think about, have great theoretical and practical properties, and about a million different variations to satisfy your <em>exact</em> use-case.</p>
+
+<p>The basic idea of a BST is as follows: Every element in the tree gets a single node. Each node has two pointers: a left child node, and a right child node. Nodes in the sub-tree to the left must contain elements that are smaller than the parent, and nodes to the right must contain elements that are larger. This makes search fairly straight-forward: start at the &quot;root&quot; of the tree and compare the element in that node to your search key. Then recursively search either the left or right tree accordingly (or stop if you find an exact match).</p>
+
+<p><img src="http://upload.wikimedia.org/wikipedia/commons/d/da/Binary_search_tree.svg" alt="Example BST from Wikimedia Commons"></p>
+
+<p><a href="http://commons.wikimedia.org/wiki/File:Binary_search_tree.svg">Example BST from Wikimedia Commons</a>.</p>
+
+<p>If you use everybody&#39;s favourite BST, the <a href="http://en.wikipedia.org/wiki/Red%E2%80%93black_tree">red-black tree</a>, then every basic map operation (search, insert, remove) will take O(log n) worst-case time. Great!</p>
+
+<p>However BSTs have some serious practical issues in terms of how actual computers work. A lot of  applications are not bound by how fast the CPU can execute instructions, but by how fast it can access memory. Modern CPUs go so fast that the data that they&#39;re working with has to be <em>really</em> close to CPU to actually be used. Light only travels so fast! Consequently CPUs have a hierarchy of caches that range from &quot;very small and very fast&quot; to &quot;very large and very slow (relatively)&quot;.</p>
+
+<p>Caches usually work based on a time-space locality assumption: if you&#39;re working with some data at location x right now, you&#39;ll probably want data near location x next. A great case for this assumption is something like looping over an array: every piece of data you want next is literally right next to the last one. A bad case would be random indexing into an array: every piece of data you want next is unlikely to be near the last one.</p>
+
+<p>This assumption is usually implemented in some way like: when location y in memory is requested, check if it is in the fastest cache. If is, (cache hit) great! If it&#39;s not (cache miss), check the next (slower, bigger) level of cache. In the worst-case this bottoms out into your computer&#39;s RAM (or, god-forbid, the disk!). When you <em>do</em> find the data, it gets added to all the previous (smaller, faster) levels of cache, along with some of the data surrounding it. This, of course, evicts some data that is somehow determined to be unlikely to be needed. Precise details aren&#39;t super important here, the moral is: cache hits are fast, so we want to access data in a space-time local way.</p>
+
+<p>So how do BSTs access data? Basically randomly. Each node is generally allocated separately from every other node. Even if you assume that they were all allocated in a tightly-packed array, the memory access pattern for a search will roughly amount to a series of random accesses into the array. As a rough estimate, every time you follow a pointer you can expect a cache miss. Dang.</p>
+
+<p>To add insult to injury, BSTs are actually pretty memory inefficient. Every node has <em>two</em> pointers for every <em>single</em> entry in the tree. on 64-bit that means you&#39;ve got a 16-byte overhead for every element. Worse yet, half of those pointers are just null! They don&#39;t do a damn thing! And that&#39;s <em>best case</em>. When you factor in issues like padding and any extra metadata that nodes need to store (such as the red/black flag in the aforementioned red-black tree), this is pretty nasty.</p>
+
+<p>As a final knife-twist against BSTs, note that <em>every insertion</em> triggers an allocation. Allocations are generally regarded as a slow thing to do, so that&#39;s something we&#39;d like to avoid if possible!</p>
+
+<p>So what can we do? B-Trees!</p>
+
+<h2 id="what&#39;s-a-b-tree?-why&#39;s-a-b-tree?" class='section-header'><a
+                           href="#what&#39;s-a-b-tree?-why&#39;s-a-b-tree?">What&#39;s a B-Tree? Why&#39;s a B-Tree?</a></h2>
+<p>B-Trees take the idea of a BST, and say &quot;lets put some arrays in there; computers love arrays&quot;. Rather than each node consisting of a <em>single</em> element with two children, B-Tree nodes have an <em>array</em> of elements with an <em>array</em> of children.</p>
+
+<p>Specifically, for some fixed constant <em>B</em>, each node contains between <em>B-1</em> and <em>2B-1</em> elements in sorted order (root can have as few as one element). An <em>internal</em> node (one which has children) with <em>k</em> elements has <em>k+1</em> children. In this way each element still has a &quot;left&quot; and &quot;right&quot; child, but e.g. the 2nd child contains elements strictly between the first and second element.</p>
+
+<p><img src="http://upload.wikimedia.org/wikipedia/commons/6/65/B-tree.svg" alt="Example B-Tree from Wikimedia Commons"></p>
+
+<p><a href="http://commons.wikimedia.org/wiki/File:B-tree.svg">Example B-Tree from Wikimedia Commons</a></p>
+
+<p>B-Trees have historically been popular as a data structure stored on <em>disk</em>. This is because  accessing disk is a <em>super</em> slow operation, but you get back big chunks at once. So if you e.g. pick <em>B = 1000</em>, then you can grab a thousand entries in the tree all at once and process them in RAM relatively instantly. Your tree will also be <em>really</em> shallow, meaning each search will maybe hit the disk by following a pointer only a couple times. Sound familiar? This is exactly the cache-hit problem! The difference between disk and ram is <em>very</em> similar to the difference between ram and cache, but with the scales a bit different. In theory, we should be able to use the same ideas to make a faster search tree.</p>
+
+<p>I&#39;ll briefly cover the three primary operations in a B-Tree here, but if you&#39;re really interested, I highly recommend checking out the <a href="http://opendatastructures.org/ods-python/14_2_B_Trees.html">excellent description</a> found in <a href="http://opendatastructures.org/">Open Data Structures</a>, which is available in a few different programming/human languages, completely free, and licensed under a creative commons license. It is the primary reference I used for the standard Rust implementation, though I only really used it for the high-level details. (disclaimer: it is primarily written by one of my supervisors)</p>
+
+<p>Once constructed, searching for a key is the same basic idea as in a BST, but rather than compare to just one element per-node, you search a node for the smallest element larger than the key. Then you recursively search that element&#39;s left child (or the last child if no such element exists). How you choose to search is an implementation detail: you can go linear, binary, or anything between.</p>
+
+<p>Inserting into a B-Tree involves searching for where the element to insert would be if it <em>was</em> contained (which always terminates at a leaf if it&#39;s not in there), doing an ordered insertion into that node&#39;s arrays (so shifting about B elements in an array), and then potentially performing an overflow handling operation. Overflow occurs when the node to insert into is already full. The solution is fairly simple: make a new node, copy half of the elements into it, and insert that into the parent using an element from the split node. This essentially &quot;punts&quot; the insertion problem to the parent node. If overflow makes it all the way to the root, we simply make a new root and insert the two halves of the old root into the new one.</p>
+
+<p>Removing from a B-Tree is the &quot;hard&quot; operation. Like insertion, you first search for the element normally. If it&#39;s not in a leaf node, you need to swap it with the smallest element in its right-subtree, so that it <em>is</em> at a leaf. Then you do an ordered array removal (again, shifting about B elements in an array), and potentially handle underflow. Underflow occurs when a node has less elements than the allowed minimum. Handling underflow is a two phase process. First, you try to steal an element from a neighbour. If they have elements to spare, this works fine. However if they are <em>also</em> minimally full, this would just cause <em>them</em> to underflow. In this case we merge the two nodes into one node, stealing the separating element from the parent along the way. Like overflow, this punts the removal problem to the parent. If underflow makes it to the root, we replace the root with its single remaining child.</p>
+
+<p>If that was a lot to take in, don&#39;t worry. It&#39;s not that important. If you really want to get it, <a href="http://opendatastructures.org/ods-python/14_2_B_Trees.html">Open Data Structures</a> has a way more detailed description, code, and diagrams.</p>
+
+<p>This is where we see that B-Trees have a significant cache-work trade-off built into them in the form of <em>B</em>. BSTs usually require <em>O(log<sub>2</sub> n)</em> time for all operations. For B-Trees, search takes <em>O((log<sub>2</sub>B)(log<sub>B</sub> n))</em> time (with binary searching the nodes), and mutation takes O(B + log<sub>B</sub> n) amortized time. So if you really crank up B you&#39;re looking at doing more &quot;work&quot; to perform mutations, <em>but better cache efficiency while doing it</em>. At one extreme (<em>B = 1000</em>), your tree will be maybe two-or-three layers deep, with you binary-searching and inserting into massive sorted arrays. At another extreme (<em>B = 2</em>), you basically get a BST.</p>
+
+<p>How you search the nodes is also a cache-work tradeoff. Linear search is of course the cache-friendliest thing you can do, but takes <em>O(B)</em> time. Binary search is a bit less cache friendly, but takes <em>O(log B)</em> time. For the <em>B</em> I chose as the default (6) from some hasty micro-benchmarking, linear search blew binary out of the water. We <em>might</em> just have a bad binary search implementation in the standard library though (in theory, standard binary search should do whatever is fastest anyway, even if that means linear search-- future work for someone interested!). This of course flies in the face of naive asymptotic analysis, and that&#39;s because Real Computers are Complicated. Cache, inlining, branch-prediction, and good-old hidden-constant costs all interact in funky ways that you really need to profile!</p>
+
+<p>On the note of allocations, rather than allocating once per node like BSTs, we allocate only once per B elements on average. That&#39;s basically an order of magnitude reduction for a reasonable choice of B! Niiice.</p>
+
+<p>On the note of wasted space, this is trickier to compute. There&#39;s tons of ways to represent the nodes that will have significant space-time trade-offs. For simplicity I will address this issue at only a high-level. Remark that there is <em>basically</em> only one child-pointer per element, plus a few constant fiddly bits (the right-most child-pointer, a counter for the number of elements in the node, probably some pointers to the arrays, possibly B itself). If space is your only concern you can really crank B up and have basically 1 pointer wasted per element. This gets even better when you realize you can just <em>not</em> allocate space for pointers on leaves (which will never become internal due to the way the split and merge operations work). Then you have only the constant node overhead which you can wash out with a huge B to basically 0 overhead. Note also that the vast majority of your nodes will be leaves.</p>
+
+<p>However if your nodes aren&#39;t packed to capacity, you now have wasted space in the form of unused element slots. Also, rather than storing a pointer to a child, you might instead store the children by-value if you store the arrays themselves as pointers in your nodes. This will bloat up the child array as nodes are going to be bigger than a pointer, exacerbating the wasted space for unused elements slots (because they imply unused child slots).</p>
+
+<p>This tradeoff isn&#39;t a space we&#39;ve adequately explored in Rust for me to give a really good analysis here. Part of the problem is that fixed-sized by-value arrays in Rust kind of suck because we don&#39;t have type-level integers. So you can&#39;t have a <code>Node&lt;K, V, B&gt;</code>. As a result we currently heap-allocate the arrays rather than the whole nodes, and then opt for the bloaty by-value children approach. For simplicity/safety we&#39;ve also opted to store B on each node instance. Hopefully when we get the tooling for type-level numbers in Rust we can explore the options here better.</p>
+
+<p>Finally, I&#39;d just like to note that this isn&#39;t a total slam-dunk for B-Trees. The unique association of elements to nodes in BSTs means that they can more cleanly support various intrusive and simultaneous manipulation tricks. <a href="https://code.google.com/p/cpp-btree/">As I understand it</a>, certain iterator invalidation requirements in the C++ STL basically make B-Trees a non-starter. Meanwhile <a href="http://www.canonware.com/jemalloc/">jemalloc</a> maintains a pair of intrusive BSTs over the same set of data.</p>
+
+<h2 id="okay-but-seriously-the-implementation" class='section-header'><a
+                           href="#okay-but-seriously-the-implementation">Okay but seriously the implementation</a></h2>
+<p>Alright, let&#39;s talk some actual implementation details. In particular I want to get started looking at the representation of my naive implementation. If you want, you can browse <a href="https://github.com/rust-lang/rust/tree/b6edc59413f79016a1063c2ec6bc05516bc99cb6/src/libcollections/btree">the full source as it was when first merged</a>.</p>
+
+<p>BTreeMap is a key-value store, so an &quot;element&quot; is a key-value pair. Right away this gives us a design decision to make: we can store key-value pairs in a single array, or split them into two separate arrays of keys and values. An array of (key, value) is unlikely to be the right choice here for a couple reasons. First, we spend all of our search time interested in keys, and not values. First, since we want to use B-Trees for cache reasons, it seems silly to clog up the caches for our key searches with values we don&#39;t actually care about. Second, we&#39;ll probably be wasting more space for padding in the general case by insisting on (key, value).</p>
+
+<p>Here&#39;s what I went with:</p>
+<pre class='rust '>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Node</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='ident'>keys</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>K</span><span class='op'>&gt;</span>,
+    <span class='ident'>edges</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>Node</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;&gt;</span>,
+    <span class='ident'>vals</span>: <span class='ident'>Vec</span><span class='op'>&lt;</span><span class='ident'>V</span><span class='op'>&gt;</span>,
+}
+</pre>
+
+<p>First off: definitely not optimal. <code>Vec</code>&#39;s representation is <code>(ptr, capacity, length)</code>, so that means this representation is basically 9 pointers big. However the capacity isn&#39;t needed, because all of these arrays should never change size. <code>keys</code> and <code>vals</code> should have exactly space for <code>2B - 1</code> elements, and <code>edges</code> should have space for <code>2B</code>. Length is similarly redundant to track 3 times; the length of one implies the length of the others. Finally, we&#39;re actually doing <em>3</em> allocations per node. Ick. All in all, if you wanted to get down-and-dirty, you could crush this all down to a single ptr, a single len, and a single allocation. You know, casually shave off 7 ptrs of size.</p>
+
+<p>You can also see that I&#39;m taking the bloaty by-value-edges approach discussed in the previous section. I <em>could</em> have Boxed the nodes up to make the edges array leaner, but that would add more indirection and a bigger memory footprint for &quot;full&quot; nodes.</p>
+
+<p>That said it&#39;s definitely correct and safe, and I don&#39;t need to implement all the damn Vec logic myself! If you look closely, you can also see an adorable attempt at a micro-optimization by having keys &quot;first&quot; followed by edges. The logic being that during search we are mostly interested in keys, with a secondary interest in edges, and no interest in values.</p>
+
+<p>As for BTreeMap itself:</p>
+<pre class='rust '>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>BTreeMap</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='ident'>root</span>: <span class='ident'>Node</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span>,
+    <span class='ident'>length</span>: <span class='ident'>uint</span>,
+    <span class='ident'>depth</span>: <span class='ident'>uint</span>,
+    <span class='ident'>b</span>: <span class='ident'>uint</span>,
+}
+</pre>
+
+<p>Root, length, and b are all pretty obvious fields to include (again, no type-level integers, so has to be stored at runtime). Depth is a bit odd, though. B-Trees are a bit interesting in that all leaves are at the same depth, and that depth only changes when you modify the root. The consequence of this is that if you track the depth, you have a precise upper-bound on how far any search path will be. And since most values are stored in leaves, it&#39;s a pretty good guess at the exact length, too. We&#39;ll see where we can use this later, but even then it&#39;s potentially a fairly dubious inclusion. I don&#39;t recall doing any actual profiling, it just made sense at the time. <em>shrug</em></p>
+
+<p>Also a full-blown pointer-sized integer for <code>b</code> and <code>depth</code> is absolutely overkill. u16 if not u8 should be big enough for anything. I&#39;ll stress again that this design was strictly interested in <em>correctness</em>. :)</p>
+
+<p>Finally, I split the collection up into two modules: <code>node</code> and <code>map</code>. <code>node</code> contains all the understanding of what a node &quot;is&quot;. How to search, insert, remove, and the local parts of underflow and overflow handling. map, meanwhile, handles the higher-level logic of traversing and manipulating the nodes. <code>map</code> has no privileged information of <code>node</code>, it consumes a public interface provided by <code>node</code>. In this way we should be able to change the representation without having to change <code>map</code> much. This also marks a <em>safety</em> boundary, which is a concept that isn&#39;t often discussed in Rust development, but I think is important to think about.</p>
+
+<p>In an ideal world, calling a safe (not <code>unsafe</code>) function should always be safe. But in internal APIs it can easily be the case that calling an otherwise safe function at the wrong time <em>can</em> be unsafe. This is because we generally assume that some underlying <em>state</em> is consistent. Such as the <code>len</code> field in a Vec being accurate, or the <code>ptr</code> field pointing to allocated memory. In this sense safety becomes a bit of a lie from an internal perspective. However what we <em>can</em> (and should) guarantee is that a consumer of our public safe API will always be safe. Internally we can cause total chaos and havoc, but as long as invariants are restored and all inputs are correctly handled, the <em>public</em> API will be safe. It also lets us play a bit fast-and-loose with safety in our private methods, because it can be tedious to ensure that some utility function handles inputs that we don&#39;t actually care about.</p>
+
+<p>Alright, that&#39;s structure out of the way, what does actual <em>code</em> look like. Here&#39;s searching in its entirety (thank god I&#39;m obsessive about documenting implementation details):</p>
+<pre class='rust '>
+<span class='comment'>// map.rs</span>
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>K</span>: <span class='ident'>Ord</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='ident'>Map</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>BTreeMap</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='comment'>// Searching in a B-Tree is pretty straightforward.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>// Start at the root. Try to find the key in the current node. If we find it, return it.</span>
+    <span class='comment'>// If it&#39;s not in there, follow the edge *before* the smallest key larger than</span>
+    <span class='comment'>// the search key. If no such key exists (they&#39;re *all* smaller), then just take the last</span>
+    <span class='comment'>// edge in the node. If we&#39;re in a leaf and we don&#39;t find our key, then it&#39;s not</span>
+    <span class='comment'>// in the tree.</span>
+    <span class='kw'>fn</span> <span class='ident'>find</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>key</span>: <span class='kw-2'>&amp;</span><span class='ident'>K</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>V</span><span class='op'>&gt;</span> {
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>cur_node</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>root</span>;
+        <span class='kw'>loop</span> {
+            <span class='kw'>match</span> <span class='ident'>cur_node</span>.<span class='ident'>search</span>(<span class='ident'>key</span>) {
+                <span class='ident'>Found</span>(<span class='ident'>i</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>cur_node</span>.<span class='ident'>val</span>(<span class='ident'>i</span>),
+                <span class='ident'>GoDown</span>(<span class='ident'>i</span>) <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='ident'>cur_node</span>.<span class='ident'>edge</span>(<span class='ident'>i</span>) {
+                    <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>None</span>,
+                    <span class='prelude-val'>Some</span>(<span class='ident'>next_node</span>) <span class='op'>=&gt;</span> {
+                        <span class='ident'>cur_node</span> <span class='op'>=</span> <span class='ident'>next_node</span>;
+                        <span class='kw'>continue</span>;
+                    }
+                }
+            }
+        }
+    }
+}
+</pre>
+<pre class='rust '>
+<span class='comment'>// node.rs</span>
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>K</span>: <span class='ident'>Ord</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='ident'>Node</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='doccomment'>/// Searches for the given key in the node. If it finds an exact match,</span>
+    <span class='doccomment'>/// `Found` will be yielded with the matching index. If it fails to find an exact match,</span>
+    <span class='doccomment'>/// `GoDown` will be yielded with the index of the subtree the key must lie in.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>search</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>key</span>: <span class='kw-2'>&amp;</span><span class='ident'>K</span>) <span class='op'>-&gt;</span> <span class='ident'>SearchResult</span> {
+        <span class='comment'>// FIXME(Gankro): Tune when to search linear or binary based on B (and maybe K/V).</span>
+        <span class='comment'>// For the B configured as of this writing (B = 6), binary search was *singnificantly*</span>
+        <span class='comment'>// worse for uints.</span>
+        <span class='self'>self</span>.<span class='ident'>search_linear</span>(<span class='ident'>key</span>)
+    }
+
+    <span class='kw'>fn</span> <span class='ident'>search_linear</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>key</span>: <span class='kw-2'>&amp;</span><span class='ident'>K</span>) <span class='op'>-&gt;</span> <span class='ident'>SearchResult</span> {
+        <span class='kw'>for</span> (<span class='ident'>i</span>, <span class='ident'>k</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>keys</span>.<span class='ident'>iter</span>().<span class='ident'>enumerate</span>() {
+            <span class='kw'>match</span> <span class='ident'>k</span>.<span class='ident'>cmp</span>(<span class='ident'>key</span>) {
+                <span class='ident'>Less</span> <span class='op'>=&gt;</span> {},
+                <span class='ident'>Equal</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>Found</span>(<span class='ident'>i</span>),
+                <span class='ident'>Greater</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='ident'>GoDown</span>(<span class='ident'>i</span>),
+            }
+        }
+        <span class='ident'>GoDown</span>(<span class='self'>self</span>.<span class='ident'>len</span>())
+    }
+}
+</pre>
+
+<p>So BTreeMap&#39;s search is basically just a loop that asks the current node to search itself, and handles the result accordingly by returning or following an edge. Meanwhile search in Node is just a simple linear search (with a nice little comment from me about why that is). Simple stuff. Of note is the fact that the node and map communicate via raw integer indices (with a nice custom enum to communicate what the search result means). This is simply the &quot;easy&quot; choice, but it <em>does</em> mean the safe Node API has to do bounds-checking on those indices, since it has no way of knowing where those came from. We <em>could</em> do unchecked indexing, but we&#39;d rather be safe to start. At this stage of development, an index-out-of-bounds is much easier to debug than simply invoking Undefined Behaviour.</p>
+
+<p>In this particular case it turns out to not <em>really</em> matter. We leverage the bounds-check to do an implict is-a-leaf check with <code>match cur_node.edge(i)</code>. Leaves have no allocated edges, so any index is out-of-bounds. Meanwhile our Map API already returns an Option for the value, so we&#39;re just forwarding the bounds-check Option in <code>return cur_node.val(i)</code>.</p>
+
+<p>Also I do a pointless <code>continue</code> in <code>find</code> for funsies and a bit of semantics.</p>
+
+<p>Let&#39;s move on to insertion (the <code>swap</code> name was the convention at the time; this is now called <code>insert</code> -- oh hey, and does anyone remember when we had these collection traits???):</p>
+<pre class='rust '>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>K</span>: <span class='ident'>Ord</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='ident'>MutableMap</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>BTreeMap</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='comment'>// Insertion in a B-Tree is a bit complicated.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>// First we do the same kind of search described in `find`. But we need to maintain a stack of</span>
+    <span class='comment'>// all the nodes/edges in our search path. If we find a match for the key we&#39;re trying to</span>
+    <span class='comment'>// insert, just swap the vals and return the old ones. However, when we bottom out in a leaf,</span>
+    <span class='comment'>// we attempt to insert our key-value pair at the same location we would want to follow another</span>
+    <span class='comment'>// edge.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>// If the node has room, then this is done in the obvious way by shifting elements. However,</span>
+    <span class='comment'>// if the node itself is full, we split node into two, and give its median key-value</span>
+    <span class='comment'>// pair to its parent to insert the new node with. Of course, the parent may also be</span>
+    <span class='comment'>// full, and insertion can propagate until we reach the root. If we reach the root, and</span>
+    <span class='comment'>// it is *also* full, then we split the root and place the two nodes under a newly made root.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>// Note that we subtly deviate from Open Data Structures in our implementation of split.</span>
+    <span class='comment'>// ODS describes inserting into the node *regardless* of its capacity, and then</span>
+    <span class='comment'>// splitting *afterwards* if it happens to be overfull. However, this is inefficient.</span>
+    <span class='comment'>// Instead, we split beforehand, and then insert the key-value pair into the appropriate</span>
+    <span class='comment'>// result node. This has two consequences:</span>
+    <span class='comment'>//</span>
+    <span class='comment'>// 1) While ODS produces a left node of size B-1, and a right node of size B,</span>
+    <span class='comment'>// we may potentially reverse this. However, this shouldn&#39;t effect the analysis.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>// 2) While ODS may potentially return the pair we *just* inserted after</span>
+    <span class='comment'>// the split, we will never do this. Again, this shouldn&#39;t effect the analysis.</span>
+
+    <span class='kw'>fn</span> <span class='ident'>swap</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>key</span>: <span class='ident'>K</span>, <span class='kw-2'>mut</span> <span class='ident'>value</span>: <span class='ident'>V</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>V</span><span class='op'>&gt;</span> {
+        <span class='comment'>// This is a stack of rawptrs to nodes paired with indices, respectively</span>
+        <span class='comment'>// representing the nodes and edges of our search path. We have to store rawptrs</span>
+        <span class='comment'>// because as far as Rust is concerned, we can mutate aliased data with such a</span>
+        <span class='comment'>// stack. It is of course correct, but what it doesn&#39;t know is that we will only</span>
+        <span class='comment'>// be popping and using these ptrs one at a time in child-to-parent order. The alternative</span>
+        <span class='comment'>// to doing this is to take the Nodes from their parents. This actually makes</span>
+        <span class='comment'>// borrowck *really* happy and everything is pretty smooth. However, this creates</span>
+        <span class='comment'>// *tons* of pointless writes, and requires us to always walk all the way back to</span>
+        <span class='comment'>// the root after an insertion, even if we only needed to change a leaf. Therefore,</span>
+        <span class='comment'>// we accept this potential unsafety and complexity in the name of performance.</span>
+        <span class='comment'>//</span>
+        <span class='comment'>// Regardless, the actual dangerous logic is completely abstracted away from BTreeMap</span>
+        <span class='comment'>// by the stack module. All it can do is immutably read nodes, and ask the search stack</span>
+        <span class='comment'>// to proceed down some edge by index. This makes the search logic we&#39;ll be reusing in a</span>
+        <span class='comment'>// few different methods much neater, and of course drastically improves safety.</span>
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>stack</span> <span class='op'>=</span> <span class='ident'>stack</span>::<span class='ident'>PartialSearchStack</span>::<span class='ident'>new</span>(<span class='self'>self</span>);
+
+        <span class='kw'>loop</span> {
+            <span class='comment'>// Same basic logic as found in `find`, but with PartialSearchStack mediating the</span>
+            <span class='comment'>// actual nodes for us</span>
+            <span class='kw'>match</span> <span class='ident'>stack</span>.<span class='ident'>next</span>().<span class='ident'>search</span>(<span class='kw-2'>&amp;</span><span class='ident'>key</span>) {
+                <span class='ident'>Found</span>(<span class='ident'>i</span>) <span class='op'>=&gt;</span> <span class='kw'>unsafe</span> {
+                    <span class='comment'>// Perfect match, swap the values and return the old one</span>
+                    <span class='kw'>let</span> <span class='ident'>next</span> <span class='op'>=</span> <span class='ident'>stack</span>.<span class='ident'>into_next</span>();
+                    <span class='ident'>mem</span>::<span class='ident'>swap</span>(<span class='ident'>next</span>.<span class='ident'>unsafe_val_mut</span>(<span class='ident'>i</span>), <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>value</span>);
+                    <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>value</span>);
+                },
+                <span class='ident'>GoDown</span>(<span class='ident'>i</span>) <span class='op'>=&gt;</span> {
+                    <span class='comment'>// We need to keep searching, try to get the search stack</span>
+                    <span class='comment'>// to go down further</span>
+                    <span class='ident'>stack</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>stack</span>.<span class='ident'>push</span>(<span class='ident'>i</span>) {
+                        <span class='ident'>stack</span>::<span class='ident'>Done</span>(<span class='ident'>new_stack</span>) <span class='op'>=&gt;</span> {
+                            <span class='comment'>// We&#39;ve reached a leaf, perform the insertion here</span>
+                            <span class='ident'>new_stack</span>.<span class='ident'>insert</span>(<span class='ident'>key</span>, <span class='ident'>value</span>);
+                            <span class='kw'>return</span> <span class='prelude-val'>None</span>;
+                        }
+                        <span class='ident'>stack</span>::<span class='ident'>Grew</span>(<span class='ident'>new_stack</span>) <span class='op'>=&gt;</span> {
+                            <span class='comment'>// We&#39;ve found the subtree to insert this key/value pair in,</span>
+                            <span class='comment'>// keep searching</span>
+                            <span class='ident'>new_stack</span>
+                        }
+                    };
+                }
+            }
+        }
+    }
+}
+</pre>
+
+<p>Those comments are pretty thorough, and nail down the basic logic, but there&#39;s some new stuff here. As a minor point, I <em>do</em> use an unchecked index in <code>next.unsafe_val_mut(i)</code>. This was basically more to avoid an unwrap than a bounds-check, if I recall correctly. Less unwinding-bloat, cleaner code.</p>
+
+<p>However the big new introduction is this idea of a search stack. Unlike some BSTs, B-Trees absolutely <em>do not</em> store a &quot;parent&quot; pointer. This is because we do a lot of bulk shifting of nodes, and having to update visit all the children to update their parent pointers would completely trash the whole &quot;cache-friendly&quot; thing. However insertion (and removal) requires us to potentially walk back up the search path to modify ancestors. Therefore, we need to maintain an explicit stack of visited nodes.</p>
+
+<p>Where this would be a fairly benign thing to do in many other languages, this is pretty hazardous from Rust&#39;s perspective. As the comment in the code discusses, all the compiler can see is that we&#39;re taking a mutable borrow of some node (a reference to a child), and then trying to give another mutable borrow out (storing a reference to it in a stack). From its perspective this is hazardous, and it&#39;s totally right. We <em>could</em> just take the reference back out of the stack and mutate it while it&#39;s borrowed. So we&#39;re forced to go over the compiler&#39;s head and use raw <code>*mut</code> pointers in the stack. These don&#39;t borrow the collection, so it&#39;s &quot;fine&quot; as far as the compiler is concerned. It is now however considered unsafe to dereference them.</p>
+
+<p>This is where the SearchStack abstraction is introduced. This was some new tech that we came up with to try to handle this problem a bit more gracefully than &quot;fuck it: <code>Vec&lt;*mut Node&gt;</code>&quot;. To start, you create a <em>PartialSearchStack</em> by passing it a mutable reference to a BTreeMap. The stack then initializes itself to have the root of the tree as its &quot;next&quot; value. We then start searching as we normally would, but by continuously asking the stack for the &quot;next&quot; value.</p>
+
+<p>Things get interesting here: <code>stack = match stack.push(i)</code>. PartialSearchStack::push takes the index of the edge to follow next. However it actually takes self by-value. This means that is actually <em>consumes</em> the PartialSearchStack to push a value into it. There are then one of two results: Either the stack was able to follow the edge and <code>Grew</code>, or it wasn&#39;t, and we&#39;re <code>Done</code>. If it <code>Grew</code>, it&#39;s still partial, and we make that the new stack. If we&#39;re <code>Done</code>, then it is no longer partial. It is now a proper SearchStack. SearchStack has a completely different API from PartialSearchStack. You cannot add elements to a SearchStack, you can only ask it to <code>insert</code> or <code>remove</code> a value. In this case, we ask for an <code>insert</code>:</p>
+<pre class='rust '>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='ident'>SearchStack</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='doccomment'>/// Inserts the key and value into the top element in the stack, and if that node has to</span>
+    <span class='doccomment'>/// split recursively inserts the split contents into the next element stack until</span>
+    <span class='doccomment'>/// splits stop.</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// Assumes that the stack represents a search path from the root to a leaf.</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// An &amp;mut V is returned to the inserted value, for callers that want a reference to this.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>insert</span>(<span class='self'>self</span>, <span class='ident'>key</span>: <span class='ident'>K</span>, <span class='ident'>val</span>: <span class='ident'>V</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>V</span> {
+        <span class='kw'>unsafe</span> {
+            <span class='kw'>let</span> <span class='ident'>map</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>map</span>;
+            <span class='ident'>map</span>.<span class='ident'>length</span> <span class='op'>+=</span> <span class='number'>1</span>;
+
+            <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>stack</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>stack</span>;
+            <span class='comment'>// Insert the key and value into the leaf at the top of the stack</span>
+            <span class='kw'>let</span> (<span class='ident'>node</span>, <span class='ident'>index</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>top</span>;
+            <span class='kw'>let</span> (<span class='kw-2'>mut</span> <span class='ident'>insertion</span>, <span class='ident'>inserted_ptr</span>) <span class='op'>=</span> {
+                (<span class='op'>*</span><span class='ident'>node</span>).<span class='ident'>insert_as_leaf</span>(<span class='ident'>index</span>, <span class='ident'>key</span>, <span class='ident'>val</span>)
+            };
+
+            <span class='kw'>loop</span> {
+                <span class='kw'>match</span> <span class='ident'>insertion</span> {
+                    <span class='ident'>Fit</span> <span class='op'>=&gt;</span> {
+                        <span class='comment'>// The last insertion went off without a hitch, no splits! We can stop</span>
+                        <span class='comment'>// inserting now.</span>
+                        <span class='kw'>return</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>inserted_ptr</span>;
+                    }
+                    <span class='ident'>Split</span>(<span class='ident'>key</span>, <span class='ident'>val</span>, <span class='ident'>right</span>) <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='ident'>stack</span>.<span class='ident'>pop</span>() {
+                        <span class='comment'>// The last insertion triggered a split, so get the next element on the</span>
+                        <span class='comment'>// stack to recursively insert the split node into.</span>
+                        <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
+                            <span class='comment'>// The stack was empty; we&#39;ve split the root, and need to make a</span>
+                            <span class='comment'>// a new one. This is done in-place because we can&#39;t move the</span>
+                            <span class='comment'>// root out of a reference to the tree.</span>
+                            <span class='ident'>Node</span>::<span class='ident'>make_internal_root</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>map</span>.<span class='ident'>root</span>, <span class='ident'>map</span>.<span class='ident'>b</span>, <span class='ident'>key</span>, <span class='ident'>val</span>, <span class='ident'>right</span>);
+
+                            <span class='ident'>map</span>.<span class='ident'>depth</span> <span class='op'>+=</span> <span class='number'>1</span>;
+                            <span class='kw'>return</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>inserted_ptr</span>;
+                        }
+                        <span class='prelude-val'>Some</span>((<span class='ident'>node</span>, <span class='ident'>index</span>)) <span class='op'>=&gt;</span> {
+                            <span class='comment'>// The stack wasn&#39;t empty, do the insertion and recurse</span>
+                            <span class='ident'>insertion</span> <span class='op'>=</span> (<span class='op'>*</span><span class='ident'>node</span>).<span class='ident'>insert_as_internal</span>(<span class='ident'>index</span>, <span class='ident'>key</span>, <span class='ident'>val</span>, <span class='ident'>right</span>);
+                            <span class='kw'>continue</span>;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+</pre>
+
+<p>Here we can see I got a bit lazy about being precise about what is-or-isn&#39;t unsafe. We&#39;re going to be dereffing a bunch of raw pointers, screw it, wrap it all in an <code>unsafe</code> block. So we start off by just ripping <code>self</code> into the constituent parts of <code>map</code>, <code>top</code>, and <code>stack</code>. Map and stack I hope are fairly self explanatory, but <code>top</code> is a bit interesting. You see we know our stack <em>has</em> to contain some value, so we&#39;ve encoded this by keeping the &quot;top&quot; of the stack as a separate field. This way we don&#39;t have to do any <code>unwrap</code>s when we ask for the top of the stack, which a Vec (reasonably) reports as an Option.</p>
+
+<p>Our stack contains (node, index) pairs, fully encoding the search path. We start by unconditionally asking the node to insert the given key-value pair into itself, and get back a couple values as a result. <code>insertion</code> is another custom enum to express the possible consequences of an insertion: either it <code>Fit</code>, or we had to <code>Split</code> (yay fun rhymes to remember complex algorithms). The node helpfully handles the actual split for us, and just spits out the key-value pair and new child we want to insert in the parent. We then pop the parent off the stack and ask it to do an insertion. If the stack runs out of nodes, then we know we&#39;ve hit the root, and handle it accordingly.</p>
+
+<p>The other return value is a bit weird. <code>inserted_ptr</code> is something that is actually totally useless for the parts of the API we&#39;ve seen. It&#39;s a raw pointer to the inserted value, and <code>swap</code> doesn&#39;t care about that. It&#39;s actually for the <em>entry</em> API, which <em>does</em> return a reference to the inserted value:</p>
+<pre class='rust '>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>: <span class='ident'>Ord</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='ident'>VacantEntry</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='doccomment'>/// Sets the value of the entry with the VacantEntry&#39;s key,</span>
+    <span class='doccomment'>/// and returns a mutable reference to it.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>set</span>(<span class='self'>self</span>, <span class='ident'>value</span>: <span class='ident'>V</span>) <span class='op'>-&gt;</span> <span class='kw-2'>&amp;</span><span class='lifetime'>&#39;a</span> <span class='kw-2'>mut</span> <span class='ident'>V</span> {
+        <span class='self'>self</span>.<span class='ident'>stack</span>.<span class='ident'>insert</span>(<span class='self'>self</span>.<span class='ident'>key</span>, <span class='ident'>value</span>)
+    }
+}
+</pre>
+
+<p>The entry API works really nice with this design, because our &quot;entry&quot; is just a SearchStack. Yay code reuse!</p>
+
+<p>Let&#39;s move on to removal (ne pop):</p>
+<pre class='rust '>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>K</span>: <span class='ident'>Ord</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='ident'>MutableMap</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='kw'>for</span> <span class='ident'>BTreeMap</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='comment'>// Deletion is the most complicated operation for a B-Tree.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>// First we do the same kind of search described in</span>
+    <span class='comment'>// `find`. But we need to maintain a stack of all the nodes/edges in our search path.</span>
+    <span class='comment'>// If we don&#39;t find the key, then we just return `None` and do nothing. If we do find the</span>
+    <span class='comment'>// key, we perform two operations: remove the item, and then possibly handle underflow.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>// # removing the item</span>
+    <span class='comment'>//      If the node is a leaf, we just remove the item, and shift</span>
+    <span class='comment'>//      any items after it back to fill the hole.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>//      If the node is an internal node, we *swap* the item with the smallest item in</span>
+    <span class='comment'>//      in its right subtree (which must reside in a leaf), and then revert to the leaf</span>
+    <span class='comment'>//      case</span>
+    <span class='comment'>//</span>
+    <span class='comment'>// # handling underflow</span>
+    <span class='comment'>//      After removing an item, there may be too few items in the node. We want nodes</span>
+    <span class='comment'>//      to be mostly full for efficiency, although we make an exception for the root, which</span>
+    <span class='comment'>//      may have as few as one item. If this is the case, we may first try to steal</span>
+    <span class='comment'>//      an item from our left or right neighbour.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>//      To steal from the left (right) neighbour,</span>
+    <span class='comment'>//      we take the largest (smallest) item and child from it. We then swap the taken item</span>
+    <span class='comment'>//      with the item in their mutual parent that separates them, and then insert the</span>
+    <span class='comment'>//      parent&#39;s item and the taken child into the first (last) index of the underflowed node.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>//      However, stealing has the possibility of underflowing our neighbour. If this is the</span>
+    <span class='comment'>//      case, we instead *merge* with our neighbour. This of course reduces the number of</span>
+    <span class='comment'>//      children in the parent. Therefore, we also steal the item that separates the now</span>
+    <span class='comment'>//      merged nodes, and insert it into the merged node.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>//      Merging may cause the parent to underflow. If this is the case, then we must repeat</span>
+    <span class='comment'>//      the underflow handling process on the parent. If merging merges the last two children</span>
+    <span class='comment'>//      of the root, then we replace the root with the merged node.</span>
+
+    <span class='kw'>fn</span> <span class='ident'>pop</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>key</span>: <span class='kw-2'>&amp;</span><span class='ident'>K</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>V</span><span class='op'>&gt;</span> {
+        <span class='comment'>// See `swap` for a more thorough description of the stuff going on in here</span>
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>stack</span> <span class='op'>=</span> <span class='ident'>stack</span>::<span class='ident'>PartialSearchStack</span>::<span class='ident'>new</span>(<span class='self'>self</span>);
+        <span class='kw'>loop</span> {
+            <span class='kw'>match</span> <span class='ident'>stack</span>.<span class='ident'>next</span>().<span class='ident'>search</span>(<span class='ident'>key</span>) {
+                <span class='ident'>Found</span>(<span class='ident'>i</span>) <span class='op'>=&gt;</span> {
+                    <span class='comment'>// Perfect match. Terminate the stack here, and remove the entry</span>
+                    <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>stack</span>.<span class='ident'>seal</span>(<span class='ident'>i</span>).<span class='ident'>remove</span>());
+                },
+                <span class='ident'>GoDown</span>(<span class='ident'>i</span>) <span class='op'>=&gt;</span> {
+                    <span class='comment'>// We need to keep searching, try to go down the next edge</span>
+                    <span class='ident'>stack</span> <span class='op'>=</span> <span class='kw'>match</span> <span class='ident'>stack</span>.<span class='ident'>push</span>(<span class='ident'>i</span>) {
+                        <span class='ident'>stack</span>::<span class='ident'>Done</span>(_) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>None</span>, <span class='comment'>// We&#39;re at a leaf; the key isn&#39;t in here</span>
+                        <span class='ident'>stack</span>::<span class='ident'>Grew</span>(<span class='ident'>new_stack</span>) <span class='op'>=&gt;</span> {
+                            <span class='ident'>new_stack</span>
+                        }
+                    };
+                }
+            }
+        }
+    }
+}
+</pre>
+
+<p>Same basic stuff as <code>swap</code>. Although here we manually <code>seal</code> the search stack. On to <code>remove</code> in the stack:</p>
+<pre class='rust '>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='ident'>SearchStack</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='doccomment'>/// Removes the key and value in the top element of the stack, then handles underflows as</span>
+    <span class='doccomment'>/// described in BTree&#39;s pop function.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>remove</span>(<span class='kw-2'>mut</span> <span class='self'>self</span>) <span class='op'>-&gt;</span> <span class='ident'>V</span> {
+        <span class='comment'>// Ensure that the search stack goes to a leaf. This is necessary to perform deletion</span>
+        <span class='comment'>// in a BTree. Note that this may put the tree in an inconsistent state (further</span>
+        <span class='comment'>// described in leafify&#39;s comments), but this is immediately fixed by the</span>
+        <span class='comment'>// removing the value we want to remove</span>
+        <span class='self'>self</span>.<span class='ident'>leafify</span>();
+
+        <span class='kw'>let</span> <span class='ident'>map</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>map</span>;
+        <span class='ident'>map</span>.<span class='ident'>length</span> <span class='op'>-=</span> <span class='number'>1</span>;
+
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>stack</span> <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>stack</span>;
+
+        <span class='comment'>// Remove the key-value pair from the leaf that this search stack points to.</span>
+        <span class='comment'>// Then, note if the leaf is underfull, and promptly forget the leaf and its ptr</span>
+        <span class='comment'>// to avoid ownership issues.</span>
+        <span class='kw'>let</span> (<span class='ident'>value</span>, <span class='kw-2'>mut</span> <span class='ident'>underflow</span>) <span class='op'>=</span> <span class='kw'>unsafe</span> {
+            <span class='kw'>let</span> (<span class='ident'>leaf_ptr</span>, <span class='ident'>index</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>top</span>;
+            <span class='kw'>let</span> <span class='ident'>leaf</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>leaf_ptr</span>;
+            <span class='kw'>let</span> (<span class='ident'>_key</span>, <span class='ident'>value</span>) <span class='op'>=</span> <span class='ident'>leaf</span>.<span class='ident'>remove_as_leaf</span>(<span class='ident'>index</span>);
+            <span class='kw'>let</span> <span class='ident'>underflow</span> <span class='op'>=</span> <span class='ident'>leaf</span>.<span class='ident'>is_underfull</span>();
+            (<span class='ident'>value</span>, <span class='ident'>underflow</span>)
+        };
+
+        <span class='kw'>loop</span> {
+            <span class='kw'>match</span> <span class='ident'>stack</span>.<span class='ident'>pop</span>() {
+                <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
+                    <span class='comment'>// We&#39;ve reached the root, so no matter what, we&#39;re done. We manually</span>
+                    <span class='comment'>// access the root via the tree itself to avoid creating any dangling</span>
+                    <span class='comment'>// pointers.</span>
+                    <span class='kw'>if</span> <span class='ident'>map</span>.<span class='ident'>root</span>.<span class='ident'>len</span>() <span class='op'>==</span> <span class='number'>0</span> <span class='op'>&amp;&amp;</span> <span class='op'>!</span><span class='ident'>map</span>.<span class='ident'>root</span>.<span class='ident'>is_leaf</span>() {
+                        <span class='comment'>// We&#39;ve emptied out the root, so make its only child the new root.</span>
+                        <span class='comment'>// If it&#39;s a leaf, we just let it become empty.</span>
+                        <span class='ident'>map</span>.<span class='ident'>depth</span> <span class='op'>-=</span> <span class='number'>1</span>;
+                        <span class='ident'>map</span>.<span class='ident'>root</span> <span class='op'>=</span> <span class='ident'>map</span>.<span class='ident'>root</span>.<span class='ident'>pop_edge</span>().<span class='ident'>unwrap</span>();
+                    }
+                    <span class='kw'>return</span> <span class='ident'>value</span>;
+                }
+                <span class='prelude-val'>Some</span>((<span class='ident'>parent_ptr</span>, <span class='ident'>index</span>)) <span class='op'>=&gt;</span> {
+                    <span class='kw'>if</span> <span class='ident'>underflow</span> {
+                        <span class='comment'>// Underflow! Handle it!</span>
+                        <span class='kw'>unsafe</span> {
+                            <span class='kw'>let</span> <span class='ident'>parent</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>parent_ptr</span>;
+                            <span class='ident'>parent</span>.<span class='ident'>handle_underflow</span>(<span class='ident'>index</span>);
+                            <span class='ident'>underflow</span> <span class='op'>=</span> <span class='ident'>parent</span>.<span class='ident'>is_underfull</span>();
+                        }
+                    } <span class='kw'>else</span> {
+                        <span class='comment'>// All done!</span>
+                        <span class='kw'>return</span> <span class='ident'>value</span>;
+                    }
+                }
+            }
+        }
+    }
+
+    <span class='doccomment'>/// Subroutine for removal. Takes a search stack for a key that might terminate at an</span>
+    <span class='doccomment'>/// internal node, and mutates the tree and search stack to *make* it a search stack</span>
+    <span class='doccomment'>/// for that same key that *does* terminates at a leaf. If the mutation occurs, then this</span>
+    <span class='doccomment'>/// leaves the tree in an inconsistent state that must be repaired by the caller by</span>
+    <span class='doccomment'>/// removing the entry in question. Specifically the key-value pair and its successor will</span>
+    <span class='doccomment'>/// become swapped.</span>
+    <span class='kw'>fn</span> <span class='ident'>leafify</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>) {
+        <span class='kw'>unsafe</span> {
+            <span class='kw'>let</span> (<span class='ident'>node_ptr</span>, <span class='ident'>index</span>) <span class='op'>=</span> <span class='self'>self</span>.<span class='ident'>top</span>;
+            <span class='comment'>// First, get ptrs to the found key-value pair</span>
+            <span class='kw'>let</span> <span class='ident'>node</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>node_ptr</span>;
+            <span class='kw'>let</span> (<span class='ident'>key_ptr</span>, <span class='ident'>val_ptr</span>) <span class='op'>=</span> {
+                (<span class='ident'>node</span>.<span class='ident'>unsafe_key_mut</span>(<span class='ident'>index</span>) <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> _,
+                 <span class='ident'>node</span>.<span class='ident'>unsafe_val_mut</span>(<span class='ident'>index</span>) <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> _)
+            };
+
+            <span class='comment'>// Try to go into the right subtree of the found key to find its successor</span>
+            <span class='kw'>match</span> <span class='ident'>node</span>.<span class='ident'>edge_mut</span>(<span class='ident'>index</span> <span class='op'>+</span> <span class='number'>1</span>) {
+                <span class='prelude-val'>None</span> <span class='op'>=&gt;</span> {
+                    <span class='comment'>// We&#39;re a proper leaf stack, nothing to do</span>
+                }
+                <span class='prelude-val'>Some</span>(<span class='kw-2'>mut</span> <span class='ident'>temp_node</span>) <span class='op'>=&gt;</span> {
+                    <span class='comment'>//We&#39;re not a proper leaf stack, let&#39;s get to work.</span>
+                    <span class='self'>self</span>.<span class='ident'>stack</span>.<span class='ident'>push</span>((<span class='ident'>node_ptr</span>, <span class='ident'>index</span> <span class='op'>+</span> <span class='number'>1</span>));
+                    <span class='kw'>loop</span> {
+                        <span class='comment'>// Walk into the smallest subtree of this node</span>
+                        <span class='kw'>let</span> <span class='ident'>node</span> <span class='op'>=</span> <span class='ident'>temp_node</span>;
+                        <span class='kw'>let</span> <span class='ident'>node_ptr</span> <span class='op'>=</span> <span class='ident'>node</span> <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> _;
+
+                        <span class='kw'>if</span> <span class='ident'>node</span>.<span class='ident'>is_leaf</span>() {
+                            <span class='comment'>// This node is a leaf, do the swap and return</span>
+                            <span class='self'>self</span>.<span class='ident'>top</span> <span class='op'>=</span> (<span class='ident'>node_ptr</span>, <span class='number'>0</span>);
+                            <span class='ident'>node</span>.<span class='ident'>unsafe_swap</span>(<span class='number'>0</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>key_ptr</span>, <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='ident'>val_ptr</span>);
+                            <span class='kw'>break</span>;
+                        } <span class='kw'>else</span> {
+                            <span class='comment'>// This node is internal, go deeper</span>
+                            <span class='self'>self</span>.<span class='ident'>stack</span>.<span class='ident'>push</span>((<span class='ident'>node_ptr</span>, <span class='number'>0</span>));
+                            <span class='ident'>temp_node</span> <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>unsafe_edge_mut</span>(<span class='number'>0</span>);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+</pre>
+
+<p>Nothing super-new or mind-blowing here either. The control-flow is <em>a bit</em> different, but basically the same. We ask the node to remove from itself, and if we need to handle underflow, we get pop-off the parent and tell it to handle it. Repeat until finished.</p>
+
+<p>The private subroutine to leafify the stack, meanwhile, is probably the most legitimately-unsafe manipulation we do in this module, but such is life. I could dig into the implementation details of Node, but honestly don&#39;t think it would be that instructive. You can <a href="https://github.com/rust-lang/rust/tree/b6edc59413f79016a1063c2ec6bc05516bc99cb6/src/libcollections/btree">check out the source</a> if you want, but it&#39;s really just a lot of moving data around. Not much to say there.</p>
+
+<p>So that&#39;s the naive implementation. I have a few issues with it:</p>
+
+<ul>
+<li>it has an abhorrently inefficient (but convenient!) data representation,</li>
+<li>it passes around plain indices that we have to bounds-check to be safe (or be unsafe)</li>
+<li>the search-stack design is <em>a bit</em> half-assed. e.g. we completely drop down to Vec&lt;*mut&gt; in insert/remove. Also you can <code>seal</code> early and then <code>insert</code>, and it will do something wrong.</li>
+</ul>
+
+<p>As an aside, I&#39;d like to reassert that iterators are totally awesome magic here, because the whole problem that SearchStack solves is a complete non-issue for iterators. Because the reference yielded by <code>next</code> in an iterator doesn&#39;t borrow the iterator itself, you can just build a simple Node iterator and push as many of those onto a stack as you want and it just works perfectly without any problems. Just iterate the top of the stack. If it&#39;s you hit an edge push the node&#39;s iterator on. If you finish an iterator just pop it off. Boom easy tree traversal.</p>
+
+<p>I&#39;m not going to go into BTreeMap&#39;s iterator code in this, even though it&#39;s actually quite interesting. <a href="http://cglab.ca/%7Eabeinges/blah/rust-generics-and-collections/">I covered the interesting bits in the previous post</a>. Everything else is just BTree-specific logic. pczarn&#39;s already written a much better version anyway.</p>
+
+<h2 id="the-cool-impl" class='section-header'><a
+                           href="#the-cool-impl">The cool impl</a></h2>
+<p>So then gereeter kicked down the door with a wild look in his eyes and started hacking this thing to pieces. Right off the bat, he tackled the obvious inefficient representation. Three disjoint Vecs is too much. Fortuntately, this is exactly the same problem that our HashMap faced. It wants to store three arrays for keys, values, and hashes. However it talks to the allocator directly to allocate a single big array of bytes to store all three arrays in. So he just ripped out the code there, tweaked it a bit for our usecase, and boom we&#39;ve got better nodes. He dutifully doc&#39;d up the struct explaining basically all the design decisions for me:</p>
+<pre class='rust '>
+<span class='doccomment'>/// A B-Tree Node. We keep keys/edges/values separate to optimize searching for keys.</span>
+<span class='attribute'>#[<span class='ident'>unsafe_no_drop_flag</span>]</span>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Node</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='comment'>// To avoid the need for multiple allocations, we allocate a single buffer with enough space</span>
+    <span class='comment'>// for `capacity` keys, `capacity` values, and (in internal nodes) `capacity + 1` edges.</span>
+    <span class='comment'>// Despite this, we store three separate pointers to the three &quot;chunks&quot; of the buffer because</span>
+    <span class='comment'>// the performance drops significantly if the locations of the vals and edges need to be</span>
+    <span class='comment'>// recalculated upon access.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>// These will never be null during normal usage of a `Node`. However, to avoid the need for a</span>
+    <span class='comment'>// drop flag, `Node::drop` zeroes `keys`, signaling that the `Node` has already been cleaned</span>
+    <span class='comment'>// up.</span>
+    <span class='ident'>keys</span>: <span class='ident'>Unique</span><span class='op'>&lt;</span><span class='ident'>K</span><span class='op'>&gt;</span>,
+    <span class='ident'>vals</span>: <span class='ident'>Unique</span><span class='op'>&lt;</span><span class='ident'>V</span><span class='op'>&gt;</span>,
+
+    <span class='comment'>// In leaf nodes, this will be null, and no space will be allocated for edges.</span>
+    <span class='ident'>edges</span>: <span class='ident'>Unique</span><span class='op'>&lt;</span><span class='ident'>Node</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;&gt;</span>,
+
+    <span class='comment'>// At any given time, there will be `_len` keys, `_len` values, and (in an internal node)</span>
+    <span class='comment'>// `_len + 1` edges. In a leaf node, there will never be any edges.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>// Note: instead of accessing this field directly, please call the `len()` method, which should</span>
+    <span class='comment'>// be more stable in the face of representation changes.</span>
+    <span class='ident'>_len</span>: <span class='ident'>uint</span>,
+
+    <span class='comment'>// FIXME(gereeter) It shouldn&#39;t be necessary to store the capacity in every node, as it should</span>
+    <span class='comment'>// be constant throughout the tree. Once a solution to this is found, it might be possible to</span>
+    <span class='comment'>// also pass down the offsets into the buffer that vals and edges are stored at, removing the</span>
+    <span class='comment'>// need for those two pointers.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>// Note: instead of accessing this field directly, please call the `capacity()` method, which</span>
+    <span class='comment'>// should be more stable in the face of representation changes.</span>
+    <span class='ident'>_capacity</span>: <span class='ident'>uint</span>,
+}
+</pre>
+
+<p>Some minor points for some of the fancier stuff. <code>#[unsafe_no_drop_flag]</code> is an optimization that is on its way out once the way destructors work changes. For now it&#39;s a necessary evil to avoid some extra bloat on the struct. <code>Unique</code> is an alias for <code>*mut</code> that just asserts some things to the type system about ownership of the pointed-to values. Using it just auto-implements some multi-threading traits for us. Also some fields are prefixed with <code>_</code> to encourage use of getters.</p>
+
+<p>As discussed in the comments and earlier sections, this is still not The Ideal Representation. We&#39;re gonna have to wait for type-level integers to get the design we <em>really</em> want, but for now this is a definite improvement. From 9 ptrs down to 5. Note that we&#39;ve <em>intentionally</em> accepted some bloat in the name of profiled performance.</p>
+
+<p>The unfortunate result of this is having to re-implement a bunch of <code>unsafe</code> logic from both Vec and HashMap to deal with these Nodes. I have plans to undo this duplication in the longterm, but we don&#39;t have the type system to do it right at the moment. Just another reason why 1.0 Will Suck :P</p>
+
+<p>The awesome thing about this change is that my <code>node</code>/<code>map</code> separation worked! Minimal changes were made to <code>map</code>. However we were a bit squeemish about it because it was introducing a <em>huge</em> amount of new unsafe code. I mentioned off-hand an idea about a more robust handle-based API to replace the indices we pass around and gereeter just went <em>crazy</em> with it. It&#39;s... glorious ;_;</p>
+
+<p>First off, the handle type:</p>
+<pre class='rust '>
+<span class='kw'>pub</span> <span class='kw'>struct</span> <span class='ident'>Handle</span><span class='op'>&lt;</span><span class='ident'>NodeRef</span>, <span class='ident'>Type</span>, <span class='ident'>NodeType</span><span class='op'>&gt;</span> {
+    <span class='ident'>node</span>: <span class='ident'>NodeRef</span>,
+    <span class='ident'>index</span>: <span class='ident'>uint</span>
+}
+</pre>
+
+<p>Well that&#39;s... odd. Our handle is generic over three types, but only one type shows up in the body? What&#39;s going on? Well first off let&#39;s talk about the one that is used: NodeRef. The Handles are generic over the <em>kind</em> of reference to a node they have. This is primarily to deal with the differences between <code>&amp;mut</code> and <code>&amp;</code>. Certain handle APIs should only be available to a mutable reference, but some should be available to both. This is primarily handled by having some <code>impl</code>s state that the type implements <code>DerefMut</code>, while others only require <code>Deref</code>. However our search-stacks also want to have raw-ptrs, so we also support the raw-ptrs here to, mostly as an intermediate form that can be downgraded from or unsafely upgraded into a proper <code>&amp;</code> or <code>&amp;mut</code> handle.</p>
+
+<p>So what&#39;s up with those other types? That right there is leveraging a thing called <em>phantom types</em>. Phantom types are a way to mark up values with compile-time-only metadata that guarantees a certain value isn&#39;t used the wrong way. A canonical example of using phantom types would be something like having a <code>String</code> type that can be <code>String&lt;Raw&gt;</code> or <code>String&lt;Escaped&gt;</code>. User inputs come in as <code>Raw</code>, and APIs that expect all the data to be escaped (like say a database query) only accept a <code>String&lt;Escaped&gt;</code>. The only way to convert a <code>String&lt;Raw&gt;</code> to a <code>String&lt;Escaped&gt;</code> is to pass it to pass it to an escaping function. What are <code>Raw</code> and <code>Escaped</code>? Just some concrete empty types, nothing more.</p>
+
+<p>So what phantom types do we work with on our Handle?</p>
+<pre class='rust '>
+<span class='kw'>pub</span> <span class='kw'>mod</span> <span class='ident'>handle</span> {
+    <span class='comment'>// Handle types.</span>
+    <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>KV</span> {}
+    <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>Edge</span> {}
+
+    <span class='comment'>// Handle node types.</span>
+    <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>LeafOrInternal</span> {}
+    <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>Leaf</span> {}
+    <span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>Internal</span> {}
+}
+</pre>
+
+<p>Handles can either be to a key-value pair, or to an edge. Similarly, they can know if they are a handle to a leaf, internal, or unknown type of node. Certain combinations of these phantom types expose completely different APIs on the Nodes! For instance, you may have noticed that in the naive implementation we had some <code>_as_leaf</code> and <code>_as_internal</code> methods on the nodes. In the naive design it was completely up to use to use these correctly. Consequently they had to be written to not do something memory-unsafe if you misused them. Although they <em>definitely</em> would have still freaked out and made the collection do crazy things that are totally wrong.</p>
+
+<p>But with <em>handles</em> this is a thing of the past. Of course, we get some pretty hard-core generic soup, but it&#39;s not that hard to grok if you stare at it for a bit:</p>
+<pre class='rust '>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span>, <span class='ident'>NodeRef</span><span class='op'>&gt;</span> <span class='ident'>Handle</span><span class='op'>&lt;</span><span class='ident'>NodeRef</span>, <span class='ident'>handle</span>::<span class='ident'>Edge</span>, <span class='ident'>handle</span>::<span class='ident'>Leaf</span><span class='op'>&gt;</span> <span class='kw'>where</span>
+    <span class='ident'>NodeRef</span>: <span class='ident'>Deref</span><span class='op'>&lt;</span><span class='ident'>Target</span><span class='op'>=</span><span class='ident'>Node</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;&gt;</span> <span class='op'>+</span> <span class='ident'>DerefMut</span>,
+{
+    <span class='doccomment'>/// Tries to insert this key-value pair at the given index in this leaf node</span>
+    <span class='doccomment'>/// If the node is full, we have to split it.</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// Returns a *mut V to the inserted value, because the caller may want this when</span>
+    <span class='doccomment'>/// they&#39;re done mutating the tree, but we don&#39;t want to borrow anything for now.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>insert_as_leaf</span>(<span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='ident'>key</span>: <span class='ident'>K</span>, <span class='ident'>value</span>: <span class='ident'>V</span>) <span class='op'>-&gt;</span>
+            (<span class='ident'>InsertionResult</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span>, <span class='op'>*</span><span class='kw-2'>mut</span> <span class='ident'>V</span>) {
+            <span class='comment'>// ...</span>
+    }
+}
+</pre>
+
+<p>So what does search look like now? Well, we refactored the public collection APIs a fair bit, so the names and signature have changed a bit, but the core logic is largely the same:</p>
+<pre class='rust '>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>K</span>: <span class='ident'>Ord</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='ident'>BTreeMap</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>get</span><span class='op'>&lt;</span><span class='ident'>Sized</span>? <span class='ident'>Q</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>key</span>: <span class='kw-2'>&amp;</span><span class='ident'>Q</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='kw-2'>&amp;</span><span class='ident'>V</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>Q</span>: <span class='ident'>BorrowFrom</span><span class='op'>&lt;</span><span class='ident'>K</span><span class='op'>&gt;</span> <span class='op'>+</span> <span class='ident'>Ord</span> {
+        <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>cur_node</span> <span class='op'>=</span> <span class='kw-2'>&amp;</span><span class='self'>self</span>.<span class='ident'>root</span>;
+        <span class='kw'>loop</span> {
+            <span class='kw'>match</span> <span class='ident'>Node</span>::<span class='ident'>search</span>(<span class='ident'>cur_node</span>, <span class='ident'>key</span>) {
+                <span class='ident'>Found</span>(<span class='ident'>handle</span>) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>Some</span>(<span class='ident'>handle</span>.<span class='ident'>into_kv</span>().<span class='number'>1</span>),
+                <span class='ident'>GoDown</span>(<span class='ident'>handle</span>) <span class='op'>=&gt;</span> <span class='kw'>match</span> <span class='ident'>handle</span>.<span class='ident'>force</span>() {
+                    <span class='ident'>Leaf</span>(_) <span class='op'>=&gt;</span> <span class='kw'>return</span> <span class='prelude-val'>None</span>,
+                    <span class='ident'>Internal</span>(<span class='ident'>internal_handle</span>) <span class='op'>=&gt;</span> {
+                        <span class='ident'>cur_node</span> <span class='op'>=</span> <span class='ident'>internal_handle</span>.<span class='ident'>into_edge</span>();
+                        <span class='kw'>continue</span>;
+                    }
+                }
+            }
+        }
+    }
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>K</span>: <span class='ident'>Ord</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='ident'>Node</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='doccomment'>/// Searches for the given key in the node. If it finds an exact match,</span>
+    <span class='doccomment'>/// `Found` will be yielded with the matching index. If it doesn&#39;t find an exact match,</span>
+    <span class='doccomment'>/// `GoDown` will be yielded with the index of the subtree the key must lie in.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>search</span><span class='op'>&lt;</span><span class='ident'>Sized</span>? <span class='ident'>Q</span>, <span class='ident'>NodeRef</span>: <span class='ident'>Deref</span><span class='op'>&lt;</span><span class='ident'>Target</span><span class='op'>=</span><span class='ident'>Node</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;&gt;</span><span class='op'>&gt;</span>(<span class='ident'>node</span>: <span class='ident'>NodeRef</span>, <span class='ident'>key</span>: <span class='kw-2'>&amp;</span><span class='ident'>Q</span>)
+                  <span class='op'>-&gt;</span> <span class='ident'>SearchResult</span><span class='op'>&lt;</span><span class='ident'>NodeRef</span><span class='op'>&gt;</span> <span class='kw'>where</span> <span class='ident'>Q</span>: <span class='ident'>BorrowFrom</span><span class='op'>&lt;</span><span class='ident'>K</span><span class='op'>&gt;</span> <span class='op'>+</span> <span class='ident'>Ord</span> {
+        <span class='comment'>// FIXME(Gankro): Tune when to search linear or binary based on B (and maybe K/V).</span>
+        <span class='comment'>// For the B configured as of this writing (B = 6), binary search was *significantly*</span>
+        <span class='comment'>// worse for uints.</span>
+        <span class='kw'>let</span> (<span class='ident'>found</span>, <span class='ident'>index</span>) <span class='op'>=</span> <span class='ident'>node</span>.<span class='ident'>search_linear</span>(<span class='ident'>key</span>);
+        <span class='kw'>if</span> <span class='ident'>found</span> {
+            <span class='ident'>Found</span>(<span class='ident'>Handle</span> {
+                <span class='ident'>node</span>: <span class='ident'>node</span>,
+                <span class='ident'>index</span>: <span class='ident'>index</span>
+            })
+        } <span class='kw'>else</span> {
+            <span class='ident'>GoDown</span>(<span class='ident'>Handle</span> {
+                <span class='ident'>node</span>: <span class='ident'>node</span>,
+                <span class='ident'>index</span>: <span class='ident'>index</span>
+            })
+        }
+    }
+
+    <span class='kw'>fn</span> <span class='ident'>search_linear</span><span class='op'>&lt;</span><span class='ident'>Sized</span>? <span class='ident'>Q</span><span class='op'>&gt;</span>(<span class='kw-2'>&amp;</span><span class='self'>self</span>, <span class='ident'>key</span>: <span class='kw-2'>&amp;</span><span class='ident'>Q</span>) <span class='op'>-&gt;</span> (<span class='ident'>bool</span>, <span class='ident'>uint</span>) <span class='kw'>where</span> <span class='ident'>Q</span>: <span class='ident'>BorrowFrom</span><span class='op'>&lt;</span><span class='ident'>K</span><span class='op'>&gt;</span> <span class='op'>+</span> <span class='ident'>Ord</span> {
+        <span class='kw'>for</span> (<span class='ident'>i</span>, <span class='ident'>k</span>) <span class='kw'>in</span> <span class='self'>self</span>.<span class='ident'>keys</span>().<span class='ident'>iter</span>().<span class='ident'>enumerate</span>() {
+            <span class='kw'>match</span> <span class='ident'>key</span>.<span class='ident'>cmp</span>(<span class='ident'>BorrowFrom</span>::<span class='ident'>borrow_from</span>(<span class='ident'>k</span>)) {
+                <span class='ident'>Greater</span> <span class='op'>=&gt;</span> {},
+                <span class='ident'>Equal</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> (<span class='boolval'>true</span>, <span class='ident'>i</span>),
+                <span class='ident'>Less</span> <span class='op'>=&gt;</span> <span class='kw'>return</span> (<span class='boolval'>false</span>, <span class='ident'>i</span>),
+            }
+        }
+        (<span class='boolval'>false</span>, <span class='self'>self</span>.<span class='ident'>len</span>())
+    }
+}
+
+<span class='doccomment'>/// Represents the result of a search for a key in a single node</span>
+<span class='kw'>pub</span> <span class='kw'>enum</span> <span class='ident'>SearchResult</span><span class='op'>&lt;</span><span class='ident'>NodeRef</span><span class='op'>&gt;</span> {
+    <span class='doccomment'>/// The element was found at the given index</span>
+    <span class='ident'>Found</span>(<span class='ident'>Handle</span><span class='op'>&lt;</span><span class='ident'>NodeRef</span>, <span class='ident'>handle</span>::<span class='ident'>KV</span>, <span class='ident'>handle</span>::<span class='ident'>LeafOrInternal</span><span class='op'>&gt;</span>),
+    <span class='doccomment'>/// The element wasn&#39;t found, but if it&#39;s anywhere, it must be beyond this edge</span>
+    <span class='ident'>GoDown</span>(<span class='ident'>Handle</span><span class='op'>&lt;</span><span class='ident'>NodeRef</span>, <span class='ident'>handle</span>::<span class='ident'>Edge</span>, <span class='ident'>handle</span>::<span class='ident'>LeafOrInternal</span><span class='op'>&gt;</span>),
+}
+</pre>
+
+<p>We still ask the node to search itself, but now it comes back with a handle. Nodes are now fairly dumb, and don&#39;t have much of an API. They&#39;re primarily manipulated through handles, which we primarily get out of searches. The type of handle depends on the result of the search. If we <code>Found</code> the key, you get a KV handle. If we didn&#39;t, you get an <code>Edge</code> handle. This means you can only do sane operations with the result. For instance, you can&#39;t request a key using an edge&#39;s index. Also, the handle &quot;forwards&quot; the reference that you give it. For now this just means everything stays at the same level of mutability, but later we&#39;ll see how else this is important.</p>
+
+<p>Another new addition is the <code>force</code> method, which asks the handle to figure out if it&#39;s actually a leaf or internal node. This used to be implicit in a bad edge-indexing, but now it&#39;s explicit. We don&#39;t have to check anymore if any indexing operations are successful, because the handle types guarantee it without bounds-checks in a totally safe way!</p>
+
+<p>Alright, search is covered, how&#39;s insertion looking? Well, insertion is a bit trickier now. Before, we guaranteed some level of path sanity by <code>push</code> taking an index. The SearchStack could be sure it had a full path to a given node because it was it did all the indexing for us. It just told us what the resulting node was. But now we have handles, which <em>include</em> the node. We could do a run-time check that the new handle&#39;s node matches what we expected, but that&#39;s... a runtime check. And not a super cheap one either.</p>
+
+<p>So gereeter did a beautiful thing. Remember when I said that <code>search</code> forwards the given reference? Well, that&#39;s <em>super</em> important now. To perform a search with a search-stack, we ask the stack for the next node as before, but it now hands us a <code>Pusher</code> and an <code>IdRef</code> <em>wrapper</em> for a node reference. Critically, the pusher and wrapper both contain a <code>marker::InvariantLifetime</code>, which is a special type in Rust. Normally, these Lifetime markers are to remember or otherwise borrow some reference correctly. The classic example is to have a lifetime tied to a <code>*mut</code>. However here it&#39;s being used for <em>straight up magic</em>. The InvariantLifetime is a finger-print that tells the <code>Pusher</code> that the given <code>IdRef</code> is its sister. The <code>Pusher</code> consequently only accepts a handle containing its sister. And this is all done with compile-time information!</p>
+
+<p>Here&#39;s the code:</p>
+<pre class='rust '>
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='ident'>K</span>: <span class='ident'>Ord</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='ident'>BTreeMap</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>insert</span>(<span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>key</span>: <span class='ident'>K</span>, <span class='kw-2'>mut</span> <span class='ident'>value</span>: <span class='ident'>V</span>) <span class='op'>-&gt;</span> <span class='prelude-ty'>Option</span><span class='op'>&lt;</span><span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='comment'>// This is a stack of rawptrs to nodes paired with indices, respectively</span>
+    <span class='comment'>// representing the nodes and edges of our search path. We have to store rawptrs</span>
+    <span class='comment'>// because as far as Rust is concerned, we can mutate aliased data with such a</span>
+    <span class='comment'>// stack. It is of course correct, but what it doesn&#39;t know is that we will only</span>
+    <span class='comment'>// be popping and using these ptrs one at a time in child-to-parent order. The alternative</span>
+    <span class='comment'>// to doing this is to take the Nodes from their parents. This actually makes</span>
+    <span class='comment'>// borrowck *really* happy and everything is pretty smooth. However, this creates</span>
+    <span class='comment'>// *tons* of pointless writes, and requires us to always walk all the way back to</span>
+    <span class='comment'>// the root after an insertion, even if we only needed to change a leaf. Therefore,</span>
+    <span class='comment'>// we accept this potential unsafety and complexity in the name of performance.</span>
+    <span class='comment'>//</span>
+    <span class='comment'>// Regardless, the actual dangerous logic is completely abstracted away from BTreeMap</span>
+    <span class='comment'>// by the stack module. All it can do is immutably read nodes, and ask the search stack</span>
+    <span class='comment'>// to proceed down some edge by index. This makes the search logic we&#39;ll be reusing in a</span>
+    <span class='comment'>// few different methods much neater, and of course drastically improves safety.</span>
+    <span class='kw'>let</span> <span class='kw-2'>mut</span> <span class='ident'>stack</span> <span class='op'>=</span> <span class='ident'>stack</span>::<span class='ident'>PartialSearchStack</span>::<span class='ident'>new</span>(<span class='self'>self</span>);
+
+    <span class='kw'>loop</span> {
+        <span class='kw'>let</span> <span class='ident'>result</span> <span class='op'>=</span> <span class='ident'>stack</span>.<span class='ident'>with</span>(<span class='kw'>move</span> <span class='op'>|</span><span class='ident'>pusher</span>, <span class='ident'>node</span><span class='op'>|</span> {
+            <span class='comment'>// Same basic logic as found in `find`, but with PartialSearchStack mediating the</span>
+            <span class='comment'>// actual nodes for us</span>
+            <span class='kw'>return</span> <span class='kw'>match</span> <span class='ident'>Node</span>::<span class='ident'>search</span>(<span class='ident'>node</span>, <span class='kw-2'>&amp;</span><span class='ident'>key</span>) {
+                <span class='ident'>Found</span>(<span class='kw-2'>mut</span> <span class='ident'>handle</span>) <span class='op'>=&gt;</span> {
+                    <span class='comment'>// Perfect match, swap the values and return the old one</span>
+                    <span class='ident'>mem</span>::<span class='ident'>swap</span>(<span class='ident'>handle</span>.<span class='ident'>val_mut</span>(), <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='ident'>value</span>);
+                    <span class='ident'>Finished</span>(<span class='prelude-val'>Some</span>(<span class='ident'>value</span>))
+                },
+                <span class='ident'>GoDown</span>(<span class='ident'>handle</span>) <span class='op'>=&gt;</span> {
+                    <span class='comment'>// We need to keep searching, try to get the search stack</span>
+                    <span class='comment'>// to go down further</span>
+                    <span class='kw'>match</span> <span class='ident'>handle</span>.<span class='ident'>force</span>() {
+                        <span class='ident'>Leaf</span>(<span class='ident'>leaf_handle</span>) <span class='op'>=&gt;</span> {
+                            <span class='comment'>// We&#39;ve reached a leaf, perform the insertion here</span>
+                            <span class='ident'>pusher</span>.<span class='ident'>seal</span>(<span class='ident'>leaf_handle</span>).<span class='ident'>insert</span>(<span class='ident'>key</span>, <span class='ident'>value</span>);
+                            <span class='ident'>Finished</span>(<span class='prelude-val'>None</span>)
+                        }
+                        <span class='ident'>Internal</span>(<span class='ident'>internal_handle</span>) <span class='op'>=&gt;</span> {
+                            <span class='comment'>// We&#39;ve found the subtree to insert this key/value pair in,</span>
+                            <span class='comment'>// keep searching</span>
+                            <span class='ident'>Continue</span>((<span class='ident'>pusher</span>.<span class='ident'>push</span>(<span class='ident'>internal_handle</span>), <span class='ident'>key</span>, <span class='ident'>value</span>))
+                        }
+                    }
+                }
+            }
+        });
+        <span class='kw'>match</span> <span class='ident'>result</span> {
+            <span class='ident'>Finished</span>(<span class='ident'>ret</span>) <span class='op'>=&gt;</span> { <span class='kw'>return</span> <span class='ident'>ret</span>; },
+            <span class='ident'>Continue</span>((<span class='ident'>new_stack</span>, <span class='ident'>renewed_key</span>, <span class='ident'>renewed_val</span>)) <span class='op'>=&gt;</span> {
+                <span class='ident'>stack</span> <span class='op'>=</span> <span class='ident'>new_stack</span>;
+                <span class='ident'>key</span> <span class='op'>=</span> <span class='ident'>renewed_key</span>;
+                <span class='ident'>value</span> <span class='op'>=</span> <span class='ident'>renewed_val</span>;
+            }
+        }
+    }
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='ident'>PartialSearchStack</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='doccomment'>/// Breaks up the stack into a `Pusher` and the next `Node`, allowing the given closure</span>
+    <span class='doccomment'>/// to interact with, search, and finally push the `Node` onto the stack. The passed in</span>
+    <span class='doccomment'>/// closure must be polymorphic on the `&#39;id` lifetime parameter, as this statically</span>
+    <span class='doccomment'>/// ensures that only `Handle`s from the correct `Node` can be pushed.</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// The reason this works is that the `Pusher` has an `&#39;id` parameter, and will only accept</span>
+    <span class='doccomment'>/// handles with the same `&#39;id`. The closure could only get references with that lifetime</span>
+    <span class='doccomment'>/// through its arguments or through some other `IdRef` that it has lying around. However,</span>
+    <span class='doccomment'>/// no other `IdRef` could possibly work - because the `&#39;id` is held in an invariant</span>
+    <span class='doccomment'>/// parameter, it would need to have precisely the correct lifetime, which would mean that</span>
+    <span class='doccomment'>/// at least one of the calls to `with` wouldn&#39;t be properly polymorphic, wanting a</span>
+    <span class='doccomment'>/// specific lifetime instead of the one that `with` chooses to give it.</span>
+    <span class='doccomment'>///</span>
+    <span class='doccomment'>/// See also Haskell&#39;s `ST` monad, which uses a similar trick.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>with</span><span class='op'>&lt;</span><span class='ident'>T</span>, <span class='ident'>F</span>: <span class='kw'>for</span><span class='op'>&lt;</span><span class='lifetime'>&#39;id</span><span class='op'>&gt;</span> <span class='ident'>FnOnce</span>(<span class='ident'>Pusher</span><span class='op'>&lt;</span><span class='lifetime'>&#39;id</span>, <span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span>,
+                                      <span class='ident'>IdRef</span><span class='op'>&lt;</span><span class='lifetime'>&#39;id</span>, <span class='ident'>Node</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;&gt;</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span><span class='op'>&gt;</span>(<span class='self'>self</span>, <span class='ident'>closure</span>: <span class='ident'>F</span>) <span class='op'>-&gt;</span> <span class='ident'>T</span> {
+        <span class='kw'>let</span> <span class='ident'>pusher</span> <span class='op'>=</span> <span class='ident'>Pusher</span> {
+            <span class='ident'>map</span>: <span class='self'>self</span>.<span class='ident'>map</span>,
+            <span class='ident'>stack</span>: <span class='self'>self</span>.<span class='ident'>stack</span>,
+            <span class='ident'>marker</span>: <span class='ident'>marker</span>::<span class='ident'>InvariantLifetime</span>
+        };
+        <span class='kw'>let</span> <span class='ident'>node</span> <span class='op'>=</span> <span class='ident'>IdRef</span> {
+            <span class='ident'>inner</span>: <span class='kw'>unsafe</span> { <span class='kw-2'>&amp;</span><span class='kw-2'>mut</span> <span class='op'>*</span><span class='self'>self</span>.<span class='ident'>next</span> },
+            <span class='ident'>marker</span>: <span class='ident'>marker</span>::<span class='ident'>InvariantLifetime</span>
+        };
+
+        <span class='ident'>closure</span>(<span class='ident'>pusher</span>, <span class='ident'>node</span>)
+    }
+}
+
+<span class='kw'>impl</span><span class='op'>&lt;</span><span class='lifetime'>&#39;id</span>, <span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> <span class='ident'>Pusher</span><span class='op'>&lt;</span><span class='lifetime'>&#39;id</span>, <span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+    <span class='doccomment'>/// Pushes the requested child of the stack&#39;s current top on top of the stack. If the child</span>
+    <span class='doccomment'>/// exists, then a new PartialSearchStack is yielded. Otherwise, a VacantSearchStack is</span>
+    <span class='doccomment'>/// yielded.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>push</span>(<span class='kw-2'>mut</span> <span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>edge</span>: <span class='ident'>node</span>::<span class='ident'>Handle</span><span class='op'>&lt;</span><span class='ident'>IdRef</span><span class='op'>&lt;</span><span class='lifetime'>&#39;id</span>, <span class='ident'>Node</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;&gt;</span>,
+                                                 <span class='ident'>handle</span>::<span class='ident'>Edge</span>,
+                                                 <span class='ident'>handle</span>::<span class='ident'>Internal</span><span class='op'>&gt;</span>)
+                <span class='op'>-&gt;</span> <span class='ident'>PartialSearchStack</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;</span> {
+        <span class='self'>self</span>.<span class='ident'>stack</span>.<span class='ident'>push</span>(<span class='ident'>edge</span>.<span class='ident'>as_raw</span>());
+        <span class='ident'>PartialSearchStack</span> {
+            <span class='ident'>map</span>: <span class='self'>self</span>.<span class='ident'>map</span>,
+            <span class='ident'>stack</span>: <span class='self'>self</span>.<span class='ident'>stack</span>,
+            <span class='ident'>next</span>: <span class='ident'>edge</span>.<span class='ident'>edge_mut</span>() <span class='kw'>as</span> <span class='op'>*</span><span class='kw-2'>mut</span> _,
+        }
+    }
+
+    <span class='doccomment'>/// Converts the PartialSearchStack into a SearchStack.</span>
+    <span class='kw'>pub</span> <span class='kw'>fn</span> <span class='ident'>seal</span><span class='op'>&lt;</span><span class='ident'>Type</span>, <span class='ident'>NodeType</span><span class='op'>&gt;</span>
+               (<span class='self'>self</span>, <span class='kw-2'>mut</span> <span class='ident'>handle</span>: <span class='ident'>node</span>::<span class='ident'>Handle</span><span class='op'>&lt;</span><span class='ident'>IdRef</span><span class='op'>&lt;</span><span class='lifetime'>&#39;id</span>, <span class='ident'>Node</span><span class='op'>&lt;</span><span class='ident'>K</span>, <span class='ident'>V</span><span class='op'>&gt;&gt;</span>, <span class='ident'>Type</span>, <span class='ident'>NodeType</span><span class='op'>&gt;</span>)
+                <span class='op'>-&gt;</span> <span class='ident'>SearchStack</span><span class='op'>&lt;</span><span class='lifetime'>&#39;a</span>, <span class='ident'>K</span>, <span class='ident'>V</span>, <span class='ident'>Type</span>, <span class='ident'>NodeType</span><span class='op'>&gt;</span> {
+        <span class='ident'>SearchStack</span> {
+            <span class='ident'>map</span>: <span class='self'>self</span>.<span class='ident'>map</span>,
+            <span class='ident'>stack</span>: <span class='self'>self</span>.<span class='ident'>stack</span>,
+            <span class='ident'>top</span>: <span class='ident'>handle</span>.<span class='ident'>as_raw</span>(),
+        }
+    }
+}
+</pre>
+
+<p>The final code ends up using a closure to correctly restrict the lifetimes, and a bit of dancing to safely move values in and out of it, but these are all zero-cost abstractions that should ideally get compiled away completely.</p>
+
+<p>And that, my friends, is why you don&#39;t mess with gereeter. He will mess you up with type-systems beyond your wildest dreams.</p>
+
+<p>Everything else is changed up in a similar way to work with these new APIs, but I don&#39;t think it would be particularly instructive to look at it in detail. <a href="https://github.com/rust-lang/rust/tree/340f3fd7a909b30509a63916df06f2b885d113f7/src/libcollections/btree">Here&#39;s a snapshot of the full impl as of this writing</a>.</p>
+
+<p>I think that&#39;s all the <em>really</em> interesting parts of BTreeMap. This post has gone entirely too long anyway. Have a great day!</p>
+
+    <script type="text/javascript">
+        window.playgroundUrl = "";
+    </script>
+    </div>
+</body>
+</html>
