@@ -48,9 +48,15 @@ th, td {
 .date {
   font-style: italic;
   font-size: 24px;
+  margin-bottom: 40px;
 }
 
 
 body {
   margin-bottom: 15em;
+}
+
+h1, h2, h3 {
+  font-size: 28px;
+  margin-top: 40px;
 }
