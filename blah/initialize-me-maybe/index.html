@@ -28,15 +28,15 @@
     <h1 class="title">Here&#39;s My Type, So Initialize Me Maybe</h1>
     <p><span class="author">Alexis Beingessner</span></p>
 <p><span class="date">May 16th, 2019 -- Rust Nightly 1.36.0</span></p>
-<p>Rust's infamous mem::uninitialized method has been deprecated. Its replacement, MaybeUninit, has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.</p>
+<p>Rust's infamous mem::uninitialized method has been deprecated. Its replacement, <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a>, has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.</p>
 <p>Most of this post is dedicated to discussing the nature of uninitialized memory and how it can be worked with in Rust. <a href="#what-went-wrong">Feel free to skip to the details on why mem::uninitialized is broken</a>.</p>
 <h1 id="whats-uninitialized-memory" class="section-header"><a href="#whats-uninitialized-memory">What's Uninitialized Memory?</a></h1>
 <p>When you allocate memory in Rust it arrives to you in an <em>uninitialized</em> state. What exactly that means is a surprisingly subtle issue.</p>
 <p>From a low-level implementation perspective, this generally just means that some region of memory has been declared to be &quot;yours&quot;, but because that memory could have been previously used for something else, there's no guarantee what the bits in that memory are set to. Why are old values from somewhere else still there? Because it's faster and easier to not bother to clear out the memory. If you read from uninitialized memory, you are essentially reading random bits, and so your program may behave randomly. From this perspective, it's almost always a serious bug to read from uninitialized memory. Although you could certainly construct cases where that's not the case.</p>
 <p>Note that this model is one of a single process that recycles memory it is has acquired from the operating system without returning it. For security reasons, memory freshly acquired from your operating system is guaranteed to be initialized to all 0's. <a href="http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1381.pdf">Although there are certainly security-minded folks who would love for processes to do this internally as well</a>.</p>
-<p>The theoretical perspective is a bit more strict, <a href="http://www.cs.utah.edu/%7Eregehr/papers/undef-pldi17.pdf">and also very poorly specified</a>. The long and the short of it is that compilers consider uninitialized memory to be a much more exotic thing. Something of a magical substance that turns into whatever value makes the compiler's life easiest. Say you wanted to apply the simplification <code>y &amp; x =&gt; y</code>. That requires proving that <code>x</code> is all 1's. Oh it's uninitialized memory? Ok let's just assume it's all 1's. For <code>y | x</code> you can assume it's all 0's. Whatever's most convenient at the time!</p>
+<p>The theoretical perspective is a bit more strict, <a href="http://www.cs.utah.edu/%7Eregehr/papers/undef-pldi17.pdf">and also poorly specified</a>. The long and the short of it is that compilers consider uninitialized memory to be a much more exotic thing. Something of a magical substance that turns into whatever value makes the compiler's life easiest. Say you wanted to apply the simplification <code>y &amp; x =&gt; y</code>. That requires proving that <code>x</code> is all 1's. Oh it's uninitialized memory? Ok let's just assume it's all 1's. For <code>y | x</code> you can assume it's all 0's. Whatever's most convenient at the time!</p>
 <p>Unfortunately, what compilers most love in the world is to prove that something is Undefined Behaviour. Undefined Behaviour means they can apply aggressive optimizations and make everything go fast! ...Usually by deleting all your code.</p>
-<p>So, as a conservative model it's reasonable to just declare that <strong>it is Undefined Behaviour to read uninitialized memory</strong>. Full stop.</p>
+<p>So as a conservative model it's reasonable to just declare that <strong>it is Undefined Behaviour to read uninitialized memory</strong>. Full stop.</p>
 <h1 id="safely-working-with-uninitialized-memory-in-rust" class="section-header"><a href="#safely-working-with-uninitialized-memory-in-rust">Safely Working With Uninitialized Memory In Rust</a></h1>
 <p>Given a model where we must never read Uninitialized Memory, what tools does Rust give us?</p>
 <p>Let's look at the simple case of a local variable. Normally, when you declare a local variable, you also initialize it:</p>
@@ -76,7 +76,7 @@
     <span class="ident">x</span> <span class="op">=</span> <span class="number">5</span>;
     <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>);
 }</pre></div>
-<p>In addition, rust can dynamically track the initialization of values with destructors (Drop impls),
+<p>In addition, Rust can dynamically track the initialization of values with destructors (Drop impls),
 with a system called <em><a href="https://github.com/rust-lang/rfcs/blob/master/text/0320-nonzeroing-dynamic-drop.md">drop flags</a></em>:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
@@ -104,7 +104,7 @@ with a system called <em><a href="https://github.com/rust-lang/rfcs/blob/master/
 }
                         <span class="comment">// dynamically init, check drop_flag(x):</span>
                         <span class="comment">// - if init, drop it</span></pre></div>
-<p>That lets the compiler know when destructors should be run, but doesn't allow us to actually work with dynamically initialized values. We're still only allowed to insert an explicit read if the value is <em>statically</em> known to be initialized. For truly dynamic initialization, rust has the Option type (or any enum, really):</p>
+<p>That lets the compiler know when destructors should be run, but doesn't allow us to actually work with dynamically initialized values. We're still only allowed to insert an explicit read if the value is <em>statically</em> known to be initialized. For truly dynamic initialization, Rust has the Option type (or any enum, really):</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
 #<span class="kw">fn</span> <span class="ident">some_condition</span>() <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="bool-val">true</span> }
@@ -232,7 +232,7 @@ with a system called <em><a href="https://github.com/rust-lang/rfcs/blob/master/
 <li>A non-utf8 <code>str</code></li>
 </ul>
 <p>Remember when I said that compilers can magically make uninitialized memory any value they want? And how they want everything to be Undefined Behaviour? Well because we tell the compiler that a bool is either 0 or 1, if the compiler can prove that a value of type bool is uninitialized memory it has successfully proven the program has Undefined Behaviour. No, it doesn't matter that we didn't read the uninitialized memory.</p>
-<p>So although mem::uninitialized <em>can</em> possibly be used correctly, for some types it's <em>impossible</em> to use correctly. As such, we're tossing it in the trash. It's a bad design. You should use its replacement, MaybeUninit.</p>
+<p>So although mem::uninitialized <em>can</em> possibly be used correctly, for some types it's <em>impossible</em> to use correctly. As such, we're tossing it in the trash. It's a bad design. You should use its replacement, <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a>.</p>
 <h1 id="what-is-maybeuninit" class="section-header"><a href="#what-is-maybeuninit">What Is MaybeUninit?</a></h1>
 <p>In the section on <a href="#untagged-unions">untagged unions</a>, I noted that in the extreme case you could make an UntaggedOption type:</p>
 
@@ -241,7 +241,7 @@ with a system called <em><a href="https://github.com/rust-lang/rfcs/blob/master/
     <span class="ident">none</span>: (),
     <span class="ident">some</span>: <span class="ident">T</span>,
 }</pre></div>
-<p>Well it turns out that's all that MaybeUninit is. Well actually, it's defined as:</p>
+<p>Well it turns out that's all that <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a> is. Well actually, it's defined as:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
 <span class="kw">pub</span> <span class="ident">union</span> <span class="ident">MaybeUninit</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {

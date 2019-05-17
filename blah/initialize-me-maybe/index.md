@@ -4,7 +4,7 @@
 
 <span class="date">May 16th, 2019 -- Rust Nightly 1.36.0</span>
 
-Rust's infamous mem::uninitialized method has been deprecated. Its replacement, MaybeUninit, has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.
+Rust's infamous mem::uninitialized method has been deprecated. Its replacement, [MaybeUninit][], has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.
 
 Most of this post is dedicated to discussing the nature of uninitialized memory and how it can be worked with in Rust. [Feel free to skip to the details on why mem::uninitialized is broken][section-what-went-wrong].
 
@@ -302,7 +302,7 @@ For me, on the day of writing this, this program compiles and executes fine. Unf
 
 Remember when I said that compilers can magically make uninitialized memory any value they want? And how they want everything to be Undefined Behaviour? Well because we tell the compiler that a bool is either 0 or 1, if the compiler can prove that a value of type bool is uninitialized memory it has successfully proven the program has Undefined Behaviour. No, it doesn't matter that we didn't read the uninitialized memory.
 
-So although mem::uninitialized *can* possibly be used correctly, for some types it's *impossible* to use correctly. As such, we're tossing it in the trash. It's a bad design. You should use its replacement, MaybeUninit.
+So although mem::uninitialized *can* possibly be used correctly, for some types it's *impossible* to use correctly. As such, we're tossing it in the trash. It's a bad design. You should use its replacement, [MaybeUninit][].
 
 
 
@@ -318,7 +318,7 @@ union UntaggedOption<T> {
 }
 ```
 
-Well it turns out that's all that MaybeUninit is. Well actually, it's defined as:
+Well it turns out that's all that [MaybeUninit][] is. Well actually, it's defined as:
 
 ```rust
 pub union MaybeUninit<T> {
@@ -385,3 +385,4 @@ Have fun writing your terribly unsafe, but definitely, absolutely, rigorously pr
 [cpp-strict-aliasing]: https://blog.regehr.org/archives/1307
 [section-what-went-wrong]: #what-went-wrong
 [section-untagged-unions]: #untagged-unions
+[MaybeUninit]: https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html
