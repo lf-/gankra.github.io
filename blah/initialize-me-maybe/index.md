@@ -24,7 +24,7 @@ The theoretical perspective is a bit more strict, [and also poorly specified][un
 
 Unfortunately, what compilers most love in the world is to prove that something is Undefined Behaviour. Undefined Behaviour means they can apply aggressive optimizations and make everything go fast! ...Usually by deleting all your code.
 
-So, as a conservative model it's reasonable to just declare that **it is Undefined Behaviour to read uninitialized memory**. Full stop.
+So as a conservative model it's reasonable to just declare that **it is Undefined Behaviour to read uninitialized memory**. Full stop.
 
 
 
