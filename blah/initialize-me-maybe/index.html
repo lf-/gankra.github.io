@@ -88,7 +88,7 @@
 <p>Whoops! Rust won't prevent us from doing this, and so we have a way to read uninitialized memory without needing to perform a heap allocation. Interestingly, we can take this to its logical limit and build UntaggedOption, which lets us dynamically initialize any value:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
-<span class="ident">union</span> <span class="ident">UntaggedOption</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+<span class="ident">union</span> <span class="ident">UntaggedOption</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Copy</span><span class="op">&gt;</span> {
     <span class="ident">none</span>: (),
     <span class="ident">some</span>: <span class="ident">T</span>,
 }
@@ -153,7 +153,7 @@
 <p>In the section on <a href="#untagged-unions">untagged unions</a>, I noted that in the extreme case you could make an UntaggedOption type:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
-<span class="ident">union</span> <span class="ident">UntaggedOption</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+<span class="ident">union</span> <span class="ident">UntaggedOption</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Copy</span><span class="op">&gt;</span> {
     <span class="ident">none</span>: (),
     <span class="ident">some</span>: <span class="ident">T</span>,
 }</pre></div>

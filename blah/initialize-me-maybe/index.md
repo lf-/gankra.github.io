@@ -109,7 +109,7 @@ Whoops! Rust won't prevent us from doing this, and so we have a way to read unin
 # #[allow(unions_with_drop_fields)]
 # fn some_condition() -> bool { true }
 #
-union UntaggedOption<T> {
+union UntaggedOption<T: Copy> {
     none: (),
     some: T,
 }
@@ -200,7 +200,7 @@ So although mem::uninitialized *can* possibly be used correctly, for some types 
 In the section on [untagged unions][section-untagged-unions], I noted that in the extreme case you could make an UntaggedOption type:
 
 ```rust
-union UntaggedOption<T> {
+union UntaggedOption<T: Copy> {
     none: (),
     some: T,
 }
