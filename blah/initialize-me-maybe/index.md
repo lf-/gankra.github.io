@@ -119,7 +119,7 @@ if some_other_condition() {
                         // - if init, drop it
 ```
 
-That lets the compiler know when destructors should be run, but doesn't allow us to actually work with dynamically initialized values. We're still only allowed to insert an explicit read if the value is *statically* known to be initialized. For truly dynamic initialization, Rust has the Option type (or any enum, really):
+That lets the compiler know when destructors should be run, but doesn't allow us to actually work with dynamically initialized values. We're still only allowed to insert an explicit read if the value is *statically* known to be initialized. For truly dynamic initialization, Rust has the `Option<T>` type (or any enum, really):
 
 ```rust
 #fn some_condition() -> bool { true }

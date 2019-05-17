@@ -104,7 +104,7 @@ with a system called <em><a href="https://github.com/rust-lang/rfcs/blob/master/
 }
                         <span class="comment">// dynamically init, check drop_flag(x):</span>
                         <span class="comment">// - if init, drop it</span></pre></div>
-<p>That lets the compiler know when destructors should be run, but doesn't allow us to actually work with dynamically initialized values. We're still only allowed to insert an explicit read if the value is <em>statically</em> known to be initialized. For truly dynamic initialization, Rust has the Option type (or any enum, really):</p>
+<p>That lets the compiler know when destructors should be run, but doesn't allow us to actually work with dynamically initialized values. We're still only allowed to insert an explicit read if the value is <em>statically</em> known to be initialized. For truly dynamic initialization, Rust has the <code>Option&lt;T&gt;</code> type (or any enum, really):</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
 #<span class="kw">fn</span> <span class="ident">some_condition</span>() <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="bool-val">true</span> }
