@@ -16,131 +16,19 @@ Most of this post is dedicated to discussing the nature of uninitialized memory 
 
 When you allocate memory in Rust it arrives to you in an *uninitialized* state. What exactly that means is a surprisingly subtle issue.
 
-From a low-level implementation perspective, this generally just means that some region of memory has been declared to be "yours", but because that memory could have been previously used for something else, there's no guarantee what the bits in that memory are set to. Why are old values from somewhere else still there? Because it's faster and easier to not bother to clear out the memory. If you read from uninitialized memory, you are essentially reading random bits, and so your program may behave randomly. From this perspective, it's almost always a serious bug to read from uninitialized memory. Although you could certainly construct cases where that's not the case.
+From a low-level implementation perspective, this generally just means that some region of memory has been declared to be "yours", but because that memory could have been previously used for something else, there's no guarantee what the bits in that memory are set to. Why are old values from somewhere else still there? Because it's faster and easier to not bother to clear out the memory.
+
+If you read from uninitialized memory, you are essentially reading random bits, and so your program may behave randomly. From this perspective, it's almost always a serious bug to read from uninitialized memory. Although you could certainly construct cases where that's not the case.
 
 Note that this model is one of a single process that recycles memory it is has acquired from the operating system without returning it. For security reasons, memory freshly acquired from your operating system is guaranteed to be initialized to all 0's. [Although there are certainly security-minded folks who would love for processes to do this internally as well][memset].
 
-The theoretical perspective is a bit more strict, [and also poorly specified][undef]. The long and the short of it is that compilers consider uninitialized memory to be a much more exotic thing. Something of a magical substance that turns into whatever value makes the compiler's life easiest. Say you wanted to apply the simplification `y & x => y`. That requires proving that `x` is all 1's. Oh it's uninitialized memory? Ok let's just assume it's all 1's. For `y | x` you can assume it's all 0's. Whatever's most convenient at the time!
+The theoretical perspective is a bit more strict, [and also poorly specified][undef]. The long and the short of it is that compilers consider uninitialized memory to be a much more exotic thing. Memory can either be 0, 1, or uninitialized. You know, your run of the mill [three-state boolean][tribool]. In the uninitialized state, the compiler may assume memory has whatever value it wants.
 
-Unfortunately, what compilers most love in the world is to prove that something is Undefined Behaviour. Undefined Behaviour means they can apply aggressive optimizations and make everything go fast! ...Usually by deleting all your code.
+Say you wanted to apply the simplification `y & x => y`. That requires proving that `x` is all 1's. Oh it's uninitialized memory? Ok let's just assume it's all 1's. For `y | x` you can assume it's all 0's. Whatever's most convenient at the time! More controversially, one may also conclude normally impossible things, like `x == x => false`, by assuming the value is changing on each read.
 
-So as a conservative model it's reasonable to just declare that **it is Undefined Behaviour to read uninitialized memory**. Full stop.
+Unfortunately, what compilers most love in the world is to prove that something is Undefined Behaviour. Undefined Behaviour means they can apply aggressive optimizations and make everything go fast! Usually by deleting all your code.
 
-
-
-
-
-# Safely Working With Uninitialized Memory In Rust
-
-Given a model where we must never read Uninitialized Memory, what tools does Rust give us?
-
-Let's look at the simple case of a local variable. Normally, when you declare a local variable, you also initialize it:
-
-```rust
-let x = 0;
-let (a, b) = (1, 2);
-```
-
-In this case, there's no concern for Uninitialized Memory. As soon as we're given the *ability* to refer to our new piece of memory, it has already been initialized. But Rust lets us write this code:
-
-```rust
-# fn some_condition() -> bool { false }
-#
-let x;
-if some_condition() {
-    x = 5;
-} else {
-    x = 7;
-}
-println!("{}", x);
-```
-
-Unlike [Java][java-default-init] and [C++][cpp-default-init], Rust does not have the concept of default-initialization. In this code x is initialized *exactly once*. However we clearly are allowed to refer to x before it's initialized. What if we change our program to try to read x when it could be uninitialized?
-
-```rust
-# fn some_condition() -> bool { false }
-#
-let x;
-if some_condition() {
-    x = 5;
-}
-println!("{}", x);
-```
-
-
-```text
-error[E0381]: borrow of possibly uninitialized variable: `x`
- --> src/main.rs:8:20
-  |
-8 |     println!("{}", x);
-  |                    ^ use of possibly uninitialized `x`
-```
-
-Aha, Rust statically prevents us from reading x when it could be uninitialized. Interestingly, this *does not* mean that we must always initialize `x`. This program compiles:
-
-```rust
-# fn some_condition() -> bool { false }
-#
-let x;
-if some_condition() {
-    x = 5;
-    println!("{}", x);
-}
-```
-
-In addition, Rust can dynamically track the initialization of values with destructors (Drop impls),
-with a system called *[drop flags][drop-flags]*:
-
-```rust
-#fn some_condition() -> bool { false }
-#fn some_other_condition() -> bool { true }
-#
-let mut x;              // x may be dynamically init
-                        // drop_flag(x) = uninit
-
-if some_condition() {
-    x = Box::new(12);   // statically uninit, init it
-                        // drop_flag(x) = init
-
-    println!("{}", x);  // statically init here, ok to read!
-}
-
-x = Box::new(13);       // dynamically init, check drop_flag(x):
-                        // - if init: drop it, then init it
-                        // - if uninit: init it
-                        // drop_flag(x) = init
-
-println!("{}", x);      // statically init, ok to read!
-
-if some_other_condition() {
-    std::mem::drop(x);  // statically init, ok to read
-}
-                        // dynamically init, check drop_flag(x):
-                        // - if init, drop it
-```
-
-That lets the compiler know when destructors should be run, but doesn't allow us to actually work with dynamically initialized values. We're still only allowed to insert an explicit read if the value is *statically* known to be initialized. For truly dynamic initialization, Rust has the `Option<T>` type (or any enum, really):
-
-```rust
-#fn some_condition() -> bool { true }
-#
-let mut x: Option<_> = None;    // Only init a tag in the enum
-                                // indicating the value is uninit
-
-if some_condition() {
-    x = Some(36);               // Set the tag and init the value
-}
-
-if let Some(val) = x {          // Acquire the value in x if it's init
-    println!("{}", val);
-}
-
-let y = x.unwrap();             // Assert the value is definitely init
-                                // crash the program if not
-println!("{}", y);
-```
-
-As a minor aside, all of this initialization logic is the main motivation for Rust's `loop { }` construct. The compiler can understand that it always runs, and if you ever exit the loop you must have hit a `break` or `return`. In this way it can more easily reason about paths of execution and initialization.
+So as a conservative model it's reasonable to just declare that if you do anything with uninitialized memory *other* than just copying it around, **it is Undefined Behaviour**. Full stop.
 
 
 
@@ -148,7 +36,7 @@ As a minor aside, all of this initialization logic is the main motivation for Ru
 
 # Unsafely Working With Uninitialized Memory in Rust
 
-All of the tools we have looked at before now have been completely safe, but as you may know, Rust has an [unsafe side][unsafe].
+By default, Rust prevents you from ever observing uninitialized memory, even though it actually gives you [lots of ways][option] to [work with it][checked-uninit]. But, as you may know, Rust has an [unsafe side][unsafe].
 
 To my knowledge, Rust has 3 `unsafe` ways to acquire uninitialized memory that it can't prevent you from reading:
 
@@ -386,3 +274,6 @@ Have fun writing your terribly unsafe, but definitely, absolutely, rigorously pr
 [section-what-went-wrong]: #what-went-wrong
 [section-untagged-unions]: #untagged-unions
 [MaybeUninit]: https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html
+[checked-uninit]: https://doc.rust-lang.org/nightly/nomicon/checked-uninit.html
+[tribool]: https://www.boost.org/doc/libs/1_59_0/doc/html/boost/logic/tribool.html
+[option]: https://doc.rust-lang.org/std/option/index.html
