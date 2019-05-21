@@ -28,7 +28,7 @@
     <h1 class="title">Here&#39;s My Type, So Initialize Me Maybe (mem::uninitialized is deprecated)</h1>
     <p><span class="author">Alexis Beingessner</span></p>
 <p><span class="date">May 16th, 2019 -- Rust Nightly 1.36.0</span></p>
-<p>Rust's infamous mem::uninitialized method has been deprecated. Its replacement, <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a>, has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.</p>
+<p>Rust's infamous <a href="https://doc.rust-lang.org/std/mem/fn.uninitialized.html">mem::uninitialized</a> method has been deprecated. Its replacement, <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a>, has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.</p>
 <p>Most of this post is dedicated to discussing the nature of uninitialized memory and how it can be worked with in Rust. <a href="#what-went-wrong">Feel free to skip to the details on why mem::uninitialized is broken</a>.</p>
 <h1 id="whats-uninitialized-memory" class="section-header"><a href="#whats-uninitialized-memory">What's Uninitialized Memory?</a></h1>
 <p>When you allocate memory in Rust it arrives to you in an <em>uninitialized</em> state. What exactly that means is a surprisingly subtle issue.</p>
@@ -149,6 +149,7 @@
 </ul>
 <p>Remember when I said that compilers can magically make uninitialized memory any value they want? And how they want everything to be Undefined Behaviour? Well because we tell the compiler that a bool is either 0 or 1, if the compiler can prove that a value of type bool is uninitialized memory it has successfully proven the program has Undefined Behaviour. No, it doesn't matter that we didn't read the uninitialized memory.</p>
 <p>So although mem::uninitialized <em>can</em> possibly be used correctly, for some types it's <em>impossible</em> to use correctly. As such, we're tossing it in the trash. It's a bad design. You should use its replacement, <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a>.</p>
+<p>To be absolutely clear, it's not obvious to <a href="https://github.com/rust-lang/unsafe-code-guidelines">the Unsafe Code Guidelines team</a> that mem::uninitialized is usable even for always-valid types like u32. It's just <em>more obviously</em> unusable for types like bool. So even if you're very confident you won't run into those types, you should still use <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a> just to be safe.</p>
 <h1 id="what-is-maybeuninit" class="section-header"><a href="#what-is-maybeuninit">What Is MaybeUninit?</a></h1>
 <p>In the section on <a href="#untagged-unions">untagged unions</a>, I noted that in the extreme case you could make an UntaggedOption type:</p>
 

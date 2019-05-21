@@ -4,7 +4,7 @@
 
 <span class="date">May 16th, 2019 -- Rust Nightly 1.36.0</span>
 
-Rust's infamous mem::uninitialized method has been deprecated. Its replacement, [MaybeUninit][], has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.
+Rust's infamous [mem::uninitialized][] method has been deprecated. Its replacement, [MaybeUninit][], has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.
 
 Most of this post is dedicated to discussing the nature of uninitialized memory and how it can be worked with in Rust. [Feel free to skip to the details on why mem::uninitialized is broken][section-what-went-wrong].
 
@@ -192,6 +192,10 @@ Remember when I said that compilers can magically make uninitialized memory any 
 
 So although mem::uninitialized *can* possibly be used correctly, for some types it's *impossible* to use correctly. As such, we're tossing it in the trash. It's a bad design. You should use its replacement, [MaybeUninit][].
 
+To be absolutely clear, it's not obvious to [the Unsafe Code Guidelines team][unsafe-code-guidelines] that mem::uninitialized is usable even for always-valid types like u32. It's just *more obviously* unusable for types like bool. So even if you're very confident you won't run into those types, you should still use [MaybeUninit][] just to be safe.
+
+
+
 
 
 
@@ -277,3 +281,4 @@ Have fun writing your terribly unsafe, but definitely, absolutely, rigorously pr
 [checked-uninit]: https://doc.rust-lang.org/nightly/nomicon/checked-uninit.html
 [tribool]: https://www.boost.org/doc/libs/1_59_0/doc/html/boost/logic/tribool.html
 [option]: https://doc.rust-lang.org/std/option/index.html
+[unsafe-code-guidelines]: https://github.com/rust-lang/unsafe-code-guidelines
