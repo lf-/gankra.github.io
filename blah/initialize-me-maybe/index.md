@@ -136,7 +136,7 @@ Finally, we come to the focus of this post.
 
 The intended semantic of mem::uninitialized is that it pretends to create a value to initialize some memory, but it doesn't actually do anything. In doing this, the static initialization checker becomes convinced the memory is initialized, but no work has been done. The motivation for this function is cases where you want to dynamically initialize a value in a way that the compiler just can't understand, with no overhead at all.
 
-For the compiler people out there, mem::uninitialized simply lowers to [llvm's undef][undef].
+For the compiler people out there, mem::uninitialized simply lowers to [llvm's undef][llvm-undef].
 
 Of course, you need to be careful how you use this, especially if the type you're pretending to initialize has a destructor, but you could imagine being able to do it right with `ptr::write` and `ptr::read`. For Copy types, it's seemingly not that hard at all. Here's the kind of program that motivated this feature:
 
@@ -272,10 +272,10 @@ Have fun writing your terribly unsafe, but definitely, absolutely, rigorously pr
 [unions]: https://doc.rust-lang.org/reference/items/unions.html
 [mem::uninitialized]: https://doc.rust-lang.org/std/mem/fn.uninitialized.html
 [ptr-methods]: https://doc.rust-lang.org/std/primitive.pointer.html
-[undef]: https://llvm.org/docs/LangRef.html#undefined-values
+[llvm-undef]: https://llvm.org/docs/LangRef.html#undefined-values
 [cpp-active-union]: https://en.cppreference.com/w/cpp/language/union
 [cpp-strict-aliasing]: https://blog.regehr.org/archives/1307
-[section-what-went-wrong]: #what-went-wrong
+[section-what-went-wrong]: #memuninitialized
 [section-untagged-unions]: #untagged-unions
 [MaybeUninit]: https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html
 [checked-uninit]: https://doc.rust-lang.org/nightly/nomicon/checked-uninit.html
