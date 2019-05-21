@@ -241,7 +241,8 @@ unsafe {
     }
 
     // All values carefully proven by programmer to be init
-    println!("{:?}", &results.get_ref()[..]);
+    let results_ref = &*results.as_ptr();
+    println!("{:?}", results_ref);
 }
 ```
 

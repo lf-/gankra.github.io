@@ -183,7 +183,8 @@
     }
 
     <span class="comment">// All values carefully proven by programmer to be init</span>
-    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">results</span>.<span class="ident">get_ref</span>()[..]);
+    <span class="kw">let</span> <span class="ident">results_ref</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">results</span>.<span class="ident">as_ptr</span>();
+    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">results_ref</span>);
 }</pre></div>
 <p>Why is this different from when we used mem::uninitialized? Because the compiler can <em>clearly</em> see that our memory has type &quot;either an array of bools, or nothing&quot;. So it knows not to assert that the memory must have any particular value.</p>
 <p>Note that we must still be careful. While this isn't finalized, the preferred semantics of references allows the compiler to assume that they're non-dangling and point to valid memory. Under those semantics, if we create an <code>&amp;mut [bool; u16]</code> or <code>&amp;mut bool</code>, it could be Undefined Behaviour.</p>
