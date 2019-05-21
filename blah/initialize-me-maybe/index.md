@@ -1,4 +1,4 @@
-% Here's My Type, So Initialize Me Maybe
+% Here's My Type, So Initialize Me Maybe (mem::uninitialized is deprecated)
 
 <span class="author">Alexis Beingessner</span>
 

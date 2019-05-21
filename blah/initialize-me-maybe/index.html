@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <title>Here&#39;s My Type, So Initialize Me Maybe</title>
+    <title>Here&#39;s My Type, So Initialize Me Maybe (mem::uninitialized is deprecated)</title>
 
     
         <link href="../bootstrap.min.css" rel="stylesheet" type="text/css">
@@ -25,7 +25,7 @@
     <div class="content">
 
 
-    <h1 class="title">Here&#39;s My Type, So Initialize Me Maybe</h1>
+    <h1 class="title">Here&#39;s My Type, So Initialize Me Maybe (mem::uninitialized is deprecated)</h1>
     <p><span class="author">Alexis Beingessner</span></p>
 <p><span class="date">May 16th, 2019 -- Rust Nightly 1.36.0</span></p>
 <p>Rust's infamous mem::uninitialized method has been deprecated. Its replacement, <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a>, has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.</p>
