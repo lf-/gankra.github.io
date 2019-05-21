@@ -28,7 +28,7 @@
     <h1 class="title">Here&#39;s My Type, So Initialize Me Maybe (mem::uninitialized is deprecated)</h1>
     <p><span class="author">Alexis Beingessner</span></p>
 <p><span class="date">May 21st, 2019 -- Rust Nightly 1.36.0</span></p>
-<p>Rust's infamous <a href="https://doc.rust-lang.org/std/mem/fn.uninitialized.html">mem::uninitialized</a> method has been deprecated. Its replacement, <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a>, has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.</p>
+<p>Rust's infamous <a href="https://doc.rust-lang.org/std/mem/fn.uninitialized.html">mem::uninitialized</a> method has been deprecated in today's nightly build. Its replacement, <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a>, has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible (probably when it hits stable in 6 weeks). This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.</p>
 <p>Most of this post is dedicated to discussing the nature of uninitialized memory and how it can be worked with in Rust. <a href="#memuninitialized">Feel free to skip to the details on why mem::uninitialized is broken</a>.</p>
 <h1 id="whats-uninitialized-memory" class="section-header"><a href="#whats-uninitialized-memory">What's Uninitialized Memory?</a></h1>
 <p>When you allocate memory in Rust it arrives to you in an <em>uninitialized</em> state. What exactly that means is a surprisingly subtle issue.</p>
@@ -187,6 +187,7 @@
     <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">results_ref</span>);
 }</pre></div>
 <p>Why is this different from when we used mem::uninitialized? Because the compiler can <em>clearly</em> see that our memory has type &quot;either an array of bools, or nothing&quot;. So it knows not to assert that the memory must have any particular value.</p>
+<p>For similar reasons this also supresses things like the <a href="https://doc.rust-lang.org/nightly/nomicon/repr-rust.html">enum layout optimizations</a>, so <code>size_of::&lt;Option&lt;bool&gt;&gt;() != size_of::&lt;Option&lt;MaybeUninit&lt;bool&gt;&gt;&gt;()</code> (1 != 2).</p>
 <p>Note that we must still be careful. While this isn't finalized, the preferred semantics of references allows the compiler to assume that they're non-dangling and point to valid memory. Under those semantics, if we create an <code>&amp;mut [bool; u16]</code> or <code>&amp;mut bool</code>, it could be Undefined Behaviour.</p>
 <p>To avoid this issue, we only manipulate the memory using raw pointers, in the same way we would initialize a heap allocation. I wasn't 100% sure if I could claim that <code>arr[i] = x</code> doesn't create a reference, so I just used pointer arithmetic to be safe.</p>
 <p>Have fun writing your terribly unsafe, but definitely, absolutely, rigorously proven correct programs!</p>
