@@ -2,7 +2,7 @@
 
 <span class="author">Alexis Beingessner</span>
 
-<span class="date">May 16th, 2019 -- Rust Nightly 1.36.0</span>
+<span class="date">May 21st, 2019 -- Rust Nightly 1.36.0</span>
 
 Rust's infamous [mem::uninitialized][] method has been deprecated. Its replacement, [MaybeUninit][], has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible. This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.
 
