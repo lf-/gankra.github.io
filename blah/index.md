@@ -26,9 +26,7 @@ Here's some stuff I've written.
 * [The Pain Of Linear Types In Rust](linear-rust/)
 * [Bugs You'll Probably Only Have In Rust](only-in-rust/)
 * [Notes on Type Layouts and ABIs in Rust](rust-layouts-and-abis/)
-<!--
 * [Here's My Type, So Initialize Me Maybe](initialize-me-maybe/)
--->
 
 [Looking for that embarassing pre-poop-your-pants article? It was adapted into a much better section of the Rustonomicon](https://doc.rust-lang.org/nightly/nomicon/leaking.html).
 
