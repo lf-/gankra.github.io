@@ -190,9 +190,9 @@ For me, on the day of writing this, this program compiles and executes fine. Unf
 
 Remember when I said that compilers can magically make uninitialized memory any value they want? And how they want everything to be Undefined Behaviour? Well because we tell the compiler that a bool is either 0 or 1, if the compiler can prove that a value of type bool is uninitialized memory it has successfully proven the program has Undefined Behaviour. No, it doesn't matter that we didn't read the uninitialized memory.
 
-So although mem::uninitialized *can* possibly be used correctly, for some types it's *impossible* to use correctly. As such, we're tossing it in the trash. It's a bad design. You should use its replacement, [MaybeUninit][].
+So although mem::uninitialized can *maybe* be used correctly, for some types it's *impossible* to use correctly. As such, we're tossing it in the trash. It's a bad design. You should use its replacement, [MaybeUninit][].
 
-To be absolutely clear, it's not obvious to [the Unsafe Code Guidelines team][unsafe-code-guidelines] that mem::uninitialized is usable even for always-valid types like u32. It's just *more obviously* unusable for types like bool. So even if you're very confident you won't run into those types, you should still use [MaybeUninit][] just to be safe.
+And to be absolutely clear, it's not obvious to [the Unsafe Code Guidelines team][unsafe-code-guidelines] that mem::uninitialized is usable even for always-valid types like u32. It's just *more obviously* unusable for types like bool. So even if you're very confident you won't run into those types, you should still use [MaybeUninit][] just to be safe.
 
 
 
