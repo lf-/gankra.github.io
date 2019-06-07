@@ -262,9 +262,6 @@ Have fun writing your terribly unsafe, but definitely, absolutely, rigorously pr
 
 
 
-
-
-
 [undef]: http://www.cs.utah.edu/~regehr/papers/undef-pldi17.pdf
 [memset]: http://www.open-std.org/jtc1/sc22/wg14/www/docs/n1381.pdf
 [cpp-default-init]: https://en.cppreference.com/w/cpp/language/default_initialization
