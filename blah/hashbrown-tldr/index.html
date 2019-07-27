@@ -96,6 +96,7 @@
 </ol>
 <p>Probing is done by incrementing the current bucket by a triangularly increasing multiple of Groups: jump by 1 more group every time. So first we jump by 1 group (meaning we just continue our linear scan), then 2 groups (skipping over 1 group), then 3 groups (skipping over 2 groups), and so on.</p>
 <p>Interestingly, this pattern perfectly lines up with our power-of-two size such that we will visit every single bucket exactly once without any repeats (searching is therefore guaranteed to terminate as we always have at least one EMPTY bucket).</p>
+<p>Also note that our non-linear probing strategy makes us fairly robust against weird degenerate collision chains that can make us accidentally quadratic (Hash DoS). Also <strong>also</strong> note that we expect to almost never actually probe, since that's WIDTH (8-16) non-EMPTY buckets we need to fail to find our key in.</p>
 <h1 id="insertion" class="section-header"><a href="#insertion">Insertion</a></h1>
 <p>Insertion is done in two passes</p>
 <p>Pass 1: just run the search algorithm. If it returns a result, then overwrite that and return.
@@ -142,6 +143,9 @@ Pass 2: actual insertion (now knowing the key isn't present)</p>
 </li>
 <li>
 <p>There's a bunch of random opportunities to do some operation branchless by doing a cute bitmask trick (e.g. updating <code>growth_left</code> by incrementing/decrementing based on the top bit of the ctrl)</p>
+</li>
+<li>
+<p>There's a lot of places where you could use unlikely/likely intrinsics, but we got really mixed results. Sometimes it helped codegen, sometimes it hurt it. Compilers.</p>
 </li>
 </ul>
 

@@ -92,6 +92,8 @@ Probing is done by incrementing the current bucket by a triangularly increasing 
 
 Interestingly, this pattern perfectly lines up with our power-of-two size such that we will visit every single bucket exactly once without any repeats (searching is therefore guaranteed to terminate as we always have at least one EMPTY bucket).
 
+Also note that our non-linear probing strategy makes us fairly robust against weird degenerate collision chains that can make us accidentally quadratic (Hash DoS). Also **also** note that we expect to almost never actually probe, since that's WIDTH (8-16) non-EMPTY buckets we need to fail to find our key in.
+
 
 
 
@@ -155,3 +157,4 @@ You don't want to allocate the for empty tables, so just statically allocate an 
 
 * There's a bunch of random opportunities to do some operation branchless by doing a cute bitmask trick (e.g. updating `growth_left` by incrementing/decrementing based on the top bit of the ctrl)
 
+* There's a lot of places where you could use unlikely/likely intrinsics, but we got really mixed results. Sometimes it helped codegen, sometimes it hurt it. Compilers.
