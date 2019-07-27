@@ -108,11 +108,12 @@
 <li>start at bucket h1 (mod n)</li>
 <li>load the Group of bytes starting at the current bucket</li>
 <li>search the Group for EMPTY or DELETED in parallel (match_empty_or_deleted)</li>
-<li>get the first match, and enter the SMALL TABLE NASTY CORNER CASE ZONE</li>
+<li>if there was no match (unlikely), probe and GOTO 2</li>
+<li>otherwise, get the first match and enter the SMALL TABLE NASTY CORNER CASE ZONE</li>
 <li>check that the match (mod n) isn't FULL.</li>
 </ol>
 <p>This can happen for small (n &lt; WIDTH) tables, because there are fake EMPTY bytes between us and the mirror bytes. If it does happen, then we know: we're a tiny table that fits in a Group, and that the guaranteed-to-exist empty bucket wasn't anywhere between h1 and the end of the table.</p>
-<ol start="6">
+<ol start="7">
 <li>if it <em>wasn't</em> FULL, return that location for insertion</li>
 <li>if it <em>was</em> FULL, load the (aligned!) Group at the start of the table</li>
 <li>search the Group for EMPTY or DELETED in parallel (match_empty_or_deleted)</li>

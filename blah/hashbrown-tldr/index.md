@@ -109,15 +109,16 @@ So, actual insertion:
 1. start at bucket h1 (mod n)
 2. load the Group of bytes starting at the current bucket
 3. search the Group for EMPTY or DELETED in parallel (match_empty_or_deleted)
-4. get the first match, and enter the SMALL TABLE NASTY CORNER CASE ZONE
-5. check that the match (mod n) isn't FULL.
+4. if there was no match (unlikely), probe and GOTO 2
+5. otherwise, get the first match and enter the SMALL TABLE NASTY CORNER CASE ZONE
+6. check that the match (mod n) isn't FULL.
 
 This can happen for small (n < WIDTH) tables, because there are fake EMPTY bytes between us and the mirror bytes. If it does happen, then we know: we're a tiny table that fits in a Group, and that the guaranteed-to-exist empty bucket wasn't anywhere between h1 and the end of the table.
 
-6. if it *wasn't* FULL, return that location for insertion
-7. if it *was* FULL, load the (aligned!) Group at the start of the table
-8. search the Group for EMPTY or DELETED in parallel (match_empty_or_deleted)
-9. return the first location for insertion (guaranteed to exist!)
+7. if it *wasn't* FULL, return that location for insertion
+8. if it *was* FULL, load the (aligned!) Group at the start of the table
+9. search the Group for EMPTY or DELETED in parallel (match_empty_or_deleted)
+10. return the first location for insertion (guaranteed to exist!)
 
 
 
