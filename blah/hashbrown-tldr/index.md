@@ -146,15 +146,19 @@ So, removal:
 
 # The Empty Singleton
 
-You don't want to allocate the for empty tables, so just statically allocate an aligned array of `[EMPTY; WIDTH]` and point your empty collection at it. If you implemented everything right, it should just workout because you'll load those WIDTH bytes into a Group, see it's empty, and always conclude there's nothing to do. When you need to actually insert, your load factor should tell you to resize right away. You mostly only need to add extra guards in places like `clear` and whenever you would realloc/free the table (all very slow paths, so no concern).
+You don't want to allocate for empty tables, so just statically allocate an Group-aligned(!) array of `[EMPTY; WIDTH]` and point your empty collection at it. If you implemented everything right, it should just workout because you'll load those WIDTH bytes into a Group, see it's empty, and always conclude there's nothing to do. When you need to actually insert, your load factor should tell you to resize right away. You mostly only need to add extra guards in places like `clear` and whenever you would realloc/free the table (all very slow paths, so no concern).
+
+There's a minor hard-to-hit footgun here if your implementation somehow associates your pointer into the control bytes with the type of your keys. If you do this, the empty singleton may be under-aligned or you may run afoul of TBAA-style things. The fact that we hold separate pointers for keys and ctrls makes it pretty easy to avoid this. Just keep the ctrl pointer a boring untyped pointer-to-bytes.
 
 
 
 # Extra Notes
 
-* You need your hash function to resize the array, as you need to recompute everyone's h1 value, which you didn't store
+* You need your hash function to resize the array, as you need to recompute everyone's h1 value, which you didn't store. This means that swisstable will take a nasty perf hit if you have a very expensive hash function. This also makes it harder to use external state for hashing (e.g. an interner the map doesn't know about), as more "random" operations will need that state passed in just in case.
 
 * There's a ton of cute tricks you can do on resizes, but they're not super interesting to explain (read the code)
+
+* The control byte mirror is really just implemented by always setting two ctrls unconditionally (locations, of course, computed with cute tricks). Most of the time you just write the same byte to the same location twice in a row, so not a huge perf issue.
 
 * There's a bunch of random opportunities to do some operation branchless by doing a cute bitmask trick (e.g. updating `growth_left` by incrementing/decrementing based on the top bit of the ctrl)
 
