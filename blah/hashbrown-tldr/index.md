@@ -101,8 +101,8 @@ Also note that our non-linear probing strategy makes us fairly robust against we
 
 Insertion is done in two passes
 
-Pass 1: just run the search algorithm. If it returns a result, then overwrite that and return.
-Pass 2: actual insertion (now knowing the key isn't present)
+* Pass 1: just run the search algorithm. If it returns a result, then overwrite that and return.
+* Pass 2: actual insertion (now knowing the key isn't present, we search for EMPTY/DELETED).
 
 So, actual insertion:
 

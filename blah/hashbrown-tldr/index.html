@@ -99,8 +99,10 @@
 <p>Also note that our non-linear probing strategy makes us fairly robust against weird degenerate collision chains that can make us accidentally quadratic (Hash DoS). Also <strong>also</strong> note that we expect to almost never actually probe, since that's WIDTH (8-16) non-EMPTY buckets we need to fail to find our key in.</p>
 <h1 id="insertion" class="section-header"><a href="#insertion">Insertion</a></h1>
 <p>Insertion is done in two passes</p>
-<p>Pass 1: just run the search algorithm. If it returns a result, then overwrite that and return.
-Pass 2: actual insertion (now knowing the key isn't present)</p>
+<ul>
+<li>Pass 1: just run the search algorithm. If it returns a result, then overwrite that and return.</li>
+<li>Pass 2: actual insertion (now knowing the key isn't present, we search for EMPTY/DELETED).</li>
+</ul>
 <p>So, actual insertion:</p>
 <ol>
 <li>start at bucket h1 (mod n)</li>
