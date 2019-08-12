@@ -22,7 +22,11 @@ let oldDomain = "gankro.github.io"
 let newDomain = "gankra.github.io"
 
 let oldURL = window.location;
-window.location.replace(oldDomain, newDomain);
+let newURL = oldURL.replace(oldDomain, newDomain);
+
+console.log(oldURL);
+console.log(newURL);
+//window.location.replace(oldDomain, newDomain);
 
 </script>
 
