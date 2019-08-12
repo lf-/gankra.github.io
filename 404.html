@@ -21,8 +21,8 @@ disabled or something? The path should be the same just use the new domain.
 let oldDomain = "gankro.github.io"
 let newDomain = "gankra.github.io"
 
-let oldURL = window.location;
-let newURL = oldURL.toString().replace(oldDomain, newDomain);
+let oldURL = window.location.href;
+let newURL = oldURL.replace(oldDomain, newDomain);
 
 window.location.replace(newURL);
 </script>
