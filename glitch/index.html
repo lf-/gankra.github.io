@@ -31,7 +31,7 @@ body {
 }
 .entry {
     width: 100%;
-    padding-bottom: 10em;
+    padding-bottom: 5em;
 }
 .art, .desc {
 }
@@ -56,12 +56,12 @@ body {
 @media not all and (max-width: 900px) {
     .entry {
         display: grid;
-        height: 50em;
         grid-template-columns: 6fr 4fr;
         grid-template-rows: 100%;
     }
     .art {
         grid-column-start: 1;
+        max-height: 50em;
     }
     .desc {
         grid-column-start: 2;
@@ -203,7 +203,10 @@ body {
                 This one is showing a much milder effect from when I was first testing out breaking the glyph rasterizer. What's cool about this one is that it vaguely preserves english text so I could actually browse the internet like this. Somehow the changes I was making mostly just were adding random accents.
             </p>
             <p>
-                I really like this one because it's a little friendly hello from Firefox, who seems to be unaware of how wrong things have gone. Powerful "Start Wandows Ngrmadly" vibes.
+                I really like this one because it's a little friendly hello from Firefox, who seems to be unaware of how wrong things have gone.
+            </p>
+            <p>
+                Strong "Start Wandows Ngrmadly" vibes.
             </p>
         </div>
     </div>
@@ -217,7 +220,10 @@ body {
                 Source Material - Firefox Launch Page
             </p>
             <p>
-                Oops, too far! Great contrast between this one and the previous one! Our little friendly hello has been replaced with the shrieking of a dial-up modem.
+                Oops, too far!
+            </p>
+            <p>
+            Great contrast between this one and the previous one! Our little friendly hello has been replaced with the shrieking of a dial-up modem.
             </p>
             <p>
                 Otherwise, not the best effect. We're in "pure noise" territory.
@@ -228,7 +234,7 @@ body {
         <div class="art"><img src="moon-language.png"></div>
         <div class="desc">
             <h2 class="heading"><a href="#moon-language">
-                Welcome Fellow Humanity, Purchase A Ware
+                Fellow Humanity, Purchase A Ware
             </a></h2>
             <a href="https://feedly.com/i/welcome">
                 Source Material - Feedly Signup Promotional Page
@@ -238,6 +244,34 @@ body {
             </p>
             <p>
                 DO NOT PURCHASE A WARE
+            </p>
+        </div>
+    </div>
+    <div class="entry" id="big-stretchie">
+        <div class="art"><img src="big-stretchie.png"></div>
+        <div class="desc">
+            <h2 class="heading"><a href="#big-stretchie">
+                CAT NO
+            </a></h2>
+            <a href="https://twitter.com/ModestMeows/status/1161647743393292288?s=20">
+                Source Material - Modest's Great Cat
+            </a>
+            <p>
+                Big stretch makes big destroy.
+            </p>
+            <p>
+                This is a placeholder for this effect until I get permission from folks to post corrupted versions of their work here.
+            </p>
+            <h3>
+                Corrupting The JPEG Decoder
+            </h3>
+            <p>
+                This effect is achieved by feeding the colors of a decoded jpeg into the pointer
+                arithmetic for copying pixels around. So basically certain colors completely mess
+                up how we copy the pixel data around, destroying the left side of the image.
+            </p>
+            <p>
+                This produces a really nice "content-aware" corruption effect, as you can see the corruption creeping around the sink at the top.
             </p>
         </div>
     </div>
