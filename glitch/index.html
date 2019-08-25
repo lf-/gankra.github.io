@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>Corruption Cat</title>
+<!--
+    <link href="bootstrap.min.css" rel="stylesheet" type="text/css">
+    <link href="bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
+    <link href="rust.css" rel="stylesheet" type="text/css">
+    <link href="style.css" rel="stylesheet" type="text/css">
+-->
+<style>
+body {
+    padding: 0px;
+    margin: 0px;
+    width: 100%;
+    margin-bottom: 10em;
+    display: flex;
+    justify-content: center;
+    font-family: sans-serif;
+}
+.content {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+    max-width: 80em;
+}
+.entry {
+    width: 100%;
+    padding-bottom: 10em;
+}
+.art, .desc {
+}
+.art {
+}
+.desc {
+    padding: 1em;
+}
+.art img {
+    object-fit: contain;
+    width: 100%;
+    height: 100%;
+}
+
+.prolog {
+    max-width: 40em;
+    padding: 1em;
+    padding-bottom: 5em;
+}
+
+/* desktop */
+@media not all and (max-width: 900px) {
+    .entry {
+        display: grid;
+        height: 50em;
+        grid-template-columns: 6fr 4fr;
+        grid-template-rows: 100%;
+    }
+    .art {
+        grid-column-start: 1;
+    }
+    .desc {
+        grid-column-start: 2;
+    }
+}
+/* mobile */
+@media all and (max-width: 900px) {
+    .entry {
+        display: flex;
+        justify-content: center;
+        flex-direction: row;
+        flex-wrap: wrap;
+
+    }
+    .desc {
+        max-width: 40em;
+    }
+
+}
+</style>
+
+</head>
+<body>
+
+<div class="content">
+
+    <div class="prolog">
+        <h1>Let's Corrupt The Web</h1>
+        <p>
+            Hey there, <a href="https://twitter.com/Gankra_">I'm Gankra</a>! This a collection of some of the most interesting "found pieces" I've created by corrupting Firefox's rendering code and browsing the web.
+        </p>
+        <p>
+            This work was heavily inspired by my favourite artist, <a href="https://twitter.com/DataErase">DataErase</a>! One of her most notable styles involves producing glitchy-looking images using assets from PC-98 games, or as she puts it, glitching hentai. That work really resonates with me, and inspired me to produce my own glitch art!
+        </p>
+        <p>
+            I've always struggled with visual design, and I don't have any interest in copying DataErase's or anyone else's style, so I looked to what I do know: actually fucking up games. I always found joy in breaking games, which you can see all the way back in my work on Homestuck, where I immediately introduced the concept of <a href=https://mspaintadventures.fandom.com/wiki/Trickster_Mode>Trickster Mode</a>, an easter egg that messed up the player sprite and let you walk out of bounds.
+        </p>
+        <p>
+            <img src="gfx-logo.png" style="float:right; width: 8em; height: 8em;">
+            While I don't do any gamedev these days, I do work on <a href="https://mozillagfx.wordpress.com/">Firefox's graphics team</a>, where a lot of the same concepts apply. Since we've spent the last ~3 years writing <a href=https://github.com/servo/webrender>a completely new rendering backend</a> for Firefox, we've had lots of wonderful corruptions to marvel at. Look at our team's friggin' logo, we're absolutely in it for those juicy glitches!
+        </p>
+        <p>
+            So hey, it's my job to isolate and fix rendering bugs in Firefox, so let's do the opposite! Let's mess up firefox's rendering code real bad, and see what the web looks like when you do.
+        </p>
+        <h2>Notes on The Approach</h2>
+        <p>
+            <img src="noise.jpg" style="float:right; width: 8em; height: 8em;">
+            To me, the biggest issue to solve in making interesting rendering corruptions is <i>structure</i>. Sure you can completely garble stuff up, but total noise isn't actually interesting. Or rather, it looks the same everywhere and you get bored with it really fast. The best rendering corruptions have some larger structure to them, and since we're corrupting the web, they ideally preserve some aspect of the thing we're rendering.
+        </p>
+        <p>
+            Unfortunately, modern rendering is all about breaking things up into small pieces to process independently. As a result, the structure of any corruption you introduce tends to only have the scale of those independent pieces, which starts to look a lot like random noise.
+        </p>
+        <p>
+            On the other hand, if you perform your corruptions earlier in the pipeline where large scale structure exists, it can be hard to produce effects with interesting details. Don't get me wrong: it's really funny when you scroll down a page and one of the paragraphs shoots off horizontally (a real bug I once fixed in Firefox), but it doesn't really scratch the same glitchy itch?
+        </p>
+        <p>
+            So far, I've gotten my best results with a technique I like to call Right Value Wrong Place. The basic idea is simple: rather than just inserting random changes or disabling some important check, take some of the real and correct values being fed into the code you're corrupting, and use them in a completely wrong place. For instance, what if the number of bytes in every pixel was derived from its color? The wronger the better; if you feed values into <i>slightly</i> wrong places you get relatively boring effects. For example, mixing up the color channels on an image only tints colors.
+        </p>
+        <p>
+            The nice thing about Right Value Wrong Place is that low-level corruption becomes driven by the high-level structure of the content. There's lots of high level structure that dictates a pixel's color or a character's glyph. This also lets your corruption inherit the structure of the original content in unexpected ways! Instead of seeing one glitchy page and knowing what all the others will look like, you discover knew and exciting effects as you browse through content with different structure!
+        </p>
+        <p>
+            Also it was fun writing up high-minded descriptions of what is ultimately just random garbage happening to otherwise boring content.
+        </p>
+
+    </div>
+
+    <div class="entry" id="marathi-wikipedia">
+        <div class="art"><img src="marathi.png"></div>
+        <div class="desc">
+            <h2 class="heading"><a href="#marathi-wikipedia">
+                Garden of Collapsed Civilization
+            </a></h2>
+            <a href="https://mr.wikipedia.org/wiki/%E0%A4%AE%E0%A5%81%E0%A4%96%E0%A4%AA%E0%A5%83%E0%A4%B7%E0%A5%8D%E0%A4%A0">
+                Source Material - Marathi Wikipedia
+            </a>
+            <p>
+                I really like the effect I got with Marathi! As someone who can't read Marathi, but uses it a bit for testing text rendering features (cursive and ligatures), I've always found it to be a really beautiful language! The beauty I see in it is a very precise and crafted thing, like architecture or machinery, but this glitch changes that. Check out this sentence from the pictured page, and how it has this nice precise line that flows through the whole text:
+            </p>
+
+            <p>
+                तिकडून इंफाळकडूनही चालून आलेल्या दोस्त सैन्याशी त्यांनी मैल दगड १०९ येथे संधान बांधले व इंफाळला पडलेला वेढा मोडून काढला
+            </p>
+            <p>
+                Once corrupted, you get a more chaotic and organic beauty, like a field of flowers. The architecture and machinery has collapsed and given way to nature! 🌸
+            </p>
+            <h3>
+                Corrupting The Glyph Rasterizer
+            </h3>
+            <p>
+                This effect is achieved by just messing up the arguments WebRender passes into CoreText. I believe every change here is caused by arbitrarily deriving new values from the glyph index, including slightly perturbing the bits of the glyph index itself. Most notably the glyph index's bits are being fed into a bunch of checks for whether we're supposed to apply certain transforms like rotation, which is why there are so many rotations.
+            </p>
+
+        </div>
+    </div>
+    <div class="entry" id="francine">
+        <div class="art"><img src="francine.jpg"></div>
+        <div class="desc">
+            <h2 class="heading"><a href="#francine">
+                Pure Disassociation Francine
+            </a></h2>
+            <a href="http://diana-adrianne.com/purecss-francine/">
+                Source Material - Pure CSS Francine
+            </a>
+            <p>
+                Francine is fun to ruin, because she exists essentially as browser rendering stress test. Unlike a normal raster image, she's made up of hundreds of little divs slammed full of gradients, filters, and transforms. Normally when we mess her up, it's some subtle bug that makes a random patch in her design look wrong, like she's a shape-shifter who missed a spot.
+            </p>
+            <p>
+                The final result I got was essentially turning this broken shape-shifter effect up to maximum. All of her facial details have melted away, and her entire body is mired by mysterious patches of discontinuity. This partially reveals the incoherent mess she really is, as she stares blankly into nothingness. Huge Mood. Same.
+            </p>
+            <p>
+                My teammate liked this one so much that he printed off stickers of it. If you ever bump into my in meatspace, I might have a few on me to share!
+            </p>
+            <h3>
+                Corrupting The Brush Shaders
+            </h3>
+            <p>
+                This was before I worked out the Right Value Wrong Place approach, so I was mostly just messing around with colors inside WebRender's "brush" shaders, which are just fancy texture copiers. I actually mostly work near the "top" of our rendering pipeline, so I don't really properly understand our code as you get closer to the GPU!
+            </p>
+            <p>
+                I have a very distinct memory of trying to mess up the transparency in the brush shaders so more things could "poke through" and randomly dissolve, and completely failing. I'm pretty sure what I was trying to do didn't actually make any sense, in retrospect.
+            </p>
+            <p>
+                We generally don't actually create a proper 3d scene where making something transparent at the last second would "show" what's logically underneath it. Everything is clipped, culled, and fed through opaque passes as much as possible, so there generally isn't anything "underneath" to reveal. That sort of stuff only happens if there's already opacity or animations to motivate things being drawn into their own textures and composited.
+            </p>
+            <p>
+                Also, as I was shocked to learn when I first started working with GPUs: they really don't understand transparency, and properly managing transparent things is mostly the CPU's problem, because it messes up the depth buffer: The GPU tracks the distance from the camera that every single pixel currently represents, which makes it possible to quickly skip triangles that are "behind" pixels. You want to draw things front-to-back to get the most out of this, but this doesn't work if the thing in front is transparent!
+            </p>
+        </div>
+    </div>
+    <div class="entry" id="ars-technica">
+        <div class="art"><img src="ars.jpg"></div>
+         <div class="desc">
+            <h2 class="heading"><a href="#ars-technica">
+                A Very Normal Browser
+            </a></h2>
+            <a href="http://diana-adrianne.com/purecss-francine/">
+                Source Material - Ars Technica
+            </a>
+            <p>
+                This was my first experiment in corrupting Firefox's rendering, included more for fun. There isn't really any coherent theme or style. All the effects are kind whatever. It's just a bunch of little random changes at different levels in the pipeline, on a page with some text and images.
+            </p>
+            <p>
+                My favourite part is that you can clearly see that macos drew its own versions of the window close/minimize/maximize buttons on top of the disaster versions we drew. Apple will rest at nothing to uphold the integrity of its branding and iconography.
+            </p>
+            <h3>
+                Corrupting the Display List
+            </h3>
+            <p>
+                WebRender lives in a separate (logical) process from the one each webpage lives in (for various reasons). As a result, when a webpage thinks it's ready to draw another frame, it needs to serialize a description of the page and send it over IPC. This description is the WebRender Display List (WRDL), a list of high-level-ish drawing commands like "make a blue rectangle here", "draw this glyph here", and "apply these transforms and filters".
+            </p>
+            <p>
+                This is one of the parts of WebRender I'm most familiar and comfortable with, so it was natural for me to start here. A lot of the effects you see are very "display-list scale" as a result. For instance, the duplicated, wobbly, color-changed text is something very easy to do at this level.
+            </p>
+            <p>
+                As discussed in my big rant about "structure", these kinds of changes are pretty underwhelming, which is why I quickly moved to a different approach.
+            </p>
+    </div>
+
+</div>
+
+</body>
+</html>
