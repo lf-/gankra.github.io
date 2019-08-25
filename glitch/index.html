@@ -91,7 +91,7 @@ body {
     <div class="prolog">
         <h1>Let's Corrupt The Web</h1>
         <p>
-            This is a bunch of words, but if you scroll down there are pretty pictures instead!
+            <b>Scroll down for pretty pictures!</b>
         </p>
         <p>
             Hey there, <a href="https://twitter.com/Gankra_">I'm Gankra</a>! This a collection of some of the most interesting "found pieces" I've created by corrupting Firefox's rendering code and browsing the web.
@@ -128,7 +128,41 @@ body {
         </p>
 
     </div>
-
+    <div class="entry" id="francine">
+        <div class="art"><img src="francine.jpg"></div>
+        <div class="desc">
+            <h2 class="heading"><a href="#francine">
+                Pure Disassociation Francine
+            </a></h2>
+            <a href="http://diana-adrianne.com/purecss-francine/">
+                Source Material - Pure CSS Francine
+            </a>
+            <p>
+                Francine is fun to ruin, because she exists essentially as browser rendering stress test. Unlike a normal raster image, she's made up of hundreds of little divs slammed full of gradients, filters, and transforms. Normally when we mess her up, it's some subtle bug that makes a random patch in her design look wrong, like she's a shape-shifter who missed a spot.
+            </p>
+            <p>
+                The final result I got was essentially turning this broken shape-shifter effect up to maximum. All of her facial details have melted away, and her entire body is mired by mysterious patches of discontinuity. This partially reveals the incoherent mess she really is, as she stares blankly into nothingness. Huge Mood. Same.
+            </p>
+            <p>
+                My teammate liked this one so much that he printed off stickers of it. If you ever bump into me in meatspace, I might have a few to share!
+            </p>
+            <h3>
+                Corrupting The Brush Shaders
+            </h3>
+            <p>
+                This was before I worked out the Right Value Wrong Place approach, so I was mostly just messing around with colors inside WebRender's "brush" shaders, which are just fancy texture copiers. I actually mostly work near the "top" of our rendering pipeline, so I don't really properly understand our code as you get closer to the GPU!
+            </p>
+            <p>
+                I have a very distinct memory of trying to mess up the transparency in the brush shaders so more things could "poke through" and randomly dissolve, and completely failing. I'm pretty sure what I was trying to do didn't actually make any sense, in retrospect.
+            </p>
+            <p>
+                We generally don't actually create a proper 3d scene where making something transparent at the last second would "show" what's logically underneath it. Everything is clipped, culled, and fed through opaque passes as much as possible, so there generally isn't anything "underneath" to reveal. That sort of stuff only happens if there's already opacity or animations to motivate things being drawn into their own textures and composited.
+            </p>
+            <p>
+                Also, as I was shocked to learn when I first started working with GPUs: they really don't understand transparency, and properly managing transparent things is mostly the CPU's problem, because it messes up the depth buffer.
+            </p>
+        </div>
+    </div>
     <div class="entry" id="marathi-wikipedia">
         <div class="art"><img src="marathi.png"></div>
         <div class="desc">
@@ -186,7 +220,10 @@ body {
                 Source Material - Some Other Language's Wikipedia?
             </a>
             <p>
-                I lost track of what language this was, but it was really striking to run across it. I didn't change anything compared to the previous images, it's just that for whatever reason this language gets totally destroyed by the technique used. This is the kind of surprise I this approach is great for!
+                I lost track of what language this was, but it was really striking to run across it. I didn't change anything compared to the previous images, it's just that for whatever reason this language gets totally destroyed by the technique used.
+            </p>
+            <p>
+                This is the kind of surprise I love to find!
             </p>
         </div>
     </div>
@@ -275,41 +312,6 @@ body {
             </p>
         </div>
     </div>
-    <div class="entry" id="francine">
-        <div class="art"><img src="francine.jpg"></div>
-        <div class="desc">
-            <h2 class="heading"><a href="#francine">
-                Pure Disassociation Francine
-            </a></h2>
-            <a href="http://diana-adrianne.com/purecss-francine/">
-                Source Material - Pure CSS Francine
-            </a>
-            <p>
-                Francine is fun to ruin, because she exists essentially as browser rendering stress test. Unlike a normal raster image, she's made up of hundreds of little divs slammed full of gradients, filters, and transforms. Normally when we mess her up, it's some subtle bug that makes a random patch in her design look wrong, like she's a shape-shifter who missed a spot.
-            </p>
-            <p>
-                The final result I got was essentially turning this broken shape-shifter effect up to maximum. All of her facial details have melted away, and her entire body is mired by mysterious patches of discontinuity. This partially reveals the incoherent mess she really is, as she stares blankly into nothingness. Huge Mood. Same.
-            </p>
-            <p>
-                My teammate liked this one so much that he printed off stickers of it. If you ever bump into me in meatspace, I might have a few to share!
-            </p>
-            <h3>
-                Corrupting The Brush Shaders
-            </h3>
-            <p>
-                This was before I worked out the Right Value Wrong Place approach, so I was mostly just messing around with colors inside WebRender's "brush" shaders, which are just fancy texture copiers. I actually mostly work near the "top" of our rendering pipeline, so I don't really properly understand our code as you get closer to the GPU!
-            </p>
-            <p>
-                I have a very distinct memory of trying to mess up the transparency in the brush shaders so more things could "poke through" and randomly dissolve, and completely failing. I'm pretty sure what I was trying to do didn't actually make any sense, in retrospect.
-            </p>
-            <p>
-                We generally don't actually create a proper 3d scene where making something transparent at the last second would "show" what's logically underneath it. Everything is clipped, culled, and fed through opaque passes as much as possible, so there generally isn't anything "underneath" to reveal. That sort of stuff only happens if there's already opacity or animations to motivate things being drawn into their own textures and composited.
-            </p>
-            <p>
-                Also, as I was shocked to learn when I first started working with GPUs: they really don't understand transparency, and properly managing transparent things is mostly the CPU's problem, because it messes up the depth buffer: The GPU tracks the distance from the camera that every single pixel currently represents, which makes it possible to quickly skip triangles that are "behind" pixels. You want to draw things front-to-back to get the most out of this, but this doesn't work if the thing in front is transparent!
-            </p>
-        </div>
-    </div>
     <div class="entry" id="ars-technica">
         <div class="art"><img src="ars.jpg"></div>
          <div class="desc">
@@ -320,7 +322,7 @@ body {
                 Source Material - Ars Technica
             </a>
             <p>
-                This was my first experiment in corrupting Firefox's rendering, included more for fun. There isn't really any coherent theme or style. All the effects are kind whatever. It's just a bunch of little random changes at different levels in the pipeline, on a page with some text and images.
+                This was my first experiment in corrupting Firefox's rendering, included more for fun. There isn't really any coherent theme or style. All the effects are kinda whatever. It's just a bunch of little random changes at different levels in the pipeline, on a page with some text and images.
             </p>
             <p>
                 My favourite part is that you can clearly see that macos drew its own versions of the window close/minimize/maximize buttons on top of the disaster versions we drew. Apple will rest at nothing to uphold the integrity of its branding and iconography.
