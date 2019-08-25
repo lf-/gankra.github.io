@@ -91,6 +91,9 @@ body {
     <div class="prolog">
         <h1>Let's Corrupt The Web</h1>
         <p>
+            This is a bunch of words, but if you scroll down there are pretty pictures instead!
+        </p>
+        <p>
             Hey there, <a href="https://twitter.com/Gankra_">I'm Gankra</a>! This a collection of some of the most interesting "found pieces" I've created by corrupting Firefox's rendering code and browsing the web.
         </p>
         <p>
@@ -104,7 +107,7 @@ body {
             While I don't do any gamedev these days, I do work on <a href="https://mozillagfx.wordpress.com/">Firefox's graphics team</a>, where a lot of the same concepts apply. Since we've spent the last ~3 years writing <a href=https://github.com/servo/webrender>a completely new rendering backend</a> for Firefox, we've had lots of wonderful corruptions to marvel at. Look at our team's friggin' logo, we're absolutely in it for those juicy glitches!
         </p>
         <p>
-            So hey, it's my job to isolate and fix rendering bugs in Firefox, so let's do the opposite! Let's mess up firefox's rendering code real bad, and see what the web looks like when you do.
+            So hey, it's my job to isolate and fix rendering bugs in Firefox, so let's do the opposite! Let's mess up firefox's rendering code real bad, and see what the web looks like when you do. Also let's have some fun writing up high-minded descriptions of what is ultimately just random garbage happening to otherwise boring content.
         </p>
         <h2>Notes on The Approach</h2>
         <p>
@@ -122,9 +125,6 @@ body {
         </p>
         <p>
             The nice thing about Right Value Wrong Place is that low-level corruption becomes driven by the high-level structure of the content. There's lots of high level structure that dictates a pixel's color or a character's glyph. This also lets your corruption inherit the structure of the original content in unexpected ways! Instead of seeing one glitchy page and knowing what all the others will look like, you discover knew and exciting effects as you browse through content with different structure!
-        </p>
-        <p>
-            Also it was fun writing up high-minded descriptions of what is ultimately just random garbage happening to otherwise boring content.
         </p>
 
     </div>
@@ -154,7 +154,91 @@ body {
             <p>
                 This effect is achieved by just messing up the arguments WebRender passes into CoreText. I believe every change here is caused by arbitrarily deriving new values from the glyph index, including slightly perturbing the bits of the glyph index itself. Most notably the glyph index's bits are being fed into a bunch of checks for whether we're supposed to apply certain transforms like rotation, which is why there are so many rotations.
             </p>
-
+        </div>
+    </div>
+    <div class="entry" id="english-wikipedia">
+        <div class="art"><img src="english-wikipedia.png"></div>
+        <div class="desc">
+            <h2 class="heading"><a href="#english-wikipedia">
+                English Wikipedia
+            </a></h2>
+            <a href="https://en.wikipedia.org/">
+                Source Material - English Wikipedia
+            </a>
+            <p>
+                English (and other simple-alphabet-based languages) turned out less inspiring, but still neat. Interestingly, the shallow alphabet means you can't do many changes to the glyphs without leaving the language entirely. Not a problem for the beefier eastern languages.
+            </p>
+            <p>
+                I'm actually not 100% sure this is english. All the languages with a similar structure end up looking like this. It's not that interesting to show them all.
+            </p>
+            <p>
+                I'm also not bothering to show Japanese Wikipedia. Kanji are blocky and generally not actually composed of ligatures, so they didn't actually change very dramatically. Maybe the gibberish is full of beautiful japanese poems, but it's not that visually compelling. Same goes for Korean and Chinese text.
+            </p>
+        </div>
+    </div>
+    <div class="entry" id="language-not-found">
+        <div class="art"><img src="language-not-found.png"></div>
+        <div class="desc">
+            <h2 class="heading"><a href="#language-not-found">
+                Language Not Found
+            </a></h2>
+            <a href="https://wikipedia.org/">
+                Source Material - Some Other Language's Wikipedia?
+            </a>
+            <p>
+                I lost track of what language this was, but it was really striking to run across it. I didn't change anything compared to the previous images, it's just that for whatever reason this language gets totally destroyed by the technique used. This is the kind of surprise I this approach is great for!
+            </p>
+        </div>
+    </div>
+    <div class="entry" id="xelcome-o-nightly">
+        <div class="art"><img src="xelcome-o-nightly.png"></div>
+        <div class="desc">
+            <h2 class="heading"><a href="#xelcome-o-nightly">
+                Xelcome O Nightly
+            </a></h2>
+            <p>
+                Source Material - Firefox Launch Page
+            </p>
+            <p>
+                This one is showing a much milder effect from when I was first testing out breaking the glyph rasterizer. What's cool about this one is that it vaguely preserves english text so I could actually browse the internet like this. Somehow the changes I was making mostly just were adding random accents.
+            </p>
+            <p>
+                I really like this one because it's a little friendly hello from Firefox, who seems to be unaware of how wrong things have gone. Powerful "Start Wandows Ngrmadly" vibes.
+            </p>
+        </div>
+    </div>
+    <div class="entry" id="i-have-no-glyphs">
+        <div class="art"><img src="i-have-no-glyphs.png"></div>
+        <div class="desc">
+            <h2 class="heading"><a href="#i-have-no-glyphs">
+                I Have No Glyphs But I Must Scream
+            </a></h2>
+            <p>
+                Source Material - Firefox Launch Page
+            </p>
+            <p>
+                Oops, too far! Great contrast between this one and the previous one! Our little friendly hello has been replaced with the shrieking of a dial-up modem.
+            </p>
+            <p>
+                Otherwise, not the best effect. We're in "pure noise" territory.
+            </p>
+        </div>
+    </div>
+    <div class="entry" id="moon-language">
+        <div class="art"><img src="moon-language.png"></div>
+        <div class="desc">
+            <h2 class="heading"><a href="#moon-language">
+                Welcome Fellow Humanity, Purchase A Ware
+            </a></h2>
+            <a href="https://feedly.com/i/welcome">
+                Source Material - Feedly Signup Promotional Page
+            </a>
+            <p>
+                There's something deeply surreal and wrong about highly structured pages with detail-drained images and destroyed text. Like an alien or monster is badly mimicking what they saw and trying to lure you in.
+            </p>
+            <p>
+                DO NOT PURCHASE A WARE
+            </p>
         </div>
     </div>
     <div class="entry" id="francine">
