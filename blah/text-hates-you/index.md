@@ -217,10 +217,31 @@ Yeah for whatever reason a bunch of systems secretly increase the font-size for 
 
 Text is really small and detailed, and it's really important that it's easily legible. Sounds like a job for anti-aliasing (AA)! Oh, 480p really is low resolution huh. More AA!!!
 
+<div style="float: right; display: flex; align-items: center; flex-direction:column;">
+<div style="
+  width: 2em;
+  height: 2em;
+  margin-bottom: 2em;
+  line-height: auto;
+  text-align:center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;">
+<div style="background-color:white; color:black;">e</div>
+<div style="background-color:white; color:black; mask-image: linear-gradient(black, black 99%, transparent 99%);">e</div>
+<div style="background-color:black; color:white;">e</div>
+<div style="background-color:black; color:white; mask-image: linear-gradient(black, black 99%, transparent 99%);">e</div>
+</div>
+
+<img src="aa-example.png">
+</div>
+
 So there's two major kinds of AA:
 
 * Greyscale Anti-Aliasing 😻
 * Subpixel Anti-Aliasing 🙀
+
+
 
 Greyscale-AA is the "natural" approach to anti-aliasing. The basic idea is to give partially-covered pixels partial-transparency. During composition, this will cause that pixel to be slightly tinted as if it were slightly covered, creating clearer details.
 
@@ -361,3 +382,12 @@ Synthetic bold: paint every glyph multiple times with a slight offset in your te
 
 Honestly, these approaches do a pretty decent job! But users might notice that things seem "wrong" and you can do better if you put in the work.
 
+
+
+# Additional Links
+
+Here's some extra articles about how rendering text is a nightmare:
+
+* [You have to use the native text libraries to look native](https://github.com/pcwalton/font-kit/wiki/FAQ)
+* [Windows has to monkey-patch some truetype fonts to work](http://rastertragedy.com/RTRCh4.htm#Sec1)
+* [There's so many coordinate spaces in Firefox](https://staktrace.com/spout/entry.php?id=800)

@@ -25,8 +25,7 @@
     <div class="content">
 
 
-    <h1 class="title">Text Rendering Hates You</h1>
-    <p><span class="author">Alexis Beingessner</span></p>
+    <h1 class="title">Text Rendering Hates You</h1><p><span class="author">Alexis Beingessner</span></p>
 <p><span class="date">September 28th, 2019</span></p>
     <nav id="TOC"><ul>
 <li><a href="#terminology">1 Terminology</a><ul></ul></li>
@@ -43,7 +42,8 @@
 <li><a href="#characters-can-be-too-damn-big">6.2 Characters Can Be Too Damn Big</a><ul></ul></li>
 <li><a href="#selection-isnt-a-box-and-text-goes-in-all-the-directions">6.3 Selection Isn't A Box, And Text Goes In All The Directions</a><ul></ul></li>
 <li><a href="#how-do-you-write-that-you-cant-write">6.4 How Do You Write That You Can't Write?</a><ul></ul></li>
-<li><a href="#style-is-part-of-the-font-except-when-its-not">6.5 Style Is Part of The Font (Except When It's Not)</a><ul></ul></li></ul></li></ul></nav>
+<li><a href="#style-is-part-of-the-font-except-when-its-not">6.5 Style Is Part of The Font (Except When It's Not)</a><ul></ul></li></ul></li>
+<li><a href="#additional-links">7 Additional Links</a><ul></ul></li></ul></nav>
 <p>Rendering text, how hard could it be? As it turns out, incredibly hard! To my knowledge, literally no system renders text &quot;perfectly&quot;. It's all best-effort, although some efforts are more important than others.</p>
 <p>I'll be assuming you want to support arbitrary text provided by users with custom fonts, colors, and styles with line-wrapping and support for text-selection. Basically the minimum required to properly display a simple rich-text document, terminal, webpage, or anything else.</p>
 <p>The overarching theme here will be: there are no consistent right answers, everything is way more important than you think, and everything affects everything else.</p>
@@ -153,6 +153,23 @@
 <p>Yeah for whatever reason a bunch of systems secretly increase the font-size for emoji to make them look better.</p>
 <h1 id="anti-aliasing-is-hell" class="section-header"><a href="#anti-aliasing-is-hell">5 Anti-Aliasing Is Hell</a></h1>
 <p>Text is really small and detailed, and it's really important that it's easily legible. Sounds like a job for anti-aliasing (AA)! Oh, 480p really is low resolution huh. More AA!!!</p>
+<div style="float: right; display: flex; align-items: center; flex-direction:column;">
+<div style="
+  width: 2em;
+  height: 2em;
+  margin-bottom: 2em;
+  line-height: auto;
+  text-align:center;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;">
+<div style="background-color:white; color:black;">e</div>
+<div style="background-color:white; color:black; mask-image: linear-gradient(black, black 99%, transparent 99%);">e</div>
+<div style="background-color:black; color:white;">e</div>
+<div style="background-color:black; color:white; mask-image: linear-gradient(black, black 99%, transparent 99%);">e</div>
+</div>
+<img src="aa-example.png">
+</div>
 <p>So there's two major kinds of AA:</p>
 <ul>
 <li>Greyscale Anti-Aliasing 😻</li>
@@ -220,6 +237,13 @@ Hello There <span style="color:#8A2BE2">لا بسم الله</span> Beep Boop!!
 <p>Synthetic italics: apply a skew transform to each glyph.</p>
 <p>Synthetic bold: paint every glyph multiple times with a slight offset in your text-direction.</p>
 <p>Honestly, these approaches do a pretty decent job! But users might notice that things seem &quot;wrong&quot; and you can do better if you put in the work.</p>
+<h1 id="additional-links" class="section-header"><a href="#additional-links">7 Additional Links</a></h1>
+<p>Here's some extra articles about how rendering text is a nightmare:</p>
+<ul>
+<li><a href="https://github.com/pcwalton/font-kit/wiki/FAQ">You have to use the native text libraries to look native</a></li>
+<li><a href="http://rastertragedy.com/RTRCh4.htm#Sec1">Windows has to monkey-patch some truetype fonts to work</a></li>
+<li><a href="https://staktrace.com/spout/entry.php?id=800">There's so many coordinate spaces in Firefox</a></li>
+</ul>
 
     </div>
 
