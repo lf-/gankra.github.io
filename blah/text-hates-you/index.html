@@ -6,7 +6,7 @@
     <meta name="generator" content="rustdoc">
     <title>Text Rendering Hates You</title>
 
-    
+
         <link href="../bootstrap.min.css" rel="stylesheet" type="text/css">
     <link href="../bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
     <link href="../rust.css" rel="stylesheet" type="text/css">
@@ -26,6 +26,8 @@
 
 
     <h1 class="title">Text Rendering Hates You</h1>
+    <p><span class="author">Alexis Beingessner</span></p>
+<p><span class="date">September 28th, 2019</span></p>
     <nav id="TOC"><ul>
 <li><a href="#terminology">1 Terminology</a><ul></ul></li>
 <li><a href="#style-layout-and-shape-all-depend-on-each-other">2 Style, Layout, and Shape All Depend On Each Other?</a><ul></ul></li>
@@ -34,16 +36,16 @@
 <li><a href="#style-can-change-mid-ligature">3.2 Style Can Change Mid-Ligature</a><ul></ul></li></ul></li>
 <li><a href="#emoji-broke-color-and-style">4 Emoji Broke Color and Style</a><ul></ul></li>
 <li><a href="#anti-aliasing-is-hell">5 Anti-Aliasing Is Hell</a><ul>
-<li><a href="#aa-breaks-glyph-caches">5.1 AA Breaks Glyph Caches</a><ul></ul></li>
+<li><a href="#subpixel-offsets-break-glyph-caches">5.1 Subpixel Offsets Break Glyph Caches</a><ul></ul></li>
 <li><a href="#subpixel-aa-isnt-composable">5.2 Subpixel-AA Isn't Composable</a><ul></ul></li></ul></li>
 <li><a href="#esoterica">6 Esoterica</a><ul>
 <li><a href="#fonts-can-contain-svg">6.1 Fonts Can Contain SVG</a><ul></ul></li>
 <li><a href="#characters-can-be-too-damn-big">6.2 Characters Can Be Too Damn Big</a><ul></ul></li>
 <li><a href="#selection-isnt-a-box-and-text-goes-in-all-the-directions">6.3 Selection Isn't A Box, And Text Goes In All The Directions</a><ul></ul></li>
 <li><a href="#how-do-you-write-that-you-cant-write">6.4 How Do You Write That You Can't Write?</a><ul></ul></li>
-<li><a href="#style-is-part-of-the-font-except-when-its-not">6.5 Style Is Part of The Font (Except When It's Not)</a><ul></ul></li></ul></li>
-<li><a href="#additional-links">7 Additional Links</a><ul></ul></li></ul></nav><p><span class="author">Alexis Beingessner</span></p>
-<p><span class="date">September 28th, 2019</span></p>
+<li><a href="#style-is-part-of-the-font-except-when-its-not">6.5 Style Is Part of The Font (Except When It's Not)</a><ul></ul></li>
+<li><a href="#theres-is-no-ideal-text-rendering">6.6 There's Is No Ideal Text Rendering</a><ul></ul></li></ul></li>
+<li><a href="#additional-links">7 Additional Links</a><ul></ul></li></ul></nav>
 <p>Rendering text, how hard could it be? As it turns out, incredibly hard! To my knowledge, literally no system renders text &quot;perfectly&quot;. It's all best-effort, although some efforts are more important than others.</p>
 <p>I'll be assuming you want to support arbitrary text provided by users with custom fonts, colors, and styles with line-wrapping and support for text-selection. Basically the minimum required to properly display a simple rich-text document, terminal, webpage, or anything else.</p>
 <p>The overarching theme here will be: there are no consistent right answers, everything is way more important than you think, and everything affects everything else.</p>
@@ -187,22 +189,37 @@
 <li>Subpixel Anti-Aliasing 🙀</li>
 </ul>
 <p>Greyscale-AA is the &quot;natural&quot; approach to anti-aliasing. The basic idea is to give partially-covered pixels partial-transparency. During composition, this will cause that pixel to be slightly tinted as if it were slightly covered, creating clearer details.</p>
-<p>It's greyscale because that's the term used for one-dimensional color, like our one-dimensional transparency. Also in the common case of black text on a white background, the anti-aliasing literally shows up as greyness around the edges.</p>
-<p>Subpixel-AA is a trick that abuses the common way pixels are laid out on desktop monitors. You can look it up but the TL;DR is that pixels are internally three little columns of RED GREEN BLUE (for example). So if you make a pixel red you're <em>kinda</em> also making it &quot;WHITE BLACK BLACK&quot;. Similarly, if you make it blue, you're making &quot;BLACK BLACK WHITE&quot;. In other words, by messing around with colors you can <em>triple</em> your horizontal resolution and get way more details!</p>
-<p>You might think that this would look super messed up and rainbowy, but in practice it honestly works out really well. The human brain likes to see patterns and smooth things out. That said, if you take a screenshot of subpixel text you will <em>absolutely</em> be able to see the colors if you resize the image, or even look at it on a monitor with a different subpixel layout. This is why screenshots of text often look really weird and bad.</p>
+<p>It's greyscale because that's the term used for one-dimensional color, like our one-dimensional transparency (otherwise glyphs tend to be a single solid color). Also in the common case of black text on a white background, the anti-aliasing literally shows up as greyness around the edges.</p>
+<p>Subpixel-AA is a trick that abuses the common way pixels are laid out on desktop monitors. It's more complicated than this, so if you're really interested you should look it up, but here's a TL;DR of the high-level concept:</p>
+<p>Your monitor's pixels are actually three little columns of RED GREEN BLUE. If you make a pixel red you're <em>kinda</em> also making it &quot;WHITE BLACK BLACK&quot;. Similarly, if you make it blue, you're making &quot;BLACK BLACK WHITE&quot;. In other words, by messing around with colors you can <em>triple</em> your horizontal resolution and get way more details!</p>
+<p>You might think that this would look super messed up and rainbowy, but in practice it honestly works out really well (some disagree). The human brain likes to see patterns and smooth things out. That said, if you take a screenshot of subpixel-AA text you will <em>absolutely</em> be able to see the colors if you resize the image, or even look at it on a monitor with a different subpixel layout. This is why screenshots of text often look really weird and bad.</p>
+<p>(As a total aside, the fact that this works also means that the color of an icon can accidentally change its perceived size and position, which is really annoying.)</p>
 <p>So subpixel-AA is a really neat hack that can significantly improve text legibility, great! But, sadly, it's also a huge pain in the neck!</p>
-<h2 id="aa-breaks-glyph-caches" class="section-header"><a href="#aa-breaks-glyph-caches">5.1 AA Breaks Glyph Caches</a></h2>
-<p>Rasterizing glyphs is surprisingly expensive, so you really want to cache it in an atlas. But how do you cache glyph rasterizations when you're using subpixel-positions and anti-aliasing? You're incredibly unlikely to get cache hits like that!</p>
-<p>Quality and performance must be balanced here, and that can be done by snapping glyphs to positions. For english text, a reasonable balance is to always snap the y-coordinate to an integer, while snapping the x-coordinate to a quarter-integer. This leaves you with only 4 subpixel-positions, which is still a big improvement in quality, while allowing for a reasonable amount of caching.</p>
+<p>Note that regardless of the AA system you use, you can also have <em>subpixel glyph offsets</em>. Although you always want your rasterized glyphs to be snapped to full pixels, the rasterization itself is for a specific subpixel offset (a value between 0 and 1).</p>
+<p>To understand this, imagine a 1x1 black square with greyscale-aa:</p>
+<ul>
+<li>If its subpixel offset was 0, then its rasterization is just a black pixel</li>
+<li>If its subpixel offset was 0.5, then its rasterization would be two 50% grey pixels</li>
+</ul>
+<h2 id="subpixel-offsets-break-glyph-caches" class="section-header"><a href="#subpixel-offsets-break-glyph-caches">5.1 Subpixel Offsets Break Glyph Caches</a></h2>
+<p>Rasterizing glyphs is surprisingly expensive, so you really want to cache it in an atlas. But how do you cache glyph rasterizations when you're using subpixel-offsets? Each offset is its own unique rasterization, so you're incredibly unlikely to get cache hits like that!</p>
+<p>Quality and performance must be balanced here, and that can be done by snapping your subpixel offsets. For english text, a reasonable balance is to have no vertical subpixel precision while snapping the horizontal subpixel offset to a quarter-integer. This leaves you with only 4 subpixel-positions, which is still a big improvement in quality while allowing for a reasonable amount of caching.</p>
 <h2 id="subpixel-aa-isnt-composable" class="section-header"><a href="#subpixel-aa-isnt-composable">5.2 Subpixel-AA Isn't Composable</a></h2>
-<p>One nice thing about greyscale is that you can play a bit fast-and-loose with it, and it will degrade gracefully. For instance, if you transform a texture with text on it (scaling, rotating, or translating), it might look a bit blurry but it will look basically fine.</p>
-<p>If you do the same thing with subpixel, it will look terrible. The entire idea behind subpixel is that you are abusing how the pixels are laid out in a display. If the pixels of the display don't line up with the pixels of your texture, the red and blue edges will be clearly visible!</p>
+<p>One nice thing about greyscale-AA is that you can play a bit fast-and-loose with it, and it will degrade gracefully. For instance, if you transform a texture with text on it (scaling, rotating, or translating), it might look a bit blurry but it will look basically fine.</p>
+<p>If you do the same thing with subpixel-AA, it will look terrible. The entire idea behind subpixel-AA is that you are abusing how the pixels are laid out in a display. If the pixels of the display don't line up with the pixels of your texture, the red and blue edges will be clearly visible!</p>
 <p>One might think that the &quot;fix&quot; for this is to just rerasterize the glyphs in their new location. And indeed, if the transform is static, this can work. But if the transform is an <em>animation</em> this will actually look <em>even worse</em>. This is actually a really common browser bug: if we <em>ever</em> fail to detect that an animation is happening to some text, the characters will <em>jiggle</em> as each glyph bounces around between different subpixel snappings and hints on each frame.</p>
-<p>As a result, browsers contain several heuristics to detect things which might be animations so that they can force-disable subpixel for that part of the page. This can be pretty hard to do reliably, because arbitrarily complex JS can drive an animation without giving any clear &quot;heads up&quot; to the browser.</p>
-<p>Furthermore, if partial transparency is involved, subpixel is also problematic. Basically, we're tweaking our R, G, and B channels to encode 3 transparency values (one for each subpixel), but the text itself also has a color, and the thing the text is on does to, so information easily gets lost.</p>
-<p>When using greyscale we have a dedicated alpha channel so nothing is ever lost. As such, browsers tend to use greyscale when transparency is involved.</p>
-<p>...Except Firefox. Yet again, this is a weird place where someone working on Firefox got really enthusiastic and did something complicated: Component Alpha. It turns out you can in fact properly composite subpixel text, but it involves effectively having 3 extra channels dedicated to the transparency of your R, G, and B channels. Unsurprisingly, this doubles the memory footprint of text that's composited in this way.</p>
-<p>Mercifully, subpixel has become less relevant over the years: retina displays really don't need it, and the subpixel layout on phones, prevents the trick from working (without major work). On newer versions of macos, subpixel-aa of text is disabled at the OS level by default. Firefox's new graphics backend (webrender) has abandoned Component Alpha for the sake of simplicity.</p>
+<p>As a result, browsers contain several heuristics to detect things which might be animations so that they can force-disable subpixel-AA for that part of the page (and ideally even subpixel-positioning). This can be pretty hard to do reliably, because arbitrarily complex JS can drive an animation without giving any clear &quot;heads up&quot; to the browser.</p>
+<p>Furthermore, if partial transparency is involved, subpixel-AA is also problematic. Basically, we're tweaking our R, G, and B channels to encode 3 transparency values (one for each subpixel), but the text itself also has a color, and the thing the text is on does to, so information easily gets lost.</p>
+<p>When using greyscale-AA we have a dedicated alpha channel so nothing is ever lost. As such, browsers tend to use greyscale-AA when transparency is involved.</p>
+<p>...Except Firefox. Yet again, this is a weird place where someone working on Firefox got really enthusiastic and did something complicated: Component Alpha. It turns out you can in fact properly composite subpixel-AA text, but it involves effectively having 3 extra channels dedicated to the transparency of your R, G, and B channels. Unsurprisingly, this doubles the memory footprint of text that's composited in this way.</p>
+<p>Mercifully, subpixel-AA has become less relevant over the years:</p>
+<ul>
+<li>Retina displays really don't need it</li>
+<li>The subpixel layout on phones prevents the trick from working (without major work)</li>
+<li>On newer versions of macos, subpixel-aa of text is disabled at the OS level by default</li>
+<li>Chrome seems to be disabling subpixel-aa more aggressively (not sure what the exact policy is)</li>
+<li>Firefox's new graphics backend (webrender) has abandoned Component Alpha for the sake of simplicity</li>
+</ul>
 <h1 id="esoterica" class="section-header"><a href="#esoterica">6 Esoterica</a></h1>
 <p>This part's just a grab bag of little things that don't need merit much discussion.</p>
 <h2 id="fonts-can-contain-svg" class="section-header"><a href="#fonts-can-contain-svg">6.1 Fonts Can Contain SVG</a></h2>
@@ -249,10 +266,19 @@ Hello There <span style="color:#8A2BE2">لا بسم الله</span> Beep Boop!!
 <p>Synthetic italics: apply a skew transform to each glyph.</p>
 <p>Synthetic bold: paint every glyph multiple times with a slight offset in your text-direction.</p>
 <p>Honestly, these approaches do a pretty decent job! But users might notice that things seem &quot;wrong&quot; and you can do better if you put in the work.</p>
+<h2 id="theres-is-no-ideal-text-rendering" class="section-header"><a href="#theres-is-no-ideal-text-rendering">6.6 There's Is No Ideal Text Rendering</a></h2>
+<p>Platform-specific bugs, optimizations, and quirks have thrived for long enough to become aesthetics. So even if you adamantly believe that certain things are ideal or important, there's always going to be a huge group of users with different preferences. A robust text rendering system supports those different preferences (while picking reasonable defaults).</p>
+<p>You should support system configurations, font-specific configurations, application-specific configurations, and text-run-specific configurations. You should also try to match each platform's native &quot;look and feel&quot; (quirks).</p>
+<p>This includes:</p>
+<ul>
+<li>Being able to disable subpixel-AA (some people really hate it)</li>
+<li>Being able to disable <em>all</em> AA (yes, people do it)</li>
+<li>Tons of platform/format-specific properties like hinting, smoothing, variation, gamma, etc</li>
+</ul>
+<p>This also means that <a href="https://github.com/pcwalton/font-kit/wiki/FAQ">you should use the system's native text libraries</a> to match that system's aesthetic (Core Text, DirectWrite, and FreeType on their respective platforms).</p>
 <h1 id="additional-links" class="section-header"><a href="#additional-links">7 Additional Links</a></h1>
 <p>Here's some extra articles about how rendering text is a nightmare:</p>
 <ul>
-<li><a href="https://github.com/pcwalton/font-kit/wiki/FAQ">You have to use the native text libraries to look native</a></li>
 <li><a href="http://rastertragedy.com/RTRCh4.htm#Sec1">Windows has to monkey-patch some truetype fonts to work</a></li>
 <li><a href="https://staktrace.com/spout/entry.php?id=800">There's so many coordinate spaces in Firefox</a></li>
 </ul>
