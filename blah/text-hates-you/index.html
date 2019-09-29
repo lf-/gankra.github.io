@@ -6,7 +6,7 @@
     <meta name="generator" content="rustdoc">
     <title>Text Rendering Hates You</title>
 
-
+    
         <link href="../bootstrap.min.css" rel="stylesheet" type="text/css">
     <link href="../bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
     <link href="../rust.css" rel="stylesheet" type="text/css">
@@ -25,8 +25,7 @@
     <div class="content">
 
 
-    <h1 class="title">Text Rendering Hates You</h1><p><span class="author">Alexis Beingessner</span></p>
-<p><span class="date">September 28th, 2019</span></p>
+    <h1 class="title">Text Rendering Hates You</h1>
     <nav id="TOC"><ul>
 <li><a href="#terminology">1 Terminology</a><ul></ul></li>
 <li><a href="#style-layout-and-shape-all-depend-on-each-other">2 Style, Layout, and Shape All Depend On Each Other?</a><ul></ul></li>
@@ -43,7 +42,8 @@
 <li><a href="#selection-isnt-a-box-and-text-goes-in-all-the-directions">6.3 Selection Isn't A Box, And Text Goes In All The Directions</a><ul></ul></li>
 <li><a href="#how-do-you-write-that-you-cant-write">6.4 How Do You Write That You Can't Write?</a><ul></ul></li>
 <li><a href="#style-is-part-of-the-font-except-when-its-not">6.5 Style Is Part of The Font (Except When It's Not)</a><ul></ul></li></ul></li>
-<li><a href="#additional-links">7 Additional Links</a><ul></ul></li></ul></nav>
+<li><a href="#additional-links">7 Additional Links</a><ul></ul></li></ul></nav><p><span class="author">Alexis Beingessner</span></p>
+<p><span class="date">September 28th, 2019</span></p>
 <p>Rendering text, how hard could it be? As it turns out, incredibly hard! To my knowledge, literally no system renders text &quot;perfectly&quot;. It's all best-effort, although some efforts are more important than others.</p>
 <p>I'll be assuming you want to support arbitrary text provided by users with custom fonts, colors, and styles with line-wrapping and support for text-selection. Basically the minimum required to properly display a simple rich-text document, terminal, webpage, or anything else.</p>
 <p>The overarching theme here will be: there are no consistent right answers, everything is way more important than you think, and everything affects everything else.</p>
@@ -80,11 +80,11 @@
 <p>For instance, even though the markup of the following text doesn't <em>suggest</em> the presence of multiple fonts, drawing it correctly on all systems absolutely requires it: hello 😺 मनीष بسم 好. This is dangerously close to Step 1 (Styling) depending on the results of Step 3 (Shaping)!</p>
 <p>(Alternatively, you can take the <a href="https://www.google.com/get/noto/">Noto approach</a> and use a single Uber Font that contains every character ever. Although that means users can't configure the font, and you can't provide a &quot;native&quot; text experience to users on all platforms. But let's assume you want the more robust solution.)</p>
 <p>Similarly, layout requires you to know how much space each part of your text takes up, but this is only known once you shape the text! Step 2 depends on the results of Step 3?</p>
-<p>And just to be clear: shaping absolutely depends on you knowing your layout and styling. So how do we resolve this?</p>
+<p>Shaping absolutely depends on you knowing your layout and styling, so we seem to be stuck. What do we do?</p>
 <p>First off, styling gets to cheat. Although what we <em>really</em> want from a font is full glyphs, styling only needs to ask about <em>scalars</em>. If a font doesn't properly support a script it shouldn't claim to know anything about the scalars that make up that script. So we can easily find the &quot;best&quot; font as follows:</p>
-<p>For every character (EGC) in our text, keep asking each font in our cascade if it knows about all the scalars that make up that character, and use it if it does! If we get to the end of the cascade with no providers, then we yield tofu ( 􏿽, a missing glyph indicator).</p>
+<p>For every character (EGC) in our text, keep asking each font in our cascade if it knows about all the scalars that make up that character, and use it if it does. If we get to the end of the cascade with no providers, then we yield tofu ( 􏿽, a missing glyph indicator).</p>
 <p>In the case of emoji, you've probably seen the failure mode of this process before! Because some emoji are actually ligatures of several simpler emoji, a font may successfully report support for the character while only yielding the components. So 🤦🏿‍♀️ may literally appear as 🤦 🏿‍ ♀ if the font is &quot;too old&quot; to know about the new ligature. This can also happen if your unicode implementation is &quot;too old&quot; to know about a character, causing the styling system to accept a partial match in the font.</p>
-<p>So now we know exactly what fonts we'll use without looking at layout or shape. Can we untie layout and shape as well? Nope! Things like paragraph breaks give you a nice hard break on lines, but the only way to do wrapping is to iteratively do shaping!</p>
+<p>So now we know exactly what fonts we'll use without looking at layout or shape (although shaping might change our colors, more on that in later sections). Can we untie layout and shape as well? Nope! Things like paragraph breaks give you a nice hard break on lines, but the only way to do wrapping is to iteratively do shaping!</p>
 <p>You have to assume that your text fits on a single line and shape it until you run out of space. At that point you can perform layout operations and figure out where to break the text and start the next line. Repeat until everything is shaped and laid out.</p>
 <h1 id="text-isnt-individual-characters" class="section-header"><a href="#text-isnt-individual-characters">3 Text Isn't Individual Characters</a></h1>
 <p>Coming from english, you might think ligatures are just fancy fluff. I mean, who <em>really</em> cares if &quot;æ&quot; is written as &quot;ae&quot;? Well, as it turns out, some languages are basically entirely ligatures. For instance &quot;ड्ड بسم&quot; has individual characters of &quot;ड् ड ب س م&quot;. If you're viewing this in a competent text-rendering system (any of the major browsers), those two strings should look <em>very</em> different.</p>
@@ -101,7 +101,7 @@
 <div style="max-width: 100%; font-size: 150px; line-height: 1em; height: 1em; overflow: hidden;">
     <img src="transparent-cursive.png" style="transform-origin: top left; transform:scale(0.5); max-width: none;">
 </div>
-<p>The problem is that Chrome and Firefox are trying to <em>cheat</em>. They ate their vegetables and properly shaped the text, but once they had glyphs they still tried to draw them individually. This most works fine, except for when there's transparency and overlapping. Then you get darkening at the overlaps.</p>
+<p>The problem is that Chrome and Firefox are trying to <em>cheat</em>. They ate their vegetables and properly shaped the text, but once they had glyphs they still tried to draw them individually. This mostly works fine, except for when there's transparency and overlapping. Then you get darkening at the overlaps.</p>
 <p>A &quot;correct&quot; implementation will draw the text to a temporary surface <em>without</em> transparency and then composite that surface into the scene <em>with</em> transparency. Firefox and Chrome don't do this because it's expensive and <em>usually</em> unnecessary for the major western languages. Interestingly, they <em>do</em> understand the issue, because they actually bend over backwards to specially handle this for emoji (but we'll get to that later).</p>
 <h2 id="style-can-change-mid-ligature" class="section-header"><a href="#style-can-change-mid-ligature">3.2 Style Can Change Mid-Ligature</a></h2>
 <p>Ok this one is <em>mostly</em> a curiosity in that I'm not aware of any super-reasonable cases where this happens, but it naturally falls out of markups. Here's two pieces of text with the same <em>content</em> but different color styling:</p>
@@ -112,7 +112,12 @@
    पन्ह पन्ह त्र र्च कृकृ ड्ड न्हृे لا بسم الله
 </div>
 <p><br><br></p>
-<p>Here's what they look like in Chrome and Safari:</p>
+<p>Here's what they look like in Safari:</p>
+<div style="max-width: 100%; font-size:30px; line-height: 1.5em; height: 3em; overflow: hidden;">
+    <img src="safari-color-ligatures.png" style="transform-origin: top left; transform:scale(0.5); max-width: none;">
+</div>
+<p><br><br></p>
+<p>Here's what they look like in Chrome (I've gotten reports that it can be nondeterministic though???):</p>
 <div style="max-width: 100%; font-size:30px; line-height: 1.5em; height: 3em; overflow: hidden;">
     <img src="chrome-color-ligatures.png" style="transform-origin: top left; transform:scale(0.5); max-width: none;">
 </div>
@@ -122,7 +127,13 @@
     <img src="firefox-color-ligatures.png" style="transform-origin: top left; transform:scale(0.5); max-width: none;">
 </div>
 <p><br><br></p>
-<p>Boy, Firefox sure does produce a nicer result! But if we zoom in, we can see something very janky is happening:</p>
+<p>To summarize:</p>
+<ul>
+<li>Safari breaks</li>
+<li>Chrome is legible but throws away a lot of the colors</li>
+<li>Firefox is both legible and colorful</li>
+</ul>
+<p>I guess everyone should do what Firefox does, right? But if we zoom in, we can see that it's doing something very janky:</p>
 <img src="firefox-color-ligature-zoom.png">
 <p>It just split this one ligature into 4 equal parts with different colors!</p>
 <p>The problem is, there's really no reasonable answer for what <em>should</em> happen here. We've broken up a ligature with different stylings, and since the ligature is in some sense a rendering &quot;unit&quot; it's reasonable to simply refuse to support this (as most do).</p>
@@ -140,7 +151,7 @@
 <p>Emoji generally have their own native colors, and this color can even have semantic meaning, as is the case for skin-tone modifiers. More problematically: they have multiple colors!</p>
 <p>As far as I can tell, this wasn't really a thing before emoji, and so different platforms approach this in different ways. Some provide emoji as a straight-up image (Apple), others provide emoji as <a href="https://docs.microsoft.com/en-us/typography/opentype/spec/colr">a series of single-color <em>layers</em></a> (Microsoft).</p>
 <p>The latter approach is kinda nice because it integrates well with existing text rendering pipelines by &quot;just&quot; desugarring a glyph into a series of single-color glyphs, which everyone is used to working with.</p>
-<p>However that means that your style can change <em>repeatedly</em> while drawing a &quot;single&quot; glyph. It also means that a &quot;single&quot; glyph can overlap itself, leading to the transparency issues discussed in an earlier section! However, as shown above, browsers <em>do</em> properly composite the transparency for emoji!</p>
+<p>However that means that your style can change <em>repeatedly</em> while drawing a &quot;single&quot; glyph. It also means that a &quot;single&quot; glyph can overlap itself, leading to the transparency issues discussed in an earlier section. And yet, as shown above, browsers <em>do</em> properly composite the transparency for emoji!</p>
 <p>You can rationalize this inconsistency in three ways:</p>
 <ul>
 <li>You already need to detect color glyphs and handle them specially, so it's easy to take a special compositing path for them</li>

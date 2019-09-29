@@ -59,15 +59,15 @@ For instance, even though the markup of the following text doesn't *suggest* the
 
 Similarly, layout requires you to know how much space each part of your text takes up, but this is only known once you shape the text! Step 2 depends on the results of Step 3?
 
-And just to be clear: shaping absolutely depends on you knowing your layout and styling. So how do we resolve this?
+Shaping absolutely depends on you knowing your layout and styling, so we seem to be stuck. What do we do?
 
 First off, styling gets to cheat. Although what we *really* want from a font is full glyphs, styling only needs to ask about *scalars*. If a font doesn't properly support a script it shouldn't claim to know anything about the scalars that make up that script. So we can easily find the "best" font as follows:
 
-For every character (EGC) in our text, keep asking each font in our cascade if it knows about all the scalars that make up that character, and use it if it does! If we get to the end of the cascade with no providers, then we yield tofu ( 􏿽, a missing glyph indicator).
+For every character (EGC) in our text, keep asking each font in our cascade if it knows about all the scalars that make up that character, and use it if it does. If we get to the end of the cascade with no providers, then we yield tofu ( 􏿽, a missing glyph indicator).
 
 In the case of emoji, you've probably seen the failure mode of this process before! Because some emoji are actually ligatures of several simpler emoji, a font may successfully report support for the character while only yielding the components. So 🤦🏿‍♀️ may literally appear as 🤦 🏿‍ ♀ if the font is "too old" to know about the new ligature. This can also happen if your unicode implementation is "too old" to know about a character, causing the styling system to accept a partial match in the font.
 
-So now we know exactly what fonts we'll use without looking at layout or shape. Can we untie layout and shape as well? Nope! Things like paragraph breaks give you a nice hard break on lines, but the only way to do wrapping is to iteratively do shaping!
+So now we know exactly what fonts we'll use without looking at layout or shape (although shaping might change our colors, more on that in later sections). Can we untie layout and shape as well? Nope! Things like paragraph breaks give you a nice hard break on lines, but the only way to do wrapping is to iteratively do shaping!
 
 You have to assume that your text fits on a single line and shape it until you run out of space. At that point you can perform layout operations and figure out where to break the text and start the next line. Repeat until everything is shaped and laid out.
 
@@ -107,7 +107,7 @@ If you're in Safari or Edge, this might still look ok! If you're in Firefox or C
     <img src="transparent-cursive.png" style="transform-origin: top left; transform:scale(0.5); max-width: none;">
 </div>
 
-The problem is that Chrome and Firefox are trying to *cheat*. They ate their vegetables and properly shaped the text, but once they had glyphs they still tried to draw them individually. This most works fine, except for when there's transparency and overlapping. Then you get darkening at the overlaps.
+The problem is that Chrome and Firefox are trying to *cheat*. They ate their vegetables and properly shaped the text, but once they had glyphs they still tried to draw them individually. This mostly works fine, except for when there's transparency and overlapping. Then you get darkening at the overlaps.
 
 A "correct" implementation will draw the text to a temporary surface *without* transparency and then composite that surface into the scene *with* transparency. Firefox and Chrome don't do this because it's expensive and *usually* unnecessary for the major western languages. Interestingly, they *do* understand the issue, because they actually bend over backwards to specially handle this for emoji (but we'll get to that later).
 
@@ -128,7 +128,15 @@ Ok this one is *mostly* a curiosity in that I'm not aware of any super-reasonabl
 
 <br><br>
 
-Here's what they look like in Chrome and Safari:
+Here's what they look like in Safari:
+
+<div style="max-width: 100%; font-size:30px; line-height: 1.5em; height: 3em; overflow: hidden;">
+    <img src="safari-color-ligatures.png" style="transform-origin: top left; transform:scale(0.5); max-width: none;">
+</div>
+
+<br><br>
+
+Here's what they look like in Chrome (I've gotten reports that it can be nondeterministic though???):
 
 <div style="max-width: 100%; font-size:30px; line-height: 1.5em; height: 3em; overflow: hidden;">
     <img src="chrome-color-ligatures.png" style="transform-origin: top left; transform:scale(0.5); max-width: none;">
@@ -144,7 +152,13 @@ And here's what they look like in Firefox:
 
 <br><br>
 
-Boy, Firefox sure does produce a nicer result! But if we zoom in, we can see something very janky is happening:
+To summarize:
+
+* Safari breaks
+* Chrome is legible but throws away a lot of the colors
+* Firefox is both legible and colorful
+
+I guess everyone should do what Firefox does, right? But if we zoom in, we can see that it's doing something very janky:
 
 <img src="firefox-color-ligature-zoom.png">
 
@@ -184,7 +198,7 @@ As far as I can tell, this wasn't really a thing before emoji, and so different 
 
 The latter approach is kinda nice because it integrates well with existing text rendering pipelines by "just" desugarring a glyph into a series of single-color glyphs, which everyone is used to working with.
 
-However that means that your style can change *repeatedly* while drawing a "single" glyph. It also means that a "single" glyph can overlap itself, leading to the transparency issues discussed in an earlier section! However, as shown above, browsers *do* properly composite the transparency for emoji!
+However that means that your style can change *repeatedly* while drawing a "single" glyph. It also means that a "single" glyph can overlap itself, leading to the transparency issues discussed in an earlier section. And yet, as shown above, browsers *do* properly composite the transparency for emoji!
 
 You can rationalize this inconsistency in three ways:
 
