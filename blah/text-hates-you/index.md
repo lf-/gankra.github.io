@@ -65,7 +65,7 @@ First off, styling gets to cheat. Although what we *really* want from a font is 
 
 For every character (EGC) in our text, keep asking each font in our cascade if it knows about all the scalars that make up that character, and use it if it does! If we get to the end of the cascade with no providers, then we yield tofu ( 􏿽, a missing glyph indicator).
 
-In the case of emoji, you've probably seen the failure mode of this process before! Because some emoji are actually ligatures of several simpler emoji, a font may successfully report support for the character while only yielding the components. So 🤦🏿‍♀️ may literally appear as 🤦🏿‍ ♀ if the font is "too old" to know about the new ligature. This can also happen if your unicode implementation is "too old" to know about a character, causing the styling system to accept a partial match in the font.
+In the case of emoji, you've probably seen the failure mode of this process before! Because some emoji are actually ligatures of several simpler emoji, a font may successfully report support for the character while only yielding the components. So 🤦🏿‍♀️ may literally appear as 🤦 🏿‍ ♀ if the font is "too old" to know about the new ligature. This can also happen if your unicode implementation is "too old" to know about a character, causing the styling system to accept a partial match in the font.
 
 So now we know exactly what fonts we'll use without looking at layout or shape. Can we untie layout and shape as well? Nope! Things like paragraph breaks give you a nice hard break on lines, but the only way to do wrapping is to iteratively do shaping!
 
