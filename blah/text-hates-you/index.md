@@ -63,13 +63,13 @@ And just to be clear: shaping absolutely depends on you knowing your layout and 
 
 First off, styling gets to cheat. Although what we *really* want from a font is full glyphs, styling only needs to ask about *scalars*. If a font doesn't properly support a script it shouldn't claim to know anything about the scalars that make up that script. So we can easily find the "best" font as follows:
 
-For every character (EGC) in our text, just keep asking each font in our cascade if it knows about all the scalars that make up that character, and use it if it does! If we get to the end of the cascade with no providers, then we yield tofu (a missing glyph indicator).
+For every character (EGC) in our text, keep asking each font in our cascade if it knows about all the scalars that make up that character, and use it if it does! If we get to the end of the cascade with no providers, then we yield tofu ( 􏿽, a missing glyph indicator).
 
-In the case of emoji, you've probably seen the failure mode of this process before! Because some emoji are actually ligatures of several simpler emoji, a font may successfully report support for the character while only yielding the components. So 🤦🏿‍♀️ may literally appear as 🤦 🏿‍  ♀ if the font is "too old" to know about the new ligature. This can also happen if your unicode implementation is "too old" to know about a character, causing the styling system to accept a partial match in the font.
+In the case of emoji, you've probably seen the failure mode of this process before! Because some emoji are actually ligatures of several simpler emoji, a font may successfully report support for the character while only yielding the components. So 🤦🏿‍♀️ may literally appear as 🤦🏿‍ ♀ if the font is "too old" to know about the new ligature. This can also happen if your unicode implementation is "too old" to know about a character, causing the styling system to accept a partial match in the font.
 
 So now we know exactly what fonts we'll use without looking at layout or shape. Can we untie layout and shape as well? Nope! Things like paragraph breaks give you a nice hard break on lines, but the only way to do wrapping is to iteratively do shaping!
 
-You just have to assume that your text fits on a single line and shape it until you run out of space. At that point you can perform layout operations and figure out where to break the text and start the next line. Repeat until everything is shaped and laid out.
+You have to assume that your text fits on a single line and shape it until you run out of space. At that point you can perform layout operations and figure out where to break the text and start the next line. Repeat until everything is shaped and laid out.
 
 
 
@@ -153,7 +153,7 @@ It just split this one ligature into 4 equal parts with different colors!
 
 The problem is, there's really no reasonable answer for what *should* happen here. We've broken up a ligature with different stylings, and since the ligature is in some sense a rendering "unit" it's reasonable to simply refuse to support this (as most do).
 
-For whatever reason, [someone working on Firefox got really enthusiastic about trying to handle it more gracefully](https://robert.ocallahan.org/2006/10/partial-ligatures_24.html). The general approach is to just draw the ligature multiple times with best-guess masks and different colors, which works surprisingly well!
+For whatever reason, [someone working on Firefox got really enthusiastic about trying to handle it more gracefully](https://robert.ocallahan.org/2006/10/partial-ligatures_24.html). The general approach is to draw the ligature multiple times with best-guess masks and different colors, which works surprisingly well!
 
 There is a *some* merit in trying to support these "partial ligatures": only shaping can know if a ligature will happen, and it can depend on system-specific fonts, so a ligature may show up where no one expected! The classic english example here is an æ ligature from a user-installed font spanning the boundary of a hyperlink.
 
@@ -247,7 +247,7 @@ Greyscale-AA is the "natural" approach to anti-aliasing. The basic idea is to gi
 
 It's greyscale because that's the term used for one-dimensional color, like our one-dimensional transparency. Also in the common case of black text on a white background, the anti-aliasing literally shows up as greyness around the edges.
 
-Subpixel-AA is a trick that abuses the common way pixels are laid out on desktop monitors. You can look it up but the TL;DR is that pixels are internally three little columns of RED GREEN BLUE (for example). So if you make a pixe red you're *kinda* also making it "WHITE BLACK BLACK". Similarly, if you make it blue, you're making "BLACK BLACK WHITE". In other words, by messing around with colors you can *triple* your horizontal resolution and get way more details!
+Subpixel-AA is a trick that abuses the common way pixels are laid out on desktop monitors. You can look it up but the TL;DR is that pixels are internally three little columns of RED GREEN BLUE (for example). So if you make a pixel red you're *kinda* also making it "WHITE BLACK BLACK". Similarly, if you make it blue, you're making "BLACK BLACK WHITE". In other words, by messing around with colors you can *triple* your horizontal resolution and get way more details!
 
 You might think that this would look super messed up and rainbowy, but in practice it honestly works out really well. The human brain likes to see patterns and smooth things out. That said, if you take a screenshot of subpixel text you will *absolutely* be able to see the colors if you resize the image, or even look at it on a monitor with a different subpixel layout. This is why screenshots of text often look really weird and bad.
 
@@ -363,7 +363,9 @@ But, wait, we're using text to explain that we can't draw text? Hmm.
 
 You could appeal to an assumption that the system must have a basic font that can draw 0-9 and A-F, but for those who expect to truly Destroy Their Tools With Their Tools you can do what Firefox does: the microfont!
 
-Inside Firefox there's a little hardcoded array describing one-bit pixel art of a tiny font atlas for exactly those 16 characters. So when drawing Tofu, it can just blit those glyphs out without worrying about fonts.
+Inside Firefox there's a little hardcoded array describing one-bit pixel art of a tiny font atlas for exactly those 16 characters. So when drawing tofu, it can blit those glyphs out without worrying about fonts.
+
+ 􏿽 􏿽 􏿽 􏿽 􏿽 􏿽 􏿽 􏿽 􏿽
 
 
 ## Style Is Part of The Font (Except When It's Not)
