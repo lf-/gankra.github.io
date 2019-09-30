@@ -136,7 +136,7 @@ Here's what they look like in Safari:
 
 <br><br>
 
-Here's what they look like in Chrome (I've gotten reports that it can be nondeterministic though???):
+Here's what they look like in Chrome (if using its [new layout implementation](https://www.chromium.org/blink/layoutng)):
 
 <div style="max-width: 100%; font-size:30px; line-height: 1.5em; height: 3em; overflow: hidden;">
     <img src="chrome-color-ligatures.png" style="transform-origin: top left; transform:scale(0.5); max-width: none;">
