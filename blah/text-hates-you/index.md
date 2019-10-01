@@ -119,11 +119,11 @@ A "correct" implementation will draw the text to a temporary surface *without* t
 Ok this one is *mostly* a curiosity in that I'm not aware of any super-reasonable cases where this happens, but it naturally falls out of markups. Here's two pieces of text with the same *content* but different color styling:
 
 <div style="font-size:30px; line-height: 1.5em;">
-  <span style="color:red;">पन</span>्ह <span style="color:red">पन्</span>ह <span style="color:red">त</span>्र <span style="color:red">र्</span>च <span style="color:red">क</span>ृक<span style="color:red">ृ</span> <span style="color:red">ड</span><span style="color:green">्ड</span> <span style="color:red">न</span><span style="color:green">्ह</span><span style="color:blue">ृ</span><span style="color:orange">े</span>  <span style="color:red">ل</span><span style="color:green">ا</span> <span style="color:red">ب</span><span style="color:green">س</span><span style="color:blue">م</span>  <span style="color:red">ا</span><span style="color:green">ل</span><span style="color:blue">ل</span><span style="color:orange">ه</span>
+  <span style="color:red;">पन</span>्ह <span style="color:red">पन्</span>ह <span style="color:red">त</span>्र <span style="color:red">र्</span>च <span style="color:red">क</span>ृक<span style="color:red">ृ</span> <span style="color:red">ड</span><span style="color:green">्ड</span> <span style="color:red">न</span><span style="color:green">्ह</span><span style="color:blue">ृ</span><span style="color:orange">े</span>  <span style="color:red">إل</span><span style="color:green">ا</span> <span style="color:red">ب</span><span style="color:green">س</span><span style="color:blue">م</span>  <span style="color:red">ا</span><span style="color:green">ل</span><span style="color:blue">ل</span><span style="color:orange">ه</span>
 </div>
 
 <div style="font-size:30px; line-height: 1.5em;">
-   पन्ह पन्ह त्र र्च कृकृ ड्ड न्हृे لا بسم الله
+   पन्ह पन्ह त्र र्च कृकृ ड्ड न्हृे إلا بسم الله
 </div>
 
 <br><br>
@@ -359,7 +359,7 @@ So here's some fun text:
 <br>
 
 <div style="font-size: 25px; line-height: 1.5em">
-Hello There <span style="color:#8A2BE2">لا بسم الله</span> Beep Boop!!
+Hello There <span style="color:#8A2BE2">إلا بسم الله</span> Beep Boop!!
 </div>
 
 <br>

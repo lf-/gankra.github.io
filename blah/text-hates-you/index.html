@@ -107,10 +107,10 @@
 <h2 id="style-can-change-mid-ligature" class="section-header"><a href="#style-can-change-mid-ligature">3.2 Style Can Change Mid-Ligature</a></h2>
 <p>Ok this one is <em>mostly</em> a curiosity in that I'm not aware of any super-reasonable cases where this happens, but it naturally falls out of markups. Here's two pieces of text with the same <em>content</em> but different color styling:</p>
 <div style="font-size:30px; line-height: 1.5em;">
-  <span style="color:red;">पन</span>्ह <span style="color:red">पन्</span>ह <span style="color:red">त</span>्र <span style="color:red">र्</span>च <span style="color:red">क</span>ृक<span style="color:red">ृ</span> <span style="color:red">ड</span><span style="color:green">्ड</span> <span style="color:red">न</span><span style="color:green">्ह</span><span style="color:blue">ृ</span><span style="color:orange">े</span>  <span style="color:red">ل</span><span style="color:green">ا</span> <span style="color:red">ب</span><span style="color:green">س</span><span style="color:blue">م</span>  <span style="color:red">ا</span><span style="color:green">ل</span><span style="color:blue">ل</span><span style="color:orange">ه</span>
+  <span style="color:red;">पन</span>्ह <span style="color:red">पन्</span>ह <span style="color:red">त</span>्र <span style="color:red">र्</span>च <span style="color:red">क</span>ृक<span style="color:red">ृ</span> <span style="color:red">ड</span><span style="color:green">्ड</span> <span style="color:red">न</span><span style="color:green">्ह</span><span style="color:blue">ृ</span><span style="color:orange">े</span>  <span style="color:red">إل</span><span style="color:green">ا</span> <span style="color:red">ب</span><span style="color:green">س</span><span style="color:blue">م</span>  <span style="color:red">ا</span><span style="color:green">ل</span><span style="color:blue">ل</span><span style="color:orange">ه</span>
 </div>
 <div style="font-size:30px; line-height: 1.5em;">
-   पन्ह पन्ह त्र र्च कृकृ ड्ड न्हृे لا بسم الله
+   पन्ह पन्ह त्र र्च कृकृ ड्ड न्हृे إلا بسم الله
 </div>
 <p><br><br></p>
 <p>Here's what they look like in Safari:</p>
@@ -236,7 +236,7 @@
 <p>So here's some fun text:</p>
 <br>
 <div style="font-size: 25px; line-height: 1.5em">
-Hello There <span style="color:#8A2BE2">لا بسم الله</span> Beep Boop!!
+Hello There <span style="color:#8A2BE2">إلا بسم الله</span> Beep Boop!!
 </div>
 <br>
 <p>On a desktop, if you drag your mouse across that text to select it, you may notice that the selection becomes discontinuous and jumpy in the middle. This is because we're mixing left-to-right and right-to-left text in the same line, which absolutely happens all the time.</p>
