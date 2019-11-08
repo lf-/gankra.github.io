@@ -591,7 +591,7 @@ This is already <s>17</s> <s>18</s> <s>19</s> 20 pages and it was supposed to ju
 
 
 [rust-abi]: https://gankra.github.io/blah/rust-layouts-and-abis/
-[lib-evolution]: https://jrose-apple.github.io/swift-library-evolution/
+[lib-evolution]: https://github.com/apple/swift/blob/master/docs/LibraryEvolution.rst
 [alloca]: https://llvm.org/docs/LangRef.html#alloca-instruction
 [protocols-as-types]: https://docs.swift.org/swift-book/LanguageGuide/Protocols.html#ID275
 [sysv]: https://www.uclibc.org/docs/psABI-x86_64.pdf#section.3.2
