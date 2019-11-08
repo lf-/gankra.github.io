@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <title>Swift, ABI Stability, and Dynamic Linking</title>
+    <title>How Swift Achieved Dynamic Linking Where Rust Couldn&#39;t</title>
 
     
     <link href="../rust.css" rel="stylesheet" type="text/css">
@@ -23,7 +23,7 @@
     <div class="content">
 
 
-    <h1 class="title">Swift, ABI Stability, and Dynamic Linking</h1><header>
+    <h1 class="title">How Swift Achieved Dynamic Linking Where Rust Couldn&#39;t</h1><header>
     <p class="author">Alexis Beingessner</p>
     <p class="date">November 7th, 2019</p>
 </header>
@@ -42,7 +42,8 @@
 <li><a href="#opting-out-of-resilience">2.6 Opting Out of Resilience</a><ul></ul></li>
 <li><a href="#esoterica">2.7 Esoterica</a><ul></ul></li></ul></li></ul></nav>
 <p>For those who don't follow Swift's development, ABI stability has been one of its most ambitious projects and possibly it's defining feature, <a href="https://swift.org/blog/abi-stability-and-more/">and it finally shipped in Swift 5</a>. The result is something I find endlessly fascinating, because I think Swift has pushed the notion of ABI stability farther than any language without much compromise.</p>
-<p>So I decided to write up a bunch of the interesting high-level details of Swift's ABI. This <strong>is not</strong> a complete reference for Swift's ABI, but rather an abstract look at its implementation strategy. If you really want to know exactly how it allocates registers or mangles names, look somewhere else. Also for context I'm naturally inclined to compare the design of Swift to Rust, because those are the two languages I have helped develop.</p>
+<p>So I decided to write up a bunch of the interesting high-level details of Swift's ABI. This <strong>is not</strong> a complete reference for Swift's ABI, but rather an abstract look at its implementation strategy. If you really want to know exactly how it allocates registers or mangles names, look somewhere else.</p>
+<p>Also for context on why I'm writing this, I'm just naturally inclined to compare the design of Swift to Rust, because those are the two languages I have helped develop. Also some folks like to complain that Rust doesn't bother with ABI stability, and I think looking at how Swift <em>does</em> helps elucidate why that is.</p>
 <p>This article is broken up into two sections: background and details. Feel free to skip to the details if you're very comfortable with the problems inherent to producing a robust dynamically linked system interface.</p>
 <p>If you aren't comfortable with the basic concepts of type layouts, ABIs, and calling conventions, I recommend reading the article I wrote on <a href="https://gankra.github.io/blah/rust-layouts-and-abis/">the basic concepts of type layout and ABI as they pertain to Rust</a>.</p>
 <p>Also huge thanks to the Swift devs for answering all of the questions I had and correcting my misunderstandings!</p>
@@ -429,6 +430,9 @@ void process(Vec4 vector);
 </li>
 <li>
 <p>I think Swift technically stabilized the set of enum tag packing optimizations it can perform, but no clue what those are. Sorry eddyb.</p>
+</li>
+<li>
+<p>Zero cost abstractions Really Aren't if they ever need to be compiled polymorphically, watch out!</p>
 </li>
 </ul>
 <p><em>collapses</em></p>

@@ -1,4 +1,4 @@
-% Swift, ABI Stability, and Dynamic Linking
+% How Swift Achieved Dynamic Linking Where Rust Couldn't
 
 <header>
     <p class="author">Alexis Beingessner</p>
@@ -7,7 +7,9 @@
 
 For those who don't follow Swift's development, ABI stability has been one of its most ambitious projects and possibly it's defining feature, [and it finally shipped in Swift 5](https://swift.org/blog/abi-stability-and-more/). The result is something I find endlessly fascinating, because I think Swift has pushed the notion of ABI stability farther than any language without much compromise.
 
-So I decided to write up a bunch of the interesting high-level details of Swift's ABI. This **is not** a complete reference for Swift's ABI, but rather an abstract look at its implementation strategy. If you really want to know exactly how it allocates registers or mangles names, look somewhere else. Also for context I'm naturally inclined to compare the design of Swift to Rust, because those are the two languages I have helped develop.
+So I decided to write up a bunch of the interesting high-level details of Swift's ABI. This **is not** a complete reference for Swift's ABI, but rather an abstract look at its implementation strategy. If you really want to know exactly how it allocates registers or mangles names, look somewhere else.
+
+Also for context on why I'm writing this, I'm just naturally inclined to compare the design of Swift to Rust, because those are the two languages I have helped develop. Also some folks like to complain that Rust doesn't bother with ABI stability, and I think looking at how Swift *does* helps elucidate why that is.
 
 This article is broken up into two sections: background and details. Feel free to skip to the details if you're very comfortable with the problems inherent to producing a robust dynamically linked system interface.
 
@@ -579,6 +581,8 @@ This is already <s>17</s> <s>18</s> <s>19</s> 20 pages and it was supposed to ju
 * The main piece of complexity in the system for getting witness tables is that it provides a runtime reflection system for spidering through the type metadata of generic types and their associated types because you need to be able to get their witnesses too.
 
 * I think Swift technically stabilized the set of enum tag packing optimizations it can perform, but no clue what those are. Sorry eddyb.
+
+* Zero cost abstractions Really Aren't if they ever need to be compiled polymorphically, watch out!
 
 *collapses*
 
