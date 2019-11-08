@@ -36,13 +36,13 @@ I know a lot of people don't really follow Swift, and it can be hard to understa
     * Ahead-Of-Time (AOT) compiled
 * An emphasis on "value semantics"
     * structs/primitives ("values") are "mutable xor shared", stored inline
-    * collections implement value semantics by being Copy-On-Write (using ARC)
+    * collections implement value semantics by being Copy-On-Write (CoW) (using ARC)
     * classes are mutably shared and boxed (using ARC), undermining value semantics (can even cause data races)
 * An emphasis on things Just Working
     * language may freely allocate to make things Work
     * generic code may be polymorphically compiled
     * fields may secretly be getter-setter pairs
-    * ARC and COW can result in unpredictable performance
+    * ARC and CoW can easily result in surprising performance cliffs
     * tons of overloading and syntactic sugar
 
 Don't worry about fully understanding all of these, we'll dig into the really important ones and their implications as we go on.

@@ -67,7 +67,7 @@
 <li>An emphasis on &quot;value semantics&quot;
 <ul>
 <li>structs/primitives (&quot;values&quot;) are &quot;mutable xor shared&quot;, stored inline</li>
-<li>collections implement value semantics by being Copy-On-Write (using ARC)</li>
+<li>collections implement value semantics by being Copy-On-Write (CoW) (using ARC)</li>
 <li>classes are mutably shared and boxed (using ARC), undermining value semantics (can even cause data races)</li>
 </ul>
 </li>
@@ -76,7 +76,7 @@
 <li>language may freely allocate to make things Work</li>
 <li>generic code may be polymorphically compiled</li>
 <li>fields may secretly be getter-setter pairs</li>
-<li>ARC and COW can result in unpredictable performance</li>
+<li>ARC and CoW can easily result in surprising performance cliffs</li>
 <li>tons of overloading and syntactic sugar</li>
 </ul>
 </li>
