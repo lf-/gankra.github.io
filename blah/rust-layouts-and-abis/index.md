@@ -1,8 +1,9 @@
 % Notes on Type Layouts and ABIs in Rust
 
-<span class="author">Alexis Beingessner</span>
-
-<span class="date">October 9th, 2018 -- Rust Nightly 1.30.0</span>
+<header>
+    <p class="author">Alexis Beingessner</p>
+    <p class="date">October 9th, 2018 -- Rust Nightly 1.30.0</p>
+</header>
 
 Over the years I've found myself with a weird amount of knowledge about how types and ABIs in Rust work, and I wanted to write it all down in one place so that... it's written down in one place. Much of this information can or should be found in the [Rust Language Reference][reference] and the [Rustonomicon][nomicon].
 
@@ -21,7 +22,7 @@ A lot of the things C was trying to cope with have largely died off or been rele
 For Rust to [support a platform][rust-platforms] *at all*, its standard C dialect must:
 
 * Have 8-bit, unaligned bytes (chars)
-* Have a boolean be a byte, where `true = 1` and `false = 0`
+* Have a boolean be a byte, where `true = 1` and `false = 0` ([defacto true but not strictly guaranteed][bool-repr])
 * Have integers be [two's complement][twos-complement]
 * Have [IEEE 754(-2008?) binary floats][ieee-floats], if they exist (e.g. we're comfortable with just disabling floats)
 * Be at least 16-bit (just in terms of pointer size, I think?)
@@ -498,7 +499,7 @@ The x64 ABI chunks structs into 8-byte chunks and does a recursive classificatio
 
 
 
-
+[bool-repr]: https://rust-lang.github.io/unsafe-code-guidelines/layout/scalars.html#bool
 [reference]: https://doc.rust-lang.org/reference/
 [nomicon]: https://doc.rust-lang.org/nomicon/
 [ATmega128]: http://www.kjit.bme.hu/images/stories/targyak/jarmufedelzeti_rendszerek/atmel_atmega128_manual.pdf
