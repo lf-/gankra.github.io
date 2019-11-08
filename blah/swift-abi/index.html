@@ -84,6 +84,7 @@
 <p>Ok so what's dynamic linking? For our purposes it's a system where you can compile an application against some abstract <em>description</em> of an interface without providing an actual implementation of it. This produces an application that on its own will not work properly, as part of its implementation is missing.</p>
 <p>To run properly, it must tell the system's <em>dynamic linker</em> about all of the interfaces it needs implementations for, which we call <em>dynamic libraries</em> (dylibs). Assuming everything goes right, those implementations get hooked up to the application and everything Just Works.</p>
 <p>Dynamic linking is very important to system APIs because it's what allows the system's implementation to be updated without also rebuilding all the applications that run on it. The applications don't care about what implementation they get, as long as it conforms to the interface they were built against.</p>
+<p>It can also significantly reduce a system's memory footprint by making every application share the same implementation of a library (Apple cares about this a lot on its mobile devices).</p>
 <p>Since Swift is AOT compiled, the application and the dylib both have to make a bunch of assumptions on how to communicate with the other side long before they're linked together. These assumptions are what we call ABI (an Application's <em>Binary</em> Interface), and since it needs to be consistent over a long period of time, that ABI better be stable.</p>
 <p>So dynamic linking is our goal, and ABI stability is just a means to that end.</p>
 <p>For our purposes, an ABI can be regarded as 3 things:</p>
@@ -210,10 +211,9 @@ public func getFileMetadata(_ path: String) -&gt; FileMetadata?
 <p>Type layouts are always the same on both sides of the resilience boundary!?!?</p>
 <p>Yes!</p>
 <p>The key insight here is that laying out things inline can actually be done dynamically with relative ease. Memory allocators and pointers don't care about static layouts, they just work with completely untyped sizes, alignments, and offsets. So as long as you have all the relevant value witness tables, everything works basically fine, just with more dynamic values than usual.</p>
-<p>The real major problem is stack allocations. llvm really doesn't like dynamic stack allocations. Yes, <a href="https://llvm.org/docs/LangRef.html#alloca-instruction">alloca</a> does exist, but it's a real mess that no one wants to use seriously.</p>
-<p>So the compromise Swift must make is that resilient stack variables sometimes need to be boxed. But <strong>crucially</strong> this doesn't change their layouts, just where they're stored and how they're passed in the calling convention (more on that later).</p>
-<p>Keep in mind that this boxing is only for the actual on-stack value. Once there is <em>some</em> indirection everything is still stored inline, even if those contents are resilient. Types which already come with indirection like <code>Array&lt;MyResilientStruct&gt;</code> or <code>MyResilientClass</code> require <em>no</em> additional allocation, and consequently no ABI changes.</p>
-<p>I've left out some key details, but let's address them while looking at polymorphic generics, since it turns out those are quite similar!</p>
+<p>The real major problem is stack allocations. llvm really doesn't like dynamic stack allocations. Yes, <a href="https://llvm.org/docs/LangRef.html#alloca-instruction">alloca</a> does exist, but it's a bit messy. I believe the Swift devs managed to get it working all the time for resilient layout, but not for some of its cousins we'll see in the next section. In the general case, local variables need to actually be boxed up onto the heap. For convenience, I'll just generically refer to these dynamic stack allocations as &quot;boxed&quot;.</p>
+<p><strong>Crucially</strong> this boxing this doesn't change layouts, just where local variables are stored and how they're passed in the calling convention (more on that later). Also, once there is <em>some</em> indirection everything is still stored inline. So types which already come with indirection like <code>Array&lt;MyResilientStruct&gt;</code> or <code>MyResilientClass</code> require <em>no</em> additional allocation, and consequently no ABI changes.</p>
+<p>I've left out some key details, but let's address them while looking at polymorphic generics, since it turns out those are quite similar, but also more interesting!</p>
 <h2 id="polymorphic-generics" class="section-header"><a href="#polymorphic-generics">2.2 Polymorphic Generics</a></h2>
 <p>Unlike Rust and C++ which must monomorphize (copy+paste) implementations for each generic/template substitution, Swift is able to compile a generic function into a single implementation that can handle every substitution dynamically.</p>
 <p>This has several benefits:</p>
@@ -223,12 +223,15 @@ public func getFileMetadata(_ path: String) -&gt; FileMetadata?
 <li>Allowing generic code to be dynamically linked</li>
 </ul>
 <p>A polymorphic implementation can't be inlined or optimized as well as a monomorphic one (without a JIT), so the Swift compiler still monomorphizes things when it's possible and seems profitable. But we're making a dylib, so it's not possible for our public API.</p>
-<p>As it turns out, polymorphically compiled generic code is really quite similar to code that handles resilient types. In both cases the basic value-witnessy properties of the type aren't statically known, and so stack values need boxing. The generic code just also needs to be able to find the generic type's protocol implementations too. We can get that from the type's <em>protocol witness tables</em> which can be acquired using the same machinery we use for the value witness tables.</p>
+<p>As it turns out, polymorphically compiled generic code is really quite similar to code that handles resilient types. In both cases the basic value-witnessy properties of the type aren't statically known, and so stack values need boxing. The generic code just needs to be able to find the generic type's protocol implementations too. We can get that from the type's <em>protocol witness tables</em> which can be acquired using the same machinery we use for the value witness tables.</p>
 <p>So really this is basically the same problem!</p>
-<p>The resilient/generic type machinery also solves a big chunk of <a href="http://huonw.github.io/blog/2015/01/object-safety/">the Object Safety problem</a> that heavily limits Rust's trait objects (Swift's <a href="https://docs.swift.org/swift-book/LanguageGuide/Protocols.html#ID275">Protocols as Types</a> or &quot;existentials&quot;). Resilient layout completely eliminates the problems that come with dynamic &quot;by value&quot; manipulation of Self and any of its associated types, and wow is that a huge relief!!</p>
-<blockquote>
-<p>Although associated types still prevent <em>actual</em> existentials from being created because that creates fundamental type system problems, since every instance of MyProtocol could have a different associated type. No I'm not going to get into path-dependent types.</p>
-</blockquote>
+<hr />
+<p>💃 Brief Aside About Existentials 💃</p>
+<p>The resilient/polymorphic type machinery solves a big chunk of <a href="http://huonw.github.io/blog/2015/01/object-safety/">the Object Safety problem</a> that heavily limits Rust's trait objects. Swift calls these <a href="https://docs.swift.org/swift-book/LanguageGuide/Protocols.html#ID275">Protocols as Types</a> or just <em>existentials</em>, depending on who you ask. Generic code actually having symbols means there's no problem with it being stuffed in a vtable. Resilient layout eliminates the problems that come with dynamic &quot;by value&quot; manipulation of Self and any of its associated types.</p>
+<p>Existentials are the really tricky case for stack allocations, because they can prevent the caller from knowing the size of the return value before making the call, and that really messes up alloca. So once existentials get involved, alloca goes out the window and actual boxing needs to happen.</p>
+<p>Also associated types in function signatures still prevent existentials from being created because that creates fundamental type system problems unrelated to ABI. Every instance of MyProtocol could have a different associated type, and you can't let them get mixed up. No I'm not going to get into how Swift could use path-dependent types to deal with this.</p>
+<p>Associated types are fine for normal polymorphic code, since generics enforce that every instance has the <em>same</em> type, which is the only issue with them in existentials.</p>
+<hr />
 <p>Now, what does the presence of resilient/polymorphic types do to calling conventions?</p>
 <p>Well first off, we have the witness tables. In the resilient case all the types are statically known, and so the implementation theoretically has all the information it needs to look up witness tables for itself. Polymorphic code has no such luxury.</p>
 <p>Polymorphic code needs to work with any type, and structs don't contain any identifying runtime information. Worse yet, polymorphic code can be called without providing any values of that type! So the <em>caller</em> needs to pass in type information. Abstractly, we <em>could</em> pass in minimal information and have the polymorphic code look up all the witness tables, but that's really wasteful (consider calling the function in a loop). So instead Swift's actual implementation has the caller pass in pointers to every required witness table as extra arguments (automatically handled by the compiler).</p>
@@ -367,7 +370,7 @@ doSomeWork() *= 2
 <li>+0: caller does nothing, callee has a &quot;borrowed&quot; value it's responsible for retaining (if it escapes)</li>
 </ul>
 <p>I believe in Swift's current design this is largely implicitly managed by the compiler, but I think explicit annotations are theoretically on the roadmap.</p>
-<p>There's also a special path for field materialization, &quot;modify&quot;, which returns an inout. This handles the fact that getters are naively +1, which is especially nasty for nested array operations like <code>array[0][2] *= 2</code>, as they would always trigger a huge temporary copy of the inner array!</p>
+<p>There's also a special path for field materialization, &quot;modify&quot;, which returns an inout and is therefore +0. This handles the fact that getters are naively +1, which is especially nasty for nested array operations like <code>array[0][2] *= 2</code>, as they would always trigger a huge temporary copy of the inner array!</p>
 <p>And indeed, the subscript operator of Array contains a modify implementation:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
@@ -378,6 +381,7 @@ doSomeWork() *= 2
   <span class="kw">yield</span> <span class="kw-2">&amp;</span><span class="ident">address</span>.<span class="ident">pointee</span>
 }</pre></div>
 <p>(Interestingly, this implementation is marked as <code>inlineable</code>, and so it's actually guaranteed to always work. Array's ABI details were pretty aggressively guaranteed since it's a <em>relatively</em> simple fundamental type whose performance matters a lot.)</p>
+<p>There's also a read-only version of modify, &quot;read&quot;, but it doesn't seem to be as clearly motivated. For now it's mostly just a nice little optimization to avoid doing an extra retain+release in some cases.</p>
 <p>I feel like there should be more to say in this section, but I think it was mostly implicitly covered by the other sections? *shrug*</p>
 <h2 id="opting-out-of-resilience" class="section-header"><a href="#opting-out-of-resilience">2.6 Opting Out of Resilience</a></h2>
 <p>Resilience is nifty but it clearly comes with some perfromance overhead. So of course Swift also provides special attributes to opt out of resilience. I had originally intended to write a whole bunch about this but it's actually really complex and subtle, so I really need to <a href="https://jrose-apple.github.io/swift-library-evolution/">punt to Swift's actual docs</a>.</p>
@@ -402,6 +406,9 @@ doSomeWork() *= 2
 </li>
 <li>
 <p>Swift actually does insert a bunch of magical layout conversions when bridging between Swift and Objective-C. Initially this bridging was lazy in the case of collections, and that was super whacky. Specifically if you had an <code>Array&lt;MySwiftType&gt;</code> it might have been an <code>NSArray</code> containing opaque pointers, with type conversion was performed when you accessed the element. They later moved to a more eager model because this was really nasty and expensive for heavily-accessed collections. Also object-identity was messy to deal with.</p>
+</li>
+<li>
+<p>The main piece of complexity in the system for getting witness tables is that it provides a runtime reflection system for spidering through the type metadata of generic types and their associated types because you need to be able to get their witnesses too.</p>
 </li>
 <li>
 <p>I think Swift technically stabilized the set of enum tag packing optimizations it can perform, but no clue what those are. Sorry eddyb.</p>
