@@ -141,7 +141,7 @@ And indeed, in the 90's there was a big push in this direction with Microsoft em
 
 But Swift didn't do this. Swift tries its hardest to generate code comparable to what you would expect from Rust or C++, and how it accomplishes that is what makes its ABI so interesting.
 
-It's worth noting that the Swift devs disagree with the Rust and C++ codegen orthodoxy in one major way: they care much more about binary sizes. More specifically, they care a lot more about making efficient usage of the cpu's instruction cache, because they believe it's better for system-wide power usage. Apple championing this concern makes a lot of sense, given their suite of battery-powered devices.
+It's worth noting that the Swift devs disagree with the Rust and C++ codegen orthodoxy in one major way: they care much more about code sizes (as in the amount of executable code produced). More specifically, they care a lot more about making efficient usage of the cpu's instruction cache, because they believe it's better for system-wide power usage. Apple championing this concern makes a lot of sense, given their suite of battery-powered devices.
 
 It's harder for third party developers to care about this, as they will naturally only control some small part of the software running on a device, and typical benchmarking strategies don't really capture "this change made your application run faster but is making some background services less responsive and hurting battery life". Hence C++ and Rust inevitably pushing towards "more code, more fast".
 
@@ -296,7 +296,7 @@ Unlike Rust and C++ which must monomorphize (copy+paste) implementations for eac
 
 This has several benefits:
 
-* Massively reducing binary size
+* Massively reducing code size
 * Massively reducing the amount of code that must be compiled
 * Allowing generic code to be dynamically linked
 
@@ -401,7 +401,7 @@ let result = mapInt(3, with: thunk);
 
 In this way everything can use the best possible calling convention while still allowing for more generic ones to be used in different contexts.
 
-Even without this closure passing problem, reabstraction also allows a single implementation to be used in several different contexts without having to compile different versions of it. So for instance we can reabstract a concrete protocol implementation into a polymorphic one by just wrapping all the functions in reabstraction thunks. A nice binary size win!
+Even without this closure passing problem, reabstraction also allows a single implementation to be used in several different contexts without having to compile different versions of it. So for instance we can reabstract a concrete protocol implementation into a polymorphic one by just wrapping all the functions in reabstraction thunks. A nice code size win!
 
 (I believe the Swift devs don't technically call that one Reabstraction but it's close enough that I'm happy to conflate the concepts. Thunk away ABI complexities!)
 

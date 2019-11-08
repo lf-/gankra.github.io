@@ -132,7 +132,7 @@ bool process(bool value);
 <p>It's actually fairly trivial to dynamically link a system where all the implementation details are hidden behind uniformity and dynamism. In the extreme case, we could make a system where everything is an opaque pointer and there's only one function that just sends things strings containing commands. Such a system would have a very simple ABI!</p>
 <p>And indeed, in the 90's there was a big push in this direction with Microsoft embracing <a href="https://en.wikipedia.org/wiki/Component_Object_Model">COM</a> and Apple embracing <a href="https://developer.apple.com/documentation/objectivec/1456712-objc_msgsend">Objective-C</a> as ways to build system interfaces with simple and robust ABIs.</p>
 <p>But Swift didn't do this. Swift tries its hardest to generate code comparable to what you would expect from Rust or C++, and how it accomplishes that is what makes its ABI so interesting.</p>
-<p>It's worth noting that the Swift devs disagree with the Rust and C++ codegen orthodoxy in one major way: they care much more about binary sizes. More specifically, they care a lot more about making efficient usage of the cpu's instruction cache, because they believe it's better for system-wide power usage. Apple championing this concern makes a lot of sense, given their suite of battery-powered devices.</p>
+<p>It's worth noting that the Swift devs disagree with the Rust and C++ codegen orthodoxy in one major way: they care much more about code sizes (as in the amount of executable code produced). More specifically, they care a lot more about making efficient usage of the cpu's instruction cache, because they believe it's better for system-wide power usage. Apple championing this concern makes a lot of sense, given their suite of battery-powered devices.</p>
 <p>It's harder for third party developers to care about this, as they will naturally only control some small part of the software running on a device, and typical benchmarking strategies don't really capture &quot;this change made your application run faster but is making some background services less responsive and hurting battery life&quot;. Hence C++ and Rust inevitably pushing towards &quot;more code, more fast&quot;.</p>
 <p>This is all to say that some things which seem like compromises made for ABI stability's sake are genuinely just regarded as desirable.</p>
 <p>I never got any great concrete numbers on this concern from the Swift or Foundation folks, would definitely love to see some! <em>Waves at the Apple employees reading this</em>.</p>
@@ -221,7 +221,7 @@ bool get_file_metadata(char* path, FileMetadata* output);
 <p>Unlike Rust and C++ which must monomorphize (copy+paste) implementations for each generic/template substitution, Swift is able to compile a generic function into a single implementation that can handle every substitution dynamically.</p>
 <p>This has several benefits:</p>
 <ul>
-<li>Massively reducing binary size</li>
+<li>Massively reducing code size</li>
 <li>Massively reducing the amount of code that must be compiled</li>
 <li>Allowing generic code to be dynamically linked</li>
 </ul>
@@ -294,7 +294,7 @@ void process(Vec4 vector);
 
 <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">mapInt</span>(<span class="number">3</span>, <span class="ident">with</span>: <span class="ident">thunk</span>);</pre></div>
 <p>In this way everything can use the best possible calling convention while still allowing for more generic ones to be used in different contexts.</p>
-<p>Even without this closure passing problem, reabstraction also allows a single implementation to be used in several different contexts without having to compile different versions of it. So for instance we can reabstract a concrete protocol implementation into a polymorphic one by just wrapping all the functions in reabstraction thunks. A nice binary size win!</p>
+<p>Even without this closure passing problem, reabstraction also allows a single implementation to be used in several different contexts without having to compile different versions of it. So for instance we can reabstract a concrete protocol implementation into a polymorphic one by just wrapping all the functions in reabstraction thunks. A nice code size win!</p>
 <p>(I believe the Swift devs don't technically call that one Reabstraction but it's close enough that I'm happy to conflate the concepts. Thunk away ABI complexities!)</p>
 <p>Now that we have a basic idea of how resilience and polymorphism affects calling conventions, it should hopefully be clear why it's an ABI-breaking change to mark a type as <code>@frozen</code>, removing its resilient layout: it would change the way the type is passed to functions.</p>
 <p>This could have potentially been &quot;fixed&quot; by making resilience part of the name mangle and providing both the resilient and non-resilient versions, but that requires robust versioning info for every attribute and could lead to a huge combinatoric explosion in the number of symbols a dylib provides. Not necessarily a great idea.</p>
