@@ -514,7 +514,19 @@ To help deal with this, Swift made ownership of reference-counted values (\~clas
 * +1: caller retains, callee has an "owned" value it's responsible for releasing (if it doesn't escape)
 * +0: caller does nothing, callee has a "borrowed" value it's responsible for retaining (if it escapes)
 
-I believe in Swift's current design this is largely implicitly managed by the compiler, but I think explicit annotations are theoretically on the roadmap.
+Since we're talking about ownership, I'm legally required to compare this system to Rust, and the comparison is pretty straight-forward:
+
+* +1 is a move (`T`)
+* +0 is a shared immutable reference (`&T`)
+* inout is a mutable exclusive reference  (`&mut T`)
+
+But there's a few key differences:
+
+* Classes break "shared xor mutable" reasoning (unless you use CoW, like Swift's collections)
+* +0 isn't tied to pass-by-reference, it can just be a bitwise copy of the value
+* All types can be implicitly cloned, so a +0 can always be upgraded to an owned value
+
+In Swift's current design, +0/+1 is largely just something the compiler does internally, but I think more explicit annotations are theoretically on the roadmap.
 
 There's also a special path for field materialization, "modify", which returns an inout and is therefore +0. This handles the fact that getters are naively +1, which is especially nasty for nested array operations like `array[0][2] *= 2`, as they would always trigger a huge temporary copy of the inner array!
 
@@ -531,7 +543,7 @@ And indeed, the subscript operator of Array contains a modify implementation:
 
 (Interestingly, this implementation is marked as `inlineable`, and so it's actually guaranteed to always work. Array's ABI details were pretty aggressively guaranteed since it's a *relatively* simple fundamental type whose performance matters a lot.)
 
-There's also a read-only version of modify, "read", but it doesn't seem to be as clearly motivated. For now it's mostly just a nice little optimization to avoid doing an extra retain+release in some cases.
+There's also a read-only version of modify, "read", but it doesn't seem to be as clearly motivated. For now it's mostly just a nice little optimization to avoid doing an extra retain+release.
 
 I feel like there should be more to say in this section, but I think it was mostly implicitly covered by the other sections? \*shrug\*
 

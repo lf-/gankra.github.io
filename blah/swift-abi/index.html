@@ -376,7 +376,19 @@ void process(Vec4 vector);
 <li>+1: caller retains, callee has an &quot;owned&quot; value it's responsible for releasing (if it doesn't escape)</li>
 <li>+0: caller does nothing, callee has a &quot;borrowed&quot; value it's responsible for retaining (if it escapes)</li>
 </ul>
-<p>I believe in Swift's current design this is largely implicitly managed by the compiler, but I think explicit annotations are theoretically on the roadmap.</p>
+<p>Since we're talking about ownership, I'm legally required to compare this system to Rust, and the comparison is pretty straight-forward:</p>
+<ul>
+<li>+1 is a move (<code>T</code>)</li>
+<li>+0 is a shared immutable reference (<code>&amp;T</code>)</li>
+<li>inout is a mutable exclusive reference  (<code>&amp;mut T</code>)</li>
+</ul>
+<p>But there's a few key differences:</p>
+<ul>
+<li>Classes break &quot;shared xor mutable&quot; reasoning (unless you use CoW, like Swift's collections)</li>
+<li>+0 isn't tied to pass-by-reference, it can just be a bitwise copy of the value</li>
+<li>All types can be implicitly cloned, so a +0 can always be upgraded to an owned value</li>
+</ul>
+<p>In Swift's current design, +0/+1 is largely just something the compiler does internally, but I think more explicit annotations are theoretically on the roadmap.</p>
 <p>There's also a special path for field materialization, &quot;modify&quot;, which returns an inout and is therefore +0. This handles the fact that getters are naively +1, which is especially nasty for nested array operations like <code>array[0][2] *= 2</code>, as they would always trigger a huge temporary copy of the inner array!</p>
 <p>And indeed, the subscript operator of Array contains a modify implementation:</p>
 
@@ -388,7 +400,7 @@ void process(Vec4 vector);
   <span class="kw">yield</span> <span class="kw-2">&amp;</span><span class="ident">address</span>.<span class="ident">pointee</span>
 }</pre></div>
 <p>(Interestingly, this implementation is marked as <code>inlineable</code>, and so it's actually guaranteed to always work. Array's ABI details were pretty aggressively guaranteed since it's a <em>relatively</em> simple fundamental type whose performance matters a lot.)</p>
-<p>There's also a read-only version of modify, &quot;read&quot;, but it doesn't seem to be as clearly motivated. For now it's mostly just a nice little optimization to avoid doing an extra retain+release in some cases.</p>
+<p>There's also a read-only version of modify, &quot;read&quot;, but it doesn't seem to be as clearly motivated. For now it's mostly just a nice little optimization to avoid doing an extra retain+release.</p>
 <p>I feel like there should be more to say in this section, but I think it was mostly implicitly covered by the other sections? *shrug*</p>
 <h2 id="opting-out-of-resilience" class="section-header"><a href="#opting-out-of-resilience">2.6 Opting Out of Resilience</a></h2>
 <p>Resilience is nifty but it clearly comes with some perfromance overhead. So of course Swift also provides special attributes to opt out of resilience. I had originally intended to write a whole bunch about this but it's actually really complex and subtle, so I really need to <a href="https://jrose-apple.github.io/swift-library-evolution/">punt to Swift's actual docs</a>.</p>
