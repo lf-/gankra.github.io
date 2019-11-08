@@ -45,6 +45,7 @@
 <p>So I decided to write up a bunch of the interesting high-level details of Swift's ABI. This <strong>is not</strong> a complete reference for Swift's ABI, but rather an abstract look at its implementation strategy. If you really want to know exactly how it allocates registers or mangles names, look somewhere else. Also for context I'm naturally inclined to compare the design of Swift to Rust, because those are the two languages I have helped develop.</p>
 <p>This article is broken up into two sections: background and details. Feel free to skip to the details if you're very comfortable with the problems inherent to producing a robust dynamically linked system interface.</p>
 <p>If you aren't comfortable with the basic concepts of type layouts, ABIs, and calling conventions, I recommend reading the article I wrote on <a href="https://gankra.github.io/blah/rust-layouts-and-abis/">the basic concepts of type layout and ABI as they pertain to Rust</a>.</p>
+<p>Also huge thanks to the Swift devs for answering all of the questions I had and correcting my misunderstandings!</p>
 <h1 id="background" class="section-header"><a href="#background">1 Background</a></h1><h2 id="swift-tldr" class="section-header"><a href="#swift-tldr">1.1 Swift TLDR</a></h2>
 <p>I know a lot of people don't really follow Swift, and it can be hard to understand what they've really accomplished without some context of what the language is like, so here's a TL;DR of the language's shape:</p>
 <ul>
@@ -373,8 +374,8 @@ void process(Vec4 vector);
 <p>Swift makes extensive use of reference counting, and as it turns out it's really expensive to constantly modify the count! Especially when you make all your collections copy-on-write (CoW), so an errant reference count bump can make an O(n) algorithm O(n<sup>2</sup>)! (I actually consider this a correctness error in the case of data structures and algorithms, but reasonable people may disagree.)</p>
 <p>To help deal with this, Swift made ownership of reference-counted values (~classes) part of its calling convention. The most important aspect is &quot;+0&quot; vs &quot;+1&quot;, referring to how the caller should change the refcount:</p>
 <ul>
-<li>+1: caller retains, callee has an &quot;owned&quot; value it's responsible for releasing (if it doesn't escape)</li>
-<li>+0: caller does nothing, callee has a &quot;borrowed&quot; value it's responsible for retaining (if it escapes)</li>
+<li>+1: callee has an &quot;owned&quot; value it's responsible for releasing (if it doesn't escape)</li>
+<li>+0: callee has a &quot;borrowed&quot; value it's responsible for retaining (if it escapes)</li>
 </ul>
 <p>Since we're talking about ownership, I'm legally required to compare this system to Rust, and the comparison is pretty straight-forward:</p>
 <ul>
@@ -382,14 +383,12 @@ void process(Vec4 vector);
 <li>+0 is a shared immutable reference (<code>&amp;T</code>)</li>
 <li>inout is a mutable exclusive reference  (<code>&amp;mut T</code>)</li>
 </ul>
-<p>But there's a few key differences:</p>
-<ul>
-<li>Classes break &quot;shared xor mutable&quot; reasoning (unless you use CoW, like Swift's collections)</li>
-<li>+0 isn't tied to pass-by-reference, it can just be a bitwise copy of the value</li>
-<li>All types can be implicitly cloned, so a +0 can always be upgraded to an owned value</li>
-</ul>
-<p>In Swift's current design, +0/+1 is largely just something the compiler does internally, but I think more explicit annotations are theoretically on the roadmap.</p>
-<p>There's also a special path for field materialization, &quot;modify&quot;, which returns an inout and is therefore +0. This handles the fact that getters are naively +1, which is especially nasty for nested array operations like <code>array[0][2] *= 2</code>, as they would always trigger a huge temporary copy of the inner array!</p>
+<p>But there's a few key differences, due to ARC:</p>
+<p>First and foremost, classes break &quot;shared xor mutable&quot; reasoning, and are effectively like using <code>Arc&lt;UnsafeCell&lt;T&gt;&gt;</code> in Rust. This is why Swift's collections provide CoW semantics, <a href="https://doc.rust-lang.org/std/sync/struct.Arc.html#method.make_mut">which Rust's Arc also safely provides</a>. Yes, you can indeed trivially introduce Data Races into Swift code with classes.</p>
+<p>Second, all Swift types can always be implicitly cloned, so a +0 can always be upgraded to an owned value without ceremony. That said, cloning in Swift (they just call it copying) is always just bumping reference counts. Other non-trivial operations, like copying an array's buffer to a new allocation, are only performed by mutations that trigger CoW. Note also that this means that if you trigger CoW on an array of arrays, you will get two independent outer arrays that still point to the same inner arrays (which are now primed to CoW if either side mutates them).</p>
+<p>Third, +0 isn't strictly bound to pass-by-reference, and can just be a trivial bitwise copy of the value. Unfortunately, <a href="https://docs.swift.org/swift-book/LanguageGuide/AutomaticReferenceCounting.html#ID52">weak references</a> require non-trivial moves because their locations are tracked for auto-nulling, so those <em>are</em> passed by reference when using +0 to keep it cheap. Yes, Swift has both copy and move constructors, although they're currently entirely ARC and not user-defined. Swift <em>also</em> has unowned references which are the same as Rust's Weak references, which have trivial moves.</p>
+<p>In Swift's current design, +0/+1 is mostly just something the compiler does internally to optimize different calling conventions, but I think more explicit annotations are theoretically on the roadmap.</p>
+<p>There's also a special path for field materialization, &quot;modify&quot;, which returns an inout. This handles the fact that getters are naively +1, which is especially nasty for nested array operations like <code>array[0][2] *= 2</code>, as they would always trigger a huge temporary copy of the inner array!</p>
 <p>And indeed, the subscript operator of Array contains a modify implementation:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
@@ -400,8 +399,7 @@ void process(Vec4 vector);
   <span class="kw">yield</span> <span class="kw-2">&amp;</span><span class="ident">address</span>.<span class="ident">pointee</span>
 }</pre></div>
 <p>(Interestingly, this implementation is marked as <code>inlineable</code>, and so it's actually guaranteed to always work. Array's ABI details were pretty aggressively guaranteed since it's a <em>relatively</em> simple fundamental type whose performance matters a lot.)</p>
-<p>There's also a read-only version of modify, &quot;read&quot;, but it doesn't seem to be as clearly motivated. For now it's mostly just a nice little optimization to avoid doing an extra retain+release.</p>
-<p>I feel like there should be more to say in this section, but I think it was mostly implicitly covered by the other sections? *shrug*</p>
+<p>There's also a read-only version of modify, &quot;read&quot;, which provides a +0 getter. That one isn't as strongly motivated, but hey it's a nice little optimization to avoid a needless retain+release.</p>
 <h2 id="opting-out-of-resilience" class="section-header"><a href="#opting-out-of-resilience">2.6 Opting Out of Resilience</a></h2>
 <p>Resilience is nifty but it clearly comes with some perfromance overhead. So of course Swift also provides special attributes to opt out of resilience. I had originally intended to write a whole bunch about this but it's actually really complex and subtle, so I really need to <a href="https://jrose-apple.github.io/swift-library-evolution/">punt to Swift's actual docs</a>.</p>
 <p>TL;DR you can mark things as having a frozen (non-resilient) layout, exhaustively matchable, inlineable, non-subclassable, non-escaping, and a bunch of other whacky stuff which variously affects API and ABI in subtle ways.</p>

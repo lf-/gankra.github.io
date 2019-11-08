@@ -13,6 +13,7 @@ This article is broken up into two sections: background and details. Feel free t
 
 If you aren't comfortable with the basic concepts of type layouts, ABIs, and calling conventions, I recommend reading the article I wrote on [the basic concepts of type layout and ABI as they pertain to Rust][rust-abi].
 
+Also huge thanks to the Swift devs for answering all of the questions I had and correcting my misunderstandings!
 
 
 
@@ -511,8 +512,8 @@ Swift makes extensive use of reference counting, and as it turns out it's really
 
 To help deal with this, Swift made ownership of reference-counted values (\~classes) part of its calling convention. The most important aspect is "+0" vs "+1", referring to how the caller should change the refcount:
 
-* +1: caller retains, callee has an "owned" value it's responsible for releasing (if it doesn't escape)
-* +0: caller does nothing, callee has a "borrowed" value it's responsible for retaining (if it escapes)
+* +1: callee has an "owned" value it's responsible for releasing (if it doesn't escape)
+* +0: callee has a "borrowed" value it's responsible for retaining (if it escapes)
 
 Since we're talking about ownership, I'm legally required to compare this system to Rust, and the comparison is pretty straight-forward:
 
@@ -520,15 +521,17 @@ Since we're talking about ownership, I'm legally required to compare this system
 * +0 is a shared immutable reference (`&T`)
 * inout is a mutable exclusive reference  (`&mut T`)
 
-But there's a few key differences:
+But there's a few key differences, due to ARC:
 
-* Classes break "shared xor mutable" reasoning (unless you use CoW, like Swift's collections)
-* +0 isn't tied to pass-by-reference, it can just be a bitwise copy of the value
-* All types can be implicitly cloned, so a +0 can always be upgraded to an owned value
+First and foremost, classes break "shared xor mutable" reasoning, and are effectively like using `Arc<UnsafeCell<T>>` in Rust. This is why Swift's collections provide CoW semantics, [which Rust's Arc also safely provides][arc-mut]. Yes, you can indeed trivially introduce Data Races into Swift code with classes.
 
-In Swift's current design, +0/+1 is largely just something the compiler does internally, but I think more explicit annotations are theoretically on the roadmap.
+Second, all Swift types can always be implicitly cloned, so a +0 can always be upgraded to an owned value without ceremony. That said, cloning in Swift (they just call it copying) is always just bumping reference counts. Other non-trivial operations, like copying an array's buffer to a new allocation, are only performed by mutations that trigger CoW. Note also that this means that if you trigger CoW on an array of arrays, you will get two independent outer arrays that still point to the same inner arrays (which are now primed to CoW if either side mutates them).
 
-There's also a special path for field materialization, "modify", which returns an inout and is therefore +0. This handles the fact that getters are naively +1, which is especially nasty for nested array operations like `array[0][2] *= 2`, as they would always trigger a huge temporary copy of the inner array!
+Third, +0 isn't strictly bound to pass-by-reference, and can just be a trivial bitwise copy of the value. Unfortunately, [weak references][weak] require non-trivial moves because their locations are tracked for auto-nulling, so those *are* passed by reference when using +0 to keep it cheap. Yes, Swift has both copy and move constructors, although they're currently entirely ARC and not user-defined. Swift *also* has unowned references which are the same as Rust's Weak references, which have trivial moves.
+
+In Swift's current design, +0/+1 is mostly just something the compiler does internally to optimize different calling conventions, but I think more explicit annotations are theoretically on the roadmap.
+
+There's also a special path for field materialization, "modify", which returns an inout. This handles the fact that getters are naively +1, which is especially nasty for nested array operations like `array[0][2] *= 2`, as they would always trigger a huge temporary copy of the inner array!
 
 And indeed, the subscript operator of Array contains a modify implementation:
 
@@ -543,9 +546,8 @@ And indeed, the subscript operator of Array contains a modify implementation:
 
 (Interestingly, this implementation is marked as `inlineable`, and so it's actually guaranteed to always work. Array's ABI details were pretty aggressively guaranteed since it's a *relatively* simple fundamental type whose performance matters a lot.)
 
-There's also a read-only version of modify, "read", but it doesn't seem to be as clearly motivated. For now it's mostly just a nice little optimization to avoid doing an extra retain+release.
+There's also a read-only version of modify, "read", which provides a +0 getter. That one isn't as strongly motivated, but hey it's a nice little optimization to avoid a needless retain+release.
 
-I feel like there should be more to say in this section, but I think it was mostly implicitly covered by the other sections? \*shrug\*
 
 
 
@@ -594,7 +596,8 @@ This is already <s>17</s> <s>18</s> <s>19</s> 20 pages and it was supposed to ju
 [coroutines]: https://github.com/apple/swift/blob/master/docs/OwnershipManifesto.md#mutating-iteration
 [stride]: https://developer.apple.com/documentation/swift/memorylayout
 [extra inhabitants]: https://github.com/apple/swift/blob/master/docs/ABIStabilityManifesto.md#enums
-
+[weak]: https://docs.swift.org/swift-book/LanguageGuide/AutomaticReferenceCounting.html#ID52
+[arc-mut]: https://doc.rust-lang.org/std/sync/struct.Arc.html#method.make_mut
 
 <!--
 https://github.com/apple/swift/blob/master/docs/ABIStabilityManifesto.md
