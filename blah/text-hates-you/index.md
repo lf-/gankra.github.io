@@ -1,8 +1,9 @@
 % Text Rendering Hates You
 
-<span class="author">Alexis Beingessner</span>
-
-<span class="date">September 28th, 2019</span>
+<header>
+<p class="author">Alexis Beingessner</p>
+<p class="date">September 28th, 2019</p>
+</header>
 
 Rendering text, how hard could it be? As it turns out, incredibly hard! To my knowledge, literally no system renders text "perfectly". It's all best-effort, although some efforts are more important than others.
 

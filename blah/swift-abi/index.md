@@ -1,6 +1,11 @@
-% Swift and ABI Stability
+% Swift, ABI Stability, and Dynamic Linking
 
-For those who don't follow Swift's development, ABI stability has been one of its most ambitious projects and possibly it's defining feature, [and it finally shipped in Swift 5](https://swift.org/blog/abi-stability-and-more/). The result is something I find endlessly fascinating, because I think Swift has pushed the notion of ABI stability farther than any language with minimal compromise.
+<header>
+    <p class="author">Alexis Beingessner</p>
+    <p class="date">November 7th, 2019</p>
+</header>
+
+For those who don't follow Swift's development, ABI stability has been one of its most ambitious projects and possibly it's defining feature, [and it finally shipped in Swift 5](https://swift.org/blog/abi-stability-and-more/). The result is something I find endlessly fascinating, because I think Swift has pushed the notion of ABI stability farther than any language without much compromise.
 
 So I decided to write up a bunch of the interesting high-level details of Swift's ABI. This **is not** a complete reference for Swift's ABI, but rather an abstract look at its implementation strategy. If you really want to know exactly how it allocates registers or mangles names, look somewhere else. Also for context I'm naturally inclined to compare the design of Swift to Rust, because those are the two languages I have helped develop.
 
@@ -133,13 +138,13 @@ And indeed, in the 90's there was a big push in this direction with Microsoft em
 
 But Swift didn't do this. Swift tries its hardest to generate code comparable to what you would expect from Rust or C++, and how it accomplishes that is what makes its ABI so interesting.
 
-> It's worth noting that the Swift devs disagree with the Rust and C++ codegen orthodoxy in one major way: they care much more about binary sizes. More specifically, they care a lot more about making efficient usage of the cpu's instruction cache, because they believe it's better for system-wide power usage. Apple championing this concern makes a lot of sense, given their suite of battery-powered devices.
->
-> It's harder for third party developers to care about this, as they will naturally only control some small part of the software running on a device, and typical benchmarking strategies don't really capture "this change made your application run faster but is making some background services less responsive and hurting battery life". Hence C++ and Rust inevitably pushing towards "more code, more fast".
->
-> This is all to say that some things which seem like compromises made for ABI stability's sake are genuinely just regarded as desirable.
->
-> I never got any great concrete numbers on this concern from the Swift or Foundation folks, would definitely love to see some! *Waves at the Apple employees reading this*.
+It's worth noting that the Swift devs disagree with the Rust and C++ codegen orthodoxy in one major way: they care much more about binary sizes. More specifically, they care a lot more about making efficient usage of the cpu's instruction cache, because they believe it's better for system-wide power usage. Apple championing this concern makes a lot of sense, given their suite of battery-powered devices.
+
+It's harder for third party developers to care about this, as they will naturally only control some small part of the software running on a device, and typical benchmarking strategies don't really capture "this change made your application run faster but is making some background services less responsive and hurting battery life". Hence C++ and Rust inevitably pushing towards "more code, more fast".
+
+This is all to say that some things which seem like compromises made for ABI stability's sake are genuinely just regarded as desirable.
+
+I never got any great concrete numbers on this concern from the Swift or Foundation folks, would definitely love to see some! *Waves at the Apple employees reading this*.
 
 
 
@@ -209,7 +214,7 @@ Swift doesn't require you to make this compromise.
 
 The following two designs are totally ABI compatible while remaining perfectly idiomatic to use:
 
-```swift
+```
 // version 1
 public struct FileMetadata {
     public var size: Int64
@@ -218,7 +223,7 @@ public struct FileMetadata {
 public func getFileMetadata(_ path: String) -> FileMetadata?
 ```
 
-```swift
+```
 // version 2
 public struct FileMetadata {
     public var lastModifiedTime: Int64 // just add this field, that's it
@@ -340,7 +345,7 @@ If Vec4 were resilient, it would instead have to be passed by-reference. But rem
 
 Similarly, the polymorphicness (polymorphicity?) of things can be changed by their context. Consider the following Swift code that manipulates a closure:
 
-```swift
+```
 // closure is very generic
 func map<T, U>(_ input: T, with mapper: (T) -> U) -> U {
     return mapper(input)
@@ -369,7 +374,7 @@ Instead Swift uses *reabstraction thunks*. These thunks simply wrap a function w
 
 (note: not real Swift code because you can't explicitly talk about generics/conventions in this way)
 
-```swift
+```
 // closure is very generic
 func map<T, U>(_ input: T, with mapper: (T) -> U) -> U {
     return mapper(input)
@@ -422,7 +427,7 @@ The secret to this is *materialization*.
 
 Inouts can only appear as arguments to a function, and so they're naturally scoped to a function call. As such, we can "take a reference" to a computed field by using a temporary with cleanup. So this code:
 
-```swift
+```
 struct MyStruct {
     public var myField: FieldTy
 }
@@ -435,7 +440,7 @@ doTheThing(&myVal.myField)
 
 is (very roughly) compiled to:
 
-```swift
+```
 var myVal = MyStruct(..)
 
 var temp: FieldTy = myVal.get_myField();
@@ -458,7 +463,7 @@ This in turn creates a hilarious footgun many Swift developers run into where th
 
 However you can overcome this limitation with callbacks, as follows:
 
-```swift
+```
 func doSomeWork(_ callback: (inout Float) -> ()) {
     var vec = Vec4()
     // do lots of work...
@@ -478,7 +483,7 @@ doSomeWork { (val: inout Float) -> ()
 
 Callbacks are of course very annoying and noisy, [and so this was solved with the slayer of callbacks, coroutines][coroutines]! The same code can be rewritten as:
 
-```swift
+```
 // No idea if this is valid Swift syntax, and I don't care!
 
 func doSomeWork() -> inout Int {
