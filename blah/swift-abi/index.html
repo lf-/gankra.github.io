@@ -434,6 +434,9 @@ void process(Vec4 vector);
 <li>
 <p>Zero cost abstractions Really Aren't if they ever need to be compiled polymorphically, watch out!</p>
 </li>
+<li>
+<p>Pure Trivia: Rust actually originally tried a polymorphic design similar to Swift's, but they eventually backed off from it once the difficulties became clear. Supporting both polymorphic <em>and</em> monomorphic compilation helped Swift a lot, but I think the key difference was ultimately just that Apple had a more significant motivation than Mozilla to pursue dynamic linking and <em>way</em> more resources to throw at this very hard problem.</p>
+</li>
 </ul>
 <p><em>collapses</em></p>
 <!--

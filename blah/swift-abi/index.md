@@ -584,6 +584,8 @@ This is already <s>17</s> <s>18</s> <s>19</s> 20 pages and it was supposed to ju
 
 * Zero cost abstractions Really Aren't if they ever need to be compiled polymorphically, watch out!
 
+* Pure Trivia: Rust actually originally tried a polymorphic design similar to Swift's, but they eventually backed off from it once the difficulties became clear. Supporting both polymorphic *and* monomorphic compilation helped Swift a lot, but I think the key difference was ultimately just that Apple had a more significant motivation than Mozilla to pursue dynamic linking and *way* more resources to throw at this very hard problem.
+
 *collapses*
 
 
