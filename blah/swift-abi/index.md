@@ -564,7 +564,7 @@ TL;DR you can mark things as having a frozen (non-resilient) layout, exhaustivel
 
 ## Esoterica
 
-This is already <s>17</s> <s>18</s> <s>19</s> 20 pages and it was supposed to just be a warmup for something else I need to do and I NEED TO STOP SO BULLET POINTS:
+This is already <s>17</s> <s>18</s> <s>19</s> <s>20</s> 21 pages and it was supposed to just be a warmup for something else I need to do and I NEED TO STOP SO BULLET POINTS:
 
 * Swift reserves a callee-preserved register for a method's `self` argument (pointer) to make repeated calls faster. Cool?
 

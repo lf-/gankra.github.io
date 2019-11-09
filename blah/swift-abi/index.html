@@ -409,7 +409,7 @@ bool process(bool value);
 <p>Resilience is nifty but it clearly comes with some performance overhead. So of course Swift also provides special attributes to opt out of resilience. I had originally intended to write a whole bunch about this but it's actually really complex and subtle, so I really need to <a href="https://github.com/apple/swift/blob/master/docs/LibraryEvolution.rst">punt to Swift's actual docs</a>.</p>
 <p>TL;DR you can mark things as having a frozen (non-resilient) layout, exhaustively matchable, inlineable, non-subclassable, non-escaping, and a bunch of other whacky stuff which variously affects API and ABI in subtle ways.</p>
 <h2 id="esoterica" class="section-header"><a href="#esoterica">2.7 Esoterica</a></h2>
-<p>This is already <s>17</s> <s>18</s> <s>19</s> 20 pages and it was supposed to just be a warmup for something else I need to do and I NEED TO STOP SO BULLET POINTS:</p>
+<p>This is already <s>17</s> <s>18</s> <s>19</s> <s>20</s> 21 pages and it was supposed to just be a warmup for something else I need to do and I NEED TO STOP SO BULLET POINTS:</p>
 <ul>
 <li>
 <p>Swift reserves a callee-preserved register for a method's <code>self</code> argument (pointer) to make repeated calls faster. Cool?</p>
