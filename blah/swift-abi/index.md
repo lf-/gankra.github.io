@@ -171,7 +171,7 @@ This is all very abstract, let's look at a simple library evolution example.
 
 Let's say we draft up a simple FileMetadata interface in C:
 
-```c
+```
 // version 1
 typedef struct {
     int64_t size;
@@ -182,7 +182,7 @@ bool get_file_metadata(char* path, FileMetadata* output);
 
 Which would be called as:
 
-```c
+```
 FileMetadata metadata;
 if (!get_file_metadata("/my/sweet/file.txt", &metadata) {
     printf("error!");
@@ -193,10 +193,10 @@ printf("file size %lld", metadata.size);
 
 Now let's say we realize that this function should also provide info on when it was last modified:
 
-```c
+```
 // version 2
 typedef struct {
-    int64_t last_modified_time; // 64 bits of time will SURELY be fine...,,
+    int64_t last_modified_time; // 64 bits CLEARLY enough...
     int64_t size;
 } FileMetadata;
 
@@ -338,7 +338,7 @@ But to really understand passing these values, we need to talk about *reabstract
 
 Resilient compilation forces us to use a particular calling convention that's different from what we would use statically. For instance, in the [x64 SysV ABI][sysv], the following would have all of its fields passed in registers:
 
-```c
+```
 struct Vec4 { int32_t x; int32_t y; int32_t z; int32_t w; }
 
 void process(Vec4 vector);
@@ -531,7 +531,7 @@ Second, all Swift types can always be implicitly cloned, so a +0 can always be u
 
 Third, +0 isn't strictly bound to pass-by-reference, and can just be a trivial bitwise copy of the value. Unfortunately, [weak references][weak] require non-trivial moves because their locations are tracked for auto-nulling, so those *are* passed by reference when using +0 to keep it cheap. Yes, Swift has both copy and move constructors, although they're currently entirely ARC and not user-defined. Swift *also* has unowned references which are the same as Rust's Weak references, which have trivial moves.
 
-In Swift's current design, +0/+1 is mostly just something the compiler does internally to optimize different calling conventions, but I think more explicit annotations are theoretically on the roadmap.
+In Swift's current design, +0/+1 is mostly just something the compiler does internally to optimize different calling conventions, but I think more explicit annotations are theoretically on the road map.
 
 There's also a special path for field materialization, "modify", which returns an inout. This handles the fact that getters are naively +1, which is especially nasty for nested array operations like `array[0][2] *= 2`, as they would always trigger a huge temporary copy of the inner array!
 
@@ -556,7 +556,7 @@ There's also a read-only version of modify, "read", which provides a +0 getter. 
 
 ## Opting Out of Resilience
 
-Resilience is nifty but it clearly comes with some perfromance overhead. So of course Swift also provides special attributes to opt out of resilience. I had originally intended to write a whole bunch about this but it's actually really complex and subtle, so I really need to [punt to Swift's actual docs][lib-evolution].
+Resilience is nifty but it clearly comes with some performance overhead. So of course Swift also provides special attributes to opt out of resilience. I had originally intended to write a whole bunch about this but it's actually really complex and subtle, so I really need to [punt to Swift's actual docs][lib-evolution].
 
 TL;DR you can mark things as having a frozen (non-resilient) layout, exhaustively matchable, inlineable, non-subclassable, non-escaping, and a bunch of other whacky stuff which variously affects API and ABI in subtle ways.
 
