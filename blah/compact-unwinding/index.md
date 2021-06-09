@@ -109,6 +109,9 @@ rip := *(rbp + 8)
 rbp := *(rbp)
 ```
 
+(Note that because that stack grows down, the stack pointer always points
+to the last thing that was pushed!)
+
 or natively:
 
 ```

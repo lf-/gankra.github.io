@@ -127,6 +127,8 @@ Unwinding Steps 2 and 3 (only restoring <code>rip</code> and <code>rsp</code>) w
 <span class="ident">rsp</span> :<span class="op">=</span> <span class="ident">rbp</span> <span class="op">+</span> <span class="number">16</span>
 <span class="ident">rip</span> :<span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">rbp</span> <span class="op">+</span> <span class="number">8</span>)
 <span class="ident">rbp</span> :<span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">rbp</span>)</pre></div>
+<p>(Note that because that stack grows down, the stack pointer always points
+to the last thing that was pushed!)</p>
 <p>or natively:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
