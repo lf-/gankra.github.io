@@ -124,9 +124,9 @@ and the current stack pointer (<code>rsp</code>/<code>sp</code>). Now figure out
 Unwinding Steps 2 and 3 (only restoring <code>rip</code> and <code>rsp</code>) with the following:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
-<span class="ident">rsp</span> :<span class="op">=</span> <span class="ident">rbp</span> <span class="op">-</span> <span class="number">16</span>
-<span class="ident">rip</span> :<span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">rbp</span> <span class="op">-</span> <span class="number">16</span>)
-<span class="ident">rbp</span> :<span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">rbp</span> <span class="op">-</span> <span class="number">8</span>)</pre></div>
+<span class="ident">rsp</span> :<span class="op">=</span> <span class="ident">rbp</span> <span class="op">+</span> <span class="number">16</span>
+<span class="ident">rip</span> :<span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">rbp</span> <span class="op">+</span> <span class="number">16</span>)
+<span class="ident">rbp</span> :<span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">rbp</span> <span class="op">+</span> <span class="number">8</span>)</pre></div>
 <p>or natively:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
@@ -221,23 +221,23 @@ the previous rule applies.</p>
 register. This is conceptually the frame pointer, but doesn’t necessarily have
 to be. Since most rules end up being something to the effect of “<code>rbx</code> is saved
 at offset 24 from the start of the frame”, most of our rules end up looking like
-<code>%rbx := *(%cfa + 24)</code>.</p>
+<code>%rbx := *(%cfa - 24)</code>.</p>
 <p>When we can do this, most of our entries will just be instructions on how to update the CFA.
 Here’s an example of what the CFI for a function which saves rbp and rbx would look like:</p>
 <pre><code class="language-text">initial rule (covering 0x08 to 0xA8):   (start of function)
     %rip := *(%cfa);
-    %cfa := %rsp - 8
+    %cfa := %rsp + 8
 
 diff rule (starting at 0x10):           (function pushes rbp)
-    %rbp := *(%cfa + 8)
-    %cfa := %rsp - 16
+    %rbp := *(%cfa - 8)
+    %cfa := %rsp + 16
 
 diff rule (starting at 0x18):           (function pushes rbx)
-    %rbx := *(%cfa + 16)
-    %cfa := %rsp - 24
+    %rbx := *(%cfa - 16)
+    %cfa := %rsp + 24
 
 diff rule (starting at 0x20):           (function reserves remaining stack space)
-    %cfa := %rsp - 120
+    %cfa := %rsp + 120
 </code></pre>
 <p>Unfortunately this format isn’t all roses and sunshine. Compilers can easily make mistakes
 generating it, and it’s apparently quite slow to evaluate. I quite liked the discussion
@@ -543,9 +543,16 @@ and do nothing.)</p>
 <li>Sets <code>bp := sp</code> (new frame pointer is the current top of the stack)</li>
 </ul>
 <p><code>bp</code> has been preserved, and any callee-saved registers that need to be restored
-are saved on the stack at a known offset from <code>bp</code>.</p>
-<p>The return address is stored just before the caller’s <code>bp</code>. The caller’s stack
-pointer should point before where the return address is saved.</p>
+are saved on the stack at a known offset from <code>bp</code>. The return address is
+stored just before the caller’s <code>bp</code>. The caller’s stack pointer should
+point before where the return address is saved.</p>
+<p>So to unwind you just need to do:</p>
+<pre><code class="language-text">%sp := %bp + 2*POINTER_SIZE
+%ip := *(%bp + 2*POINTER_SIZE)
+%bp := *(%bp + POINTER_SIZE)
+
+(and restore all the other callee-saved registers as described below)
+</code></pre>
 <p>Registers are stored in increasing order (so <code>reg1</code> comes before <code>reg2</code>).</p>
 <p>If a register has the “no register” value, continue iterating the offset
 forward. This lets the registers be stored slightly-non-contiguously on the
@@ -553,12 +560,13 @@ stack.</p>
 <p>The remaining 24 bits of the opcode are interpreted as follows (from high to low):</p>
 
 <div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
-<span class="doccomment">/// Registers to restore (see register mapping above)</span>
+<span class="doccomment">/// Registers to restore (see register mapping in previous section)</span>
 <span class="ident">reg1</span>: <span class="ident">u3</span>,
 <span class="ident">reg2</span>: <span class="ident">u3</span>,
 <span class="ident">reg3</span>: <span class="ident">u3</span>,
 <span class="ident">reg4</span>: <span class="ident">u3</span>,
 <span class="ident">reg5</span>: <span class="ident">u3</span>,
+
 <span class="ident">_unused</span>: <span class="ident">u1</span>,
 
 <span class="doccomment">/// The offset from bp that the registers to restore are saved at,</span>
@@ -566,11 +574,15 @@ stack.</p>
 <span class="ident">stack_offset</span>: <span class="ident">u8</span>,</pre></div>
 <h3 id="x86x64-opcode-2-frameless-stack-immediate" class="section-header"><a href="#x86x64-opcode-2-frameless-stack-immediate">4.1.2 x86/x64 Opcode 2: Frameless (Stack-Immediate)</a></h3>
 <p>The callee’s stack frame has a known size, so we can find the start
-of the frame by offsetting from sp (the stack pointer). Any callee-saved
-registers that need to be restored are saved at the start of the stack
-frame.</p>
-<p>The return address is saved immediately before the start of this frame. The
-caller’s stack pointer should point before where the return address is saved.</p>
+of the frame by offsetting from sp (the stack pointer). The return
+address is saved immediately after that location. Any callee-saved
+registers that need to be restored are saved immediately after that.</p>
+<p>So to unwind you just need to do:</p>
+<pre><code class="language-text">%sp := %sp + stack_size * POINTER_SIZE
+%ip := *(%sp - 8)
+
+(and restore all the other callee-saved registers as described below)
+</code></pre>
 <p>Registers are stored in <em>reverse</em> order on the stack from the order the
 decoding algorithm outputs (so <code>reg[1]</code> comes before <code>reg[0]</code>).</p>
 <p>If a register has the “no register” value, <em>do not</em> continue iterating the
@@ -643,8 +655,13 @@ as such it has fairly simple opcodes. There are 3 kinds of ARM64 opcode:</p>
 <p>This is a “frameless” leaf function. The caller is responsible for
 saving/restoring all of its general purpose registers. The frame pointer
 is still the caller’s frame pointer and doesn’t need to be touched. The
-return address is stored in the link register (<code>x30</code>). All we need to do is
-pop the frame and move the return address back to the program counter (<code>pc</code>).</p>
+return address is stored in the link register (<code>x30</code>).</p>
+<p>So to unwind you just need to do:</p>
+<pre><code class="language-text">%sp := %sp + stack_size * 16
+%pc := %x30
+
+(no other registers to restore)
+</code></pre>
 <p>The remaining 24 bits of the opcode are interpreted as follows (from high to low):</p>
 
 <div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
@@ -658,10 +675,17 @@ DWARF CFI in <code>.eh_frame</code> for this line. The remaining 24 bits of the 
 are an offset into the <code>.eh_frame</code> section that should hold the DWARF FDE
 for this instruction address.</p>
 <h3 id="arm64-opcode-4-frame-based" class="section-header"><a href="#arm64-opcode-4-frame-based">4.2.3 ARM64 Opcode 4: Frame-Based</a></h3>
-<p>This is a function with the standard prologue. The frame pointer (<code>x29</code>) and
-return address (<code>pc</code>) were pushed onto the stack in a pair (ARM64 registers
-are saved/restored in pairs), and then the frame pointer was updated
+<p>This is a function with the standard prologue. The return address (<code>pc</code>) and the
+frame pointer (<code>x29</code>) were pushed onto the stack in a pair and in that order
+(ARM64 registers are saved/restored in pairs), and then the frame pointer was updated
 to the current stack pointer.</p>
+<p>So to unwind you just need to do:</p>
+<pre><code class="language-text">%sp := %x29 + 16
+%pc := *(%x29 + 16)
+%x29 := *(%x29 + 8)
+
+(and restore all the other callee-saved registers as described below)
+</code></pre>
 <p>Any callee-saved registers that need to be restored were then pushed
 onto the stack in pairs in the following order (if they were pushed at
 all, see below):</p>
