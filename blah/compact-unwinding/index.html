@@ -30,7 +30,7 @@
     <nav id="TOC"><ul>
 <li><a href="#background-unwinding-and-debug-info">1 Background: Unwinding and Debug Info</a><ul>
 <li><a href="#unwinding">1.1 Unwinding</a><ul></ul></li>
-<li><a href="#standard-prologues-frame-pointer-unwinding">1.2 Standard Prologues (Frame Pointer Unwinding)</a><ul></ul></li>
+<li><a href="#frame-pointer-unwinding-standard-prologues">1.2 Frame Pointer Unwinding (Standard Prologues)</a><ul></ul></li>
 <li><a href="#debug-info">1.3 Debug Info</a><ul></ul></li>
 <li><a href="#unwinding-tables-dwarf-cfi">1.4 Unwinding Tables (DWARF CFI)</a><ul></ul></li>
 <li><a href="#stack-scanning">1.5 Stack Scanning</a><ul></ul></li></ul></li>
@@ -102,8 +102,8 @@ figures out how to restore the caller’s registers for every <code>return</code
 function.</p>
 <p>Except backtraces and unwinding exist.</p>
 <h2 id="unwinding" class="section-header"><a href="#unwinding">1.1 Unwinding</a></h2>
-<p>Whenever you decided to unwind (panic or throw an exception) or generate a backtrace
-(for a crash, step debugger, or a profiler trace), you are faced with the following problem:</p>
+<p>Whenever you decide to unwind (panic/throw) or generate a backtrace
+(crash, gdb, profiler trace), you are faced with the following problem:</p>
 <p>You know the current address in the binary your program is executing (<code>rip</code>/<code>pc</code>)
 and the current stack pointer (<code>rsp</code>/<code>sp</code>). Now figure out:</p>
 <ol>
@@ -112,9 +112,9 @@ and the current stack pointer (<code>rsp</code>/<code>sp</code>). Now figure out
 <li>How to restore the caller’s registers (most importantly the stack pointer)</li>
 </ol>
 <p>And then repeat this over and over until you have walked over the whole stack.</p>
-<h2 id="standard-prologues-frame-pointer-unwinding" class="section-header"><a href="#standard-prologues-frame-pointer-unwinding">1.2 Standard Prologues (Frame Pointer Unwinding)</a></h2>
-<p>Steps 2 and 3 can be minimally done very easily if all functions uses a standard
-“prologue”. On x64, the standard prologue uses frame pointers, and is as follows:</p>
+<h2 id="frame-pointer-unwinding-standard-prologues" class="section-header"><a href="#frame-pointer-unwinding-standard-prologues">1.2 Frame Pointer Unwinding (Standard Prologues)</a></h2>
+<p>Unwinding Steps 2 and 3 can be done very easily if all functions uses a standard
+“prologue” that maintains the frame pointer. On x64, the standard prologue is as follows:</p>
 <ol>
 <li>caller performs a CALL (implicitly PUSHes the return address (<code>rip</code>) to the stack)</li>
 <li>callee PUSHes <code>rbp</code> (the frame caller’s frame pointer – where it’s stack starts)</li>
@@ -250,8 +250,8 @@ you can resort to <em>stack scanning</em>.</p>
 values out of it. If any of them look like a return address, assume that’s the return
 address (and the caller’s stack pointer should be restored to that location).</p>
 <p>It’s a surprisingly decent fallback.</p>
-<p>The main question to answer is “what does a return address”
-look like. If you have other kinds of debug info or can lookup modules, then
+<p>The main question to answer is “what does a return address look like?”.
+If you have other kinds of debug info or can lookup modules, then
 you can check if the address maps to a module/function. Otherwise you can try
 eliminating things like non-canonical addresses.</p>
 <h1 id="the-compact-unwinding-format" class="section-header"><a href="#the-compact-unwinding-format">2 The Compact Unwinding Format</a></h1>

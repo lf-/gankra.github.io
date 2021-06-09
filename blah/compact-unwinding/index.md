@@ -76,8 +76,8 @@ Except backtraces and unwinding exist.
 
 ## Unwinding
 
-Whenever you decided to unwind (panic or throw an exception) or generate a backtrace
-(for a crash, step debugger, or a profiler trace), you are faced with the following problem:
+Whenever you decide to unwind (panic/throw) or generate a backtrace
+(crash, gdb, profiler trace), you are faced with the following problem:
 
 You know the current address in the binary your program is executing (`rip`/`pc`)
 and the current stack pointer (`rsp`/`sp`). Now figure out:
@@ -91,10 +91,10 @@ And then repeat this over and over until you have walked over the whole stack.
 
 
 
-## Standard Prologues (Frame Pointer Unwinding)
+## Frame Pointer Unwinding (Standard Prologues)
 
-Steps 2 and 3 can be minimally done very easily if all functions uses a standard
-"prologue". On x64, the standard prologue uses frame pointers, and is as follows:
+Unwinding Steps 2 and 3 can be done very easily if all functions uses a standard
+"prologue" that maintains the frame pointer. On x64, the standard prologue is as follows:
 
 1. caller performs a CALL (implicitly PUSHes the return address (`rip`) to the stack)
 2. callee PUSHes `rbp` (the frame caller's frame pointer -- where it's stack starts)
@@ -274,8 +274,8 @@ address (and the caller's stack pointer should be restored to that location).
 
 It's a surprisingly decent fallback.
 
-The main question to answer is "what does a return address"
-look like. If you have other kinds of debug info or can lookup modules, then
+The main question to answer is "what does a return address look like?".
+If you have other kinds of debug info or can lookup modules, then
 you can check if the address maps to a module/function. Otherwise you can try
 eliminating things like non-canonical addresses.
 
