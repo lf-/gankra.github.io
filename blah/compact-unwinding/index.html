@@ -39,10 +39,10 @@
 <li><a href="#layout-of-the-page-table">3.1 Layout of the Page Table</a><ul></ul></li></ul></li>
 <li><a href="#opcode-format">4 Opcode Format</a><ul>
 <li><a href="#x86-and-x64-opcodes">4.1 x86 and x64 Opcodes</a><ul>
-<li><a href="#x86x64-opcode-mode-1-frame-based">4.1.1 x86/x64 Opcode Mode 1: Frame-Based</a><ul></ul></li>
-<li><a href="#x86x64-opcode-mode-2-frameless-stack-immediate">4.1.2 x86/x64 Opcode Mode 2: Frameless (Stack-Immediate)</a><ul></ul></li>
-<li><a href="#x86x64-opcode-mode-3-frameless-stack-indirect">4.1.3 x86/x64 Opcode Mode 3: Frameless (Stack-Indirect)</a><ul></ul></li>
-<li><a href="#x86x64-opcode-mode-4-dwarf">4.1.4 x86/x64 Opcode Mode 4: Dwarf</a><ul></ul></li></ul></li>
+<li><a href="#x86x64-opcode-1-frame-based">4.1.1 x86/x64 Opcode 1: Frame-Based</a><ul></ul></li>
+<li><a href="#x86x64-opcode-2-frameless-stack-immediate">4.1.2 x86/x64 Opcode 2: Frameless (Stack-Immediate)</a><ul></ul></li>
+<li><a href="#x86x64-opcode-3-frameless-stack-indirect">4.1.3 x86/x64 Opcode 3: Frameless (Stack-Indirect)</a><ul></ul></li>
+<li><a href="#x86x64-opcode-4-dwarf">4.1.4 x86/x64 Opcode 4: Dwarf</a><ul></ul></li></ul></li>
 <li><a href="#arm64-opcodes">4.2 ARM64 Opcodes</a><ul>
 <li><a href="#arm64-opcode-2-frameless">4.2.1 ARM64 Opcode 2: Frameless</a><ul></ul></li>
 <li><a href="#arm64-opcode-3-dwarf">4.2.2 ARM64 Opcode 3: Dwarf</a><ul></ul></li>
@@ -536,7 +536,7 @@ reserved to prevent the testing data from ever getting mixed with real
 data. Nothing should produce or handle it. It does incidentally match
 the “null opcode”, but it’s fine to regard that as an unknown opcode
 and do nothing.)</p>
-<h3 id="x86x64-opcode-mode-1-frame-based" class="section-header"><a href="#x86x64-opcode-mode-1-frame-based">4.1.1 x86/x64 Opcode Mode 1: Frame-Based</a></h3>
+<h3 id="x86x64-opcode-1-frame-based" class="section-header"><a href="#x86x64-opcode-1-frame-based">4.1.1 x86/x64 Opcode 1: Frame-Based</a></h3>
 <p>The function has the standard frame pointer (<code>bp</code>) prelude which:</p>
 <ul>
 <li>Pushes the caller’s <code>bp</code> to the stack</li>
@@ -564,7 +564,7 @@ stack.</p>
 <span class="doccomment">/// The offset from bp that the registers to restore are saved at,</span>
 <span class="doccomment">/// divided by pointer size.</span>
 <span class="ident">stack_offset</span>: <span class="ident">u8</span>,</pre></div>
-<h3 id="x86x64-opcode-mode-2-frameless-stack-immediate" class="section-header"><a href="#x86x64-opcode-mode-2-frameless-stack-immediate">4.1.2 x86/x64 Opcode Mode 2: Frameless (Stack-Immediate)</a></h3>
+<h3 id="x86x64-opcode-2-frameless-stack-immediate" class="section-header"><a href="#x86x64-opcode-2-frameless-stack-immediate">4.1.2 x86/x64 Opcode 2: Frameless (Stack-Immediate)</a></h3>
 <p>The callee’s stack frame has a known size, so we can find the start
 of the frame by offsetting from sp (the stack pointer). Any callee-saved
 registers that need to be restored are saved at the start of the stack
@@ -597,7 +597,7 @@ six registers in a 10-bit space.</p>
 <p>This can’t really be described well with anything but code, so
 just read this implementation or llvm’s implementation for how to
 encode/decode this.</p>
-<h3 id="x86x64-opcode-mode-3-frameless-stack-indirect" class="section-header"><a href="#x86x64-opcode-mode-3-frameless-stack-indirect">4.1.3 x86/x64 Opcode Mode 3: Frameless (Stack-Indirect)</a></h3>
+<h3 id="x86x64-opcode-3-frameless-stack-indirect" class="section-header"><a href="#x86x64-opcode-3-frameless-stack-indirect">4.1.3 x86/x64 Opcode 3: Frameless (Stack-Indirect)</a></h3>
 <p>(Currently Unimplemented)</p>
 <p>Stack-Indirect is exactly the same situation as Stack-Immediate, but
 the stack-frame size is too large for Stack-Immediate to encode. However,
@@ -630,7 +630,7 @@ offset from the start of the function (<code>subl $nnnnnnnn,ESP</code> in x86,
 corrupted versions of this opcode, but this was fixed in Xcode 7
 (released in September 2015), so <em>presumably</em> this isn’t something we’re
 likely to encounter. But if you encounter messed up opcodes this might be why.</p>
-<h3 id="x86x64-opcode-mode-4-dwarf" class="section-header"><a href="#x86x64-opcode-mode-4-dwarf">4.1.4 x86/x64 Opcode Mode 4: Dwarf</a></h3>
+<h3 id="x86x64-opcode-4-dwarf" class="section-header"><a href="#x86x64-opcode-4-dwarf">4.1.4 x86/x64 Opcode 4: Dwarf</a></h3>
 <p>There is no compact unwind info here, and you should instead use the
 DWARF CFI in <code>.eh_frame</code> for this line. The remaining 24 bits of the opcode
 are an offset into the <code>.eh_frame</code> section that should hold the DWARF FDE
@@ -638,6 +638,7 @@ for this instruction address.</p>
 <h2 id="arm64-opcodes" class="section-header"><a href="#arm64-opcodes">4.2 ARM64 Opcodes</a></h2>
 <p>ARM64 (AKA AArch64) is a lot more strict about the ABI of functions, and
 as such it has fairly simple opcodes. There are 3 kinds of ARM64 opcode:</p>
+<p>(Yes there’s no Opcode 1, I don’t know why.)</p>
 <h3 id="arm64-opcode-2-frameless" class="section-header"><a href="#arm64-opcode-2-frameless">4.2.1 ARM64 Opcode 2: Frameless</a></h3>
 <p>This is a “frameless” leaf function. The caller is responsible for
 saving/restoring all of its general purpose registers. The frame pointer

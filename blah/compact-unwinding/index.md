@@ -611,7 +611,7 @@ the "null opcode", but it's fine to regard that as an unknown opcode
 and do nothing.)
 
 
-### x86/x64 Opcode Mode 1: Frame-Based
+### x86/x64 Opcode 1: Frame-Based
 
 The function has the standard frame pointer (`bp`) prelude which:
 
@@ -648,7 +648,7 @@ stack_offset: u8,
 
 
 
-### x86/x64 Opcode Mode 2: Frameless (Stack-Immediate)
+### x86/x64 Opcode 2: Frameless (Stack-Immediate)
 
 The callee's stack frame has a known size, so we can find the start
 of the frame by offsetting from sp (the stack pointer). Any callee-saved
@@ -693,7 +693,7 @@ encode/decode this.
 
 
 
-### x86/x64 Opcode Mode 3: Frameless (Stack-Indirect)
+### x86/x64 Opcode 3: Frameless (Stack-Indirect)
 
 (Currently Unimplemented)
 
@@ -736,7 +736,7 @@ likely to encounter. But if you encounter messed up opcodes this might be why.
 
 
 
-### x86/x64 Opcode Mode 4: Dwarf
+### x86/x64 Opcode 4: Dwarf
 
 There is no compact unwind info here, and you should instead use the
 DWARF CFI in `.eh_frame` for this line. The remaining 24 bits of the opcode
@@ -750,6 +750,7 @@ for this instruction address.
 ARM64 (AKA AArch64) is a lot more strict about the ABI of functions, and
 as such it has fairly simple opcodes. There are 3 kinds of ARM64 opcode:
 
+(Yes there's no Opcode 1, I don't know why.)
 
 
 ### ARM64 Opcode 2: Frameless
