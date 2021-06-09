@@ -125,8 +125,8 @@ Unwinding Steps 2 and 3 (only restoring <code>rip</code> and <code>rsp</code>) w
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
 <span class="ident">rsp</span> :<span class="op">=</span> <span class="ident">rbp</span> <span class="op">+</span> <span class="number">16</span>
-<span class="ident">rip</span> :<span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">rbp</span> <span class="op">+</span> <span class="number">16</span>)
-<span class="ident">rbp</span> :<span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">rbp</span> <span class="op">+</span> <span class="number">8</span>)</pre></div>
+<span class="ident">rip</span> :<span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">rbp</span> <span class="op">+</span> <span class="number">8</span>)
+<span class="ident">rbp</span> :<span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">rbp</span>)</pre></div>
 <p>or natively:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered">
@@ -548,8 +548,8 @@ stored just before the caller’s <code>bp</code>. The caller’s stack pointer 
 point before where the return address is saved.</p>
 <p>So to unwind you just need to do:</p>
 <pre><code class="language-text">%sp := %bp + 2*POINTER_SIZE
-%ip := *(%bp + 2*POINTER_SIZE)
-%bp := *(%bp + POINTER_SIZE)
+%ip := *(%bp + POINTER_SIZE)
+%bp := *(%bp)
 
 (and restore all the other callee-saved registers as described below)
 </code></pre>
@@ -681,8 +681,8 @@ frame pointer (<code>x29</code>) were pushed onto the stack in a pair and in tha
 to the current stack pointer.</p>
 <p>So to unwind you just need to do:</p>
 <pre><code class="language-text">%sp := %x29 + 16
-%pc := *(%x29 + 16)
-%x29 := *(%x29 + 8)
+%pc := *(%x29 + 8)
+%x29 := *(%x29)
 
 (and restore all the other callee-saved registers as described below)
 </code></pre>

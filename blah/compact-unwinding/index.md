@@ -105,8 +105,8 @@ Unwinding Steps 2 and 3 (only restoring `rip` and `rsp`) with the following:
 
 ```
 rsp := rbp + 16
-rip := *(rbp + 16)
-rbp := *(rbp + 8)
+rip := *(rbp + 8)
+rbp := *(rbp)
 ```
 
 or natively:
@@ -627,8 +627,8 @@ So to unwind you just need to do:
 
 ```text
 %sp := %bp + 2*POINTER_SIZE
-%ip := *(%bp + 2*POINTER_SIZE)
-%bp := *(%bp + POINTER_SIZE)
+%ip := *(%bp + POINTER_SIZE)
+%bp := *(%bp)
 
 (and restore all the other callee-saved registers as described below)
 ```
@@ -816,8 +816,8 @@ So to unwind you just need to do:
 
 ```text
 %sp := %x29 + 16
-%pc := *(%x29 + 16)
-%x29 := *(%x29 + 8)
+%pc := *(%x29 + 8)
+%x29 := *(%x29)
 
 (and restore all the other callee-saved registers as described below)
 ```
