@@ -39,10 +39,10 @@
 <li><a href="#layout-of-the-page-table">3.1 Layout of the Page Table</a><ul></ul></li></ul></li>
 <li><a href="#opcode-format">4 Opcode Format</a><ul>
 <li><a href="#x86-and-x64-opcodes">4.1 x86 and x64 Opcodes</a><ul>
-<li><a href="#x86-opcode-mode-1-bp-based">4.1.1 x86 Opcode Mode 1: BP-Based</a><ul></ul></li>
-<li><a href="#x86-opcode-mode-2-frameless-stack-immediate">4.1.2 x86 Opcode Mode 2: Frameless (Stack-Immediate)</a><ul></ul></li>
-<li><a href="#x86-opcode-mode-3-frameless-stack-indirect">4.1.3 x86 Opcode Mode 3: Frameless (Stack-Indirect)</a><ul></ul></li>
-<li><a href="#x86-opcode-mode-4-dwarf">4.1.4 x86 Opcode Mode 4: Dwarf</a><ul></ul></li></ul></li>
+<li><a href="#x86x64-opcode-mode-1-frame-based">4.1.1 x86/x64 Opcode Mode 1: Frame-Based</a><ul></ul></li>
+<li><a href="#x86x64-opcode-mode-2-frameless-stack-immediate">4.1.2 x86/x64 Opcode Mode 2: Frameless (Stack-Immediate)</a><ul></ul></li>
+<li><a href="#x86x64-opcode-mode-3-frameless-stack-indirect">4.1.3 x86/x64 Opcode Mode 3: Frameless (Stack-Indirect)</a><ul></ul></li>
+<li><a href="#x86x64-opcode-mode-4-dwarf">4.1.4 x86/x64 Opcode Mode 4: Dwarf</a><ul></ul></li></ul></li>
 <li><a href="#arm64-opcodes">4.2 ARM64 Opcodes</a><ul>
 <li><a href="#arm64-opcode-2-frameless">4.2.1 ARM64 Opcode 2: Frameless</a><ul></ul></li>
 <li><a href="#arm64-opcode-3-dwarf">4.2.2 ARM64 Opcode 3: Dwarf</a><ul></ul></li>
@@ -63,7 +63,7 @@ of the actual implementation to figure everything out:</p>
 <li><a href="https://github.com/llvm/llvm-project/blob/main/lldb/source/Symbol/CompactUnwindInfo.cpp">Implementation of lldb interpreting that format (CreateUnwindPlan_x86_64 especially useful)</a></li>
 </ul>
 <p>Firefox’s crash reporter needs good backtraces on Apple platforms, so learning
-this format and implementing a parser/interpretter for it became my problem.
+this format and implementing a parser/interpreter for it became my problem.
 As I often do, I proceeded to write complete documentation for the format,
 to the best of my ability.</p>
 <p>Note however that my work omits details on the “personality” and “LSDA” parts of the format,
@@ -159,8 +159,8 @@ formats are:</p>
 </ul>
 <p>Given the subject of this article, I will only really be focusing on Mach-O,
 but <em>a lot</em> of this will also apply to ELF, as they both heavily use DWARF.</p>
-<p>These container formats are generally broken up into sections like constants (<code>.rodata</code>)
-the instructions to execute (<code>.text</code>), and well, debug info (<code>.debug_info</code>). Apple likes to prefix
+<p>These container formats are generally broken up into sections – things like constants (<code>.rodata</code>),
+instructions to execute (<code>.text</code>), and well, debug info (<code>.debug_info</code>). Apple likes to prefix
 these with two underscores, so I may interchangeably refer to <code>.__eh_frame</code> or <code>.eh_frame</code> –
 they’re the same.</p>
 <p>The most common debug info format you will encounter is DWARF, which is actually
@@ -174,7 +174,7 @@ and Apple’s platforms are no exception.</p>
 <li><code>.eh_frame</code> – same as debug_frame but non-standard/tweaked</li>
 </ul>
 <p>To properly use these sections you need to know one more detail: an executable
-is actually many disparate reloctable pieces of code that have been stitched together
+is actually many disparate relocatable pieces of code that have been stitched together
 by both a static linker (at compile time) and a dynamic linker (at runtime). To
 handle this, the executable is sliced up into “modules” which generally refer to
 a particular static or dynamic library (e.g. <code>libsystem_pthread.dylib</code>).</p>
@@ -188,7 +188,7 @@ so I’ll leave that as an exercise to the reader.</p>
 <p>With all that said, Unwinding Step 1 is simple:</p>
 <p>Lookup the instruction address in the <code>.debug_info</code> section. Boom you have
 function names and lines. That’s it. That format isn’t the focus of this.
-There’s plenty of DWARF parsers/interpretters, and the official specification
+There’s plenty of DWARF parsers/interpreters, and the official specification
 is quite good.</p>
 <p>Of more interest to this article is <code>.debug_frame</code> and <code>.eh_frame</code>. These
 sections contain DWARF CFI (unwinding) tables. I’m also not going to give a
@@ -214,7 +214,7 @@ convoluted unwinding methods possible.</p>
 itself, as it would have multiple unwinding instructions for every instruction
 in the executable), so a compression scheme is needed.</p>
 <p>DWARF CFI achieves compression by allowing entries in the table to be a <em>diff</em>
-on a base entry that covers a range of instructions. The simplest and most effecient diff
+on a base entry that covers a range of instructions. The simplest and most efficient diff
 is just <em>not having a new entry</em>. Unless a new rule is introduced at an address,
 the previous rule applies.</p>
 <p>To simplify these diffs, DWARF CFI defines a “CFA” (canonical frame address)
@@ -486,7 +486,7 @@ with the root page:</p>
 <p>All 3 formats have a “null opcode” (0x0000_0000) which indicates that
 there is no unwinding information for this range of addresses. This happens
 with things like hand-written assembly subroutines. This implementation
-will yield it as a valid opcode that converts into CompactUnwindOp::None.</p>
+will yield it as a valid opcode that converts into <code>CompactUnwindOp::None</code>.</p>
 <p>All 3 formats share a common header in the top 8 bits (from high to low):</p>
 
 <div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
@@ -508,23 +508,23 @@ will yield it as a valid opcode that converts into CompactUnwindOp::None.</p>
 being restored. Registers are numbered 0-6, with the following mappings:</p>
 <p>x86:</p>
 <ul>
-<li>0 =&gt; no register (like Option::None)</li>
-<li>1 =&gt; ebx</li>
-<li>2 =&gt; ecx</li>
-<li>3 =&gt; edx</li>
-<li>4 =&gt; edi</li>
-<li>5 =&gt; esi</li>
-<li>6 =&gt; ebp</li>
+<li>0 =&gt; no register (like <code>Option::None</code>)</li>
+<li>1 =&gt; <code>ebx</code></li>
+<li>2 =&gt; <code>ecx</code></li>
+<li>3 =&gt; <code>edx</code></li>
+<li>4 =&gt; <code>edi</code></li>
+<li>5 =&gt; <code>esi</code></li>
+<li>6 =&gt; <code>ebp</code></li>
 </ul>
 <p>x64:</p>
 <ul>
-<li>0 =&gt; no register (like Option::None)</li>
-<li>1 =&gt; rbx</li>
-<li>2 =&gt; r12</li>
-<li>3 =&gt; r13</li>
-<li>4 =&gt; r14</li>
-<li>5 =&gt; r15</li>
-<li>6 =&gt; rbp</li>
+<li>0 =&gt; no register (like <code>Option::None</code>)</li>
+<li>1 =&gt; <code>rbx</code></li>
+<li>2 =&gt; <code>r12</code></li>
+<li>3 =&gt; <code>r13</code></li>
+<li>4 =&gt; <code>r14</code></li>
+<li>5 =&gt; <code>r15</code></li>
+<li>6 =&gt; <code>rbp</code></li>
 </ul>
 <p>Note also that encoded sizes/offsets are generally divided by the pointer size
 (since all values we are interested in are pointer-aligned), which of course differs
@@ -536,15 +536,15 @@ reserved to prevent the testing data from ever getting mixed with real
 data. Nothing should produce or handle it. It does incidentally match
 the “null opcode”, but it’s fine to regard that as an unknown opcode
 and do nothing.)</p>
-<h3 id="x86-opcode-mode-1-bp-based" class="section-header"><a href="#x86-opcode-mode-1-bp-based">4.1.1 x86 Opcode Mode 1: BP-Based</a></h3>
-<p>The function has the standard bp-based prelude which:</p>
+<h3 id="x86x64-opcode-mode-1-frame-based" class="section-header"><a href="#x86x64-opcode-mode-1-frame-based">4.1.1 x86/x64 Opcode Mode 1: Frame-Based</a></h3>
+<p>The function has the standard frame pointer (<code>bp</code>) prelude which:</p>
 <ul>
-<li>Pushes the caller’s bp (frame pointer) to the stack</li>
-<li>Sets bp = sp (new frame pointer is the current top of the stack)</li>
+<li>Pushes the caller’s <code>bp</code> to the stack</li>
+<li>Sets <code>bp := sp</code> (new frame pointer is the current top of the stack)</li>
 </ul>
 <p>bp has been preserved, and any callee-saved registers that need to be restored
-are saved on the stack at a known offset from bp.</p>
-<p>The return address is stored just before the caller’s bp. The caller’s stack
+are saved on the stack at a known offset from <code>bp</code>.</p>
+<p>The return address is stored just before the caller’s <code>bp</code>. The caller’s stack
 pointer should point before where the return address is saved.</p>
 <p>Registers are stored in increasing order (so <code>reg1</code> comes before <code>reg2</code>).</p>
 <p>If a register has the “no register” value, continue iterating the offset
@@ -564,7 +564,7 @@ stack.</p>
 <span class="doccomment">/// The offset from bp that the registers to restore are saved at,</span>
 <span class="doccomment">/// divided by pointer size.</span>
 <span class="ident">stack_offset</span>: <span class="ident">u8</span>,</pre></div>
-<h3 id="x86-opcode-mode-2-frameless-stack-immediate" class="section-header"><a href="#x86-opcode-mode-2-frameless-stack-immediate">4.1.2 x86 Opcode Mode 2: Frameless (Stack-Immediate)</a></h3>
+<h3 id="x86x64-opcode-mode-2-frameless-stack-immediate" class="section-header"><a href="#x86x64-opcode-mode-2-frameless-stack-immediate">4.1.2 x86/x64 Opcode Mode 2: Frameless (Stack-Immediate)</a></h3>
 <p>The callee’s stack frame has a known size, so we can find the start
 of the frame by offsetting from sp (the stack pointer). Any callee-saved
 registers that need to be restored are saved at the start of the stack
@@ -597,7 +597,7 @@ six registers in a 10-bit space.</p>
 <p>This can’t really be described well with anything but code, so
 just read this implementation or llvm’s implementation for how to
 encode/decode this.</p>
-<h3 id="x86-opcode-mode-3-frameless-stack-indirect" class="section-header"><a href="#x86-opcode-mode-3-frameless-stack-indirect">4.1.3 x86 Opcode Mode 3: Frameless (Stack-Indirect)</a></h3>
+<h3 id="x86x64-opcode-mode-3-frameless-stack-indirect" class="section-header"><a href="#x86x64-opcode-mode-3-frameless-stack-indirect">4.1.3 x86/x64 Opcode Mode 3: Frameless (Stack-Indirect)</a></h3>
 <p>(Currently Unimplemented)</p>
 <p>Stack-Indirect is exactly the same situation as Stack-Immediate, but
 the stack-frame size is too large for Stack-Immediate to encode. However,
@@ -630,10 +630,10 @@ offset from the start of the function (<code>subl $nnnnnnnn,ESP</code> in x86,
 corrupted versions of this opcode, but this was fixed in Xcode 7
 (released in September 2015), so <em>presumably</em> this isn’t something we’re
 likely to encounter. But if you encounter messed up opcodes this might be why.</p>
-<h3 id="x86-opcode-mode-4-dwarf" class="section-header"><a href="#x86-opcode-mode-4-dwarf">4.1.4 x86 Opcode Mode 4: Dwarf</a></h3>
+<h3 id="x86x64-opcode-mode-4-dwarf" class="section-header"><a href="#x86x64-opcode-mode-4-dwarf">4.1.4 x86/x64 Opcode Mode 4: Dwarf</a></h3>
 <p>There is no compact unwind info here, and you should instead use the
-DWARF CFI in .eh_frame for this line. The remaining 24 bits of the opcode
-are an offset into the .eh_frame section that should hold the DWARF FDE
+DWARF CFI in <code>.eh_frame</code> for this line. The remaining 24 bits of the opcode
+are an offset into the <code>.eh_frame</code> section that should hold the DWARF FDE
 for this instruction address.</p>
 <h2 id="arm64-opcodes" class="section-header"><a href="#arm64-opcodes">4.2 ARM64 Opcodes</a></h2>
 <p>ARM64 (AKA AArch64) is a lot more strict about the ABI of functions, and
@@ -642,8 +642,8 @@ as such it has fairly simple opcodes. There are 3 kinds of ARM64 opcode:</p>
 <p>This is a “frameless” leaf function. The caller is responsible for
 saving/restoring all of its general purpose registers. The frame pointer
 is still the caller’s frame pointer and doesn’t need to be touched. The
-return address is stored in the link register (x30). All we need to do is
-pop the frame and move the return address back to the program counter (pc).</p>
+return address is stored in the link register (<code>x30</code>). All we need to do is
+pop the frame and move the return address back to the program counter (<code>pc</code>).</p>
 <p>The remaining 24 bits of the opcode are interpreted as follows (from high to low):</p>
 
 <div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
@@ -653,27 +653,27 @@ pop the frame and move the return address back to the program counter (pc).</p>
 <span class="ident">_unused</span>: <span class="ident">u12</span>,</pre></div>
 <h3 id="arm64-opcode-3-dwarf" class="section-header"><a href="#arm64-opcode-3-dwarf">4.2.2 ARM64 Opcode 3: Dwarf</a></h3>
 <p>There is no compact unwind info here, and you should instead use the
-DWARF CFI in .eh_frame for this line. The remaining 24 bits of the opcode
-are an offset into the .eh_frame section that should hold the DWARF FDE
+DWARF CFI in <code>.eh_frame</code> for this line. The remaining 24 bits of the opcode
+are an offset into the <code>.eh_frame</code> section that should hold the DWARF FDE
 for this instruction address.</p>
 <h3 id="arm64-opcode-4-frame-based" class="section-header"><a href="#arm64-opcode-4-frame-based">4.2.3 ARM64 Opcode 4: Frame-Based</a></h3>
-<p>This is a function with the standard prologue. The frame pointer (x29) and
-return address (pc) were pushed onto the stack in a pair (ARM64 registers
+<p>This is a function with the standard prologue. The frame pointer (<code>x29</code>) and
+return address (<code>pc</code>) were pushed onto the stack in a pair (ARM64 registers
 are saved/restored in pairs), and then the frame pointer was updated
 to the current stack pointer.</p>
 <p>Any callee-saved registers that need to be restored were then pushed
 onto the stack in pairs in the following order (if they were pushed at
 all, see below):</p>
 <ol>
-<li>x19, x20</li>
-<li>x21, x22</li>
-<li>x23, x24</li>
-<li>x25, x26</li>
-<li>x27, x28</li>
-<li>d8, d9</li>
-<li>d10, d11</li>
-<li>d12, d13</li>
-<li>d14, d15</li>
+<li><code>x19</code>, <code>x20</code></li>
+<li><code>x21</code>, <code>x22</code></li>
+<li><code>x23</code>, <code>x24</code></li>
+<li><code>x25</code>, <code>x26</code></li>
+<li><code>x27</code>, <code>x28</code></li>
+<li><code>d8</code>, <code>d9</code></li>
+<li><code>d10</code>, <code>d11</code></li>
+<li><code>d12</code>, <code>d13</code></li>
+<li><code>d14</code>, <code>d15</code></li>
 </ol>
 <p>The remaining 24 bits of the opcode are interpreted as follows (from high to low):</p>
 
@@ -732,15 +732,15 @@ implementation does not report an error if a second-level page has more
 values than that, and should work fine if it does.</p>
 </li>
 <li>
-<p>If a [<code>CompactUnwindInfoIter</code>] is created for an architecture it wasn’t
+<p>If a <code>CompactUnwindInfoIter</code> is created for an architecture it wasn’t
 designed for, it is assumed that the layout of the page tables will
 remain the same, and entry iteration/lookup should still work and
-produce results. However [<code>CompactUnwindInfoEntry::instructions</code>]
-will always return [<code>CompactUnwindOp::None</code>].</p>
+produce results. However <code>CompactUnwindInfoEntry::instructions</code>
+will always return <code>CompactUnwindOp::None</code>.</p>
 </li>
 <li>
 <p>If an opcode kind is encountered that this implementation wasn’t
-designed for, Opcode::instructions will return [<code>CompactUnwindOp::None</code>].</p>
+designed for, Opcode::instructions will return <code>CompactUnwindOp::None</code>.</p>
 </li>
 <li>
 <p>If two entries have the same address (making the first have zero-length),
@@ -761,7 +761,7 @@ clamps the value to 6.</p>
 <ul>
 <li>
 <p>If the root page has a version this implementation wasn’t designed for,
-[<code>CompactUnwindInfoIter::new</code>] will return an Error.</p>
+<code>CompactUnwindInfoIter::new</code> will return an Error.</p>
 </li>
 <li>
 <p>A corrupt unwind_info section may have its entries out of order. Since
@@ -771,7 +771,7 @@ an error if it encounters this. However it does not attempt to fully
 validate the ordering during an entry_for_address query, as this would
 significantly slow down the binary search. In this situation
 you may get chaotic results (same guarantees as BTreeMap with an
-inconsistent Ord implementation).</p>
+inconsistent <code>Ord</code> implementation).</p>
 </li>
 <li>
 <p>A corrupt unwind_info section may attempt to index out of bounds either
