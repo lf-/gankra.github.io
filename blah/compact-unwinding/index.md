@@ -130,7 +130,7 @@ prologue as well.
 
 Good news: [Apple Mandates Frame Pointers on ARM64](https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms).
 
-Bad news: No one else does, and optimizers gonna optimize. Especially on `x86` where
+Bad news: No one else does, and optimizers gonna optimize. Especially on x86 where
 register pressure is really high and `ebp` is so juicy and tempting.
 
 
@@ -550,7 +550,7 @@ struct LsdaEntry {
 
 There are 3 architecture-specific opcode formats: x86, x64, and ARM64.
 
-All 3 formats have a "null opcode" (0x0000_0000) which indicates that
+All 3 formats have a "null opcode" (`0x0000_0000`) which indicates that
 there is no unwinding information for this range of addresses. This happens
 with things like hand-written assembly subroutines. This implementation
 will yield it as a valid opcode that converts into `CompactUnwindOp::None`.
@@ -618,7 +618,7 @@ The function has the standard frame pointer (`bp`) prelude which:
 * Pushes the caller's `bp` to the stack
 * Sets `bp := sp` (new frame pointer is the current top of the stack)
 
-bp has been preserved, and any callee-saved registers that need to be restored
+`bp` has been preserved, and any callee-saved registers that need to be restored
 are saved on the stack at a known offset from `bp`.
 
 The return address is stored just before the caller's `bp`. The caller's stack
@@ -831,7 +831,7 @@ maintenance/debugging. Hopefully it also helps highlight all the ways things
 can go wrong for anyone using this documentation to write their own tooling.
 
 For all these cases, if an Error is reported during iteration/search, the
-CompactUnwindInfoIter will be in an unspecified state for future queries.
+`CompactUnwindInfoIter` will be in an unspecified state for future queries.
 It will never violate memory safety but it may start yielding chaotic
 values.
 
@@ -870,7 +870,7 @@ produce results. However `CompactUnwindInfoEntry::instructions`
 will always return `CompactUnwindOp::None`.
 
 * If an opcode kind is encountered that this implementation wasn't
-designed for, Opcode::instructions will return `CompactUnwindOp::None`.
+designed for, `Opcode::instructions` will return `CompactUnwindOp::None`.
 
 * If two entries have the same address (making the first have zero-length),
 we silently discard the first one in favour of the second.
@@ -893,9 +893,9 @@ Things we produce errors for:
 the next entry's instruction_address is always needed to compute the
 number of bytes the current entry covers, the implementation will report
 an error if it encounters this. However it does not attempt to fully
-validate the ordering during an entry_for_address query, as this would
+validate the ordering during an `entry_for_address` query, as this would
 significantly slow down the binary search. In this situation
-you may get chaotic results (same guarantees as BTreeMap with an
+you may get chaotic results (same guarantees as `BTreeMap` with an
 inconsistent `Ord` implementation).
 
 * A corrupt unwind_info section may attempt to index out of bounds either
@@ -905,7 +905,7 @@ provided, this implementation will return an error if an index is out
 out of bounds. Offsets are only restricted to the unwind_info
 section itself, as this implementation does not assume arrays are
 placed in any particular place, and does not try to prevent aliasing.
-Trying to access outside the unwind_info section will return an error.
+Trying to access outside the `.unwind_info` section will return an error.
 
 * If an unknown second-level page type is encountered, iteration/lookup will
 return an error.

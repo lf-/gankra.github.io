@@ -144,7 +144,7 @@ cost of:</p>
 registers, you can also push all the callee-save registers in the
 prologue as well.</p>
 <p>Good news: <a href="https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms">Apple Mandates Frame Pointers on ARM64</a>.</p>
-<p>Bad news: No one else does, and optimizers gonna optimize. Especially on <code>x86</code> where
+<p>Bad news: No one else does, and optimizers gonna optimize. Especially on x86 where
 register pressure is really high and <code>ebp</code> is so juicy and tempting.</p>
 <h2 id="debug-info" class="section-header"><a href="#debug-info">1.3 Debug Info</a></h2>
 <p>At this point you need to know what debug info is to do Unwinding Step 1, and do harder versions
@@ -483,7 +483,7 @@ with the root page:</p>
 }</pre></div>
 <h1 id="opcode-format" class="section-header"><a href="#opcode-format">4 Opcode Format</a></h1>
 <p>There are 3 architecture-specific opcode formats: x86, x64, and ARM64.</p>
-<p>All 3 formats have a “null opcode” (0x0000_0000) which indicates that
+<p>All 3 formats have a “null opcode” (<code>0x0000_0000</code>) which indicates that
 there is no unwinding information for this range of addresses. This happens
 with things like hand-written assembly subroutines. This implementation
 will yield it as a valid opcode that converts into <code>CompactUnwindOp::None</code>.</p>
@@ -542,7 +542,7 @@ and do nothing.)</p>
 <li>Pushes the caller’s <code>bp</code> to the stack</li>
 <li>Sets <code>bp := sp</code> (new frame pointer is the current top of the stack)</li>
 </ul>
-<p>bp has been preserved, and any callee-saved registers that need to be restored
+<p><code>bp</code> has been preserved, and any callee-saved registers that need to be restored
 are saved on the stack at a known offset from <code>bp</code>.</p>
 <p>The return address is stored just before the caller’s <code>bp</code>. The caller’s stack
 pointer should point before where the return address is saved.</p>
@@ -699,7 +699,7 @@ or desirable). But current behaviour <em>is</em> documented here for the sake of
 maintenance/debugging. Hopefully it also helps highlight all the ways things
 can go wrong for anyone using this documentation to write their own tooling.</p>
 <p>For all these cases, if an Error is reported during iteration/search, the
-CompactUnwindInfoIter will be in an unspecified state for future queries.
+<code>CompactUnwindInfoIter</code> will be in an unspecified state for future queries.
 It will never violate memory safety but it may start yielding chaotic
 values.</p>
 <p>If this implementation ever panics, that should be regarded as an
@@ -740,7 +740,7 @@ will always return <code>CompactUnwindOp::None</code>.</p>
 </li>
 <li>
 <p>If an opcode kind is encountered that this implementation wasn’t
-designed for, Opcode::instructions will return <code>CompactUnwindOp::None</code>.</p>
+designed for, <code>Opcode::instructions</code> will return <code>CompactUnwindOp::None</code>.</p>
 </li>
 <li>
 <p>If two entries have the same address (making the first have zero-length),
@@ -768,9 +768,9 @@ clamps the value to 6.</p>
 the next entry’s instruction_address is always needed to compute the
 number of bytes the current entry covers, the implementation will report
 an error if it encounters this. However it does not attempt to fully
-validate the ordering during an entry_for_address query, as this would
+validate the ordering during an <code>entry_for_address</code> query, as this would
 significantly slow down the binary search. In this situation
-you may get chaotic results (same guarantees as BTreeMap with an
+you may get chaotic results (same guarantees as <code>BTreeMap</code> with an
 inconsistent <code>Ord</code> implementation).</p>
 </li>
 <li>
@@ -781,7 +781,7 @@ provided, this implementation will return an error if an index is out
 out of bounds. Offsets are only restricted to the unwind_info
 section itself, as this implementation does not assume arrays are
 placed in any particular place, and does not try to prevent aliasing.
-Trying to access outside the unwind_info section will return an error.</p>
+Trying to access outside the <code>.unwind_info</code> section will return an error.</p>
 </li>
 <li>
 <p>If an unknown second-level page type is encountered, iteration/lookup will
