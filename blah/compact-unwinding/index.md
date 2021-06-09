@@ -104,9 +104,9 @@ If you know a function uses this calling convention, you can minimally complete
 Unwinding Steps 2 and 3 (only restoring `rip` and `rsp`) with the following:
 
 ```
-rsp := rbp - 16
-rip := *(rbp - 16)
-rbp := *(rbp - 8)
+rsp := rbp + 16
+rip := *(rbp + 16)
+rbp := *(rbp + 8)
 ```
 
 or natively:
@@ -232,7 +232,7 @@ To simplify these diffs, DWARF CFI defines a "CFA" (canonical frame address)
 register. This is conceptually the frame pointer, but doesn't necessarily have
 to be. Since most rules end up being something to the effect of "`rbx` is saved
 at offset 24 from the start of the frame", most of our rules end up looking like
-`%rbx := *(%cfa + 24)`.
+`%rbx := *(%cfa - 24)`.
 
 When we can do this, most of our entries will just be instructions on how to update the CFA.
 Here's an example of what the CFI for a function which saves rbp and rbx would look like:
@@ -240,18 +240,18 @@ Here's an example of what the CFI for a function which saves rbp and rbx would l
 ```text
 initial rule (covering 0x08 to 0xA8):   (start of function)
     %rip := *(%cfa);
-    %cfa := %rsp - 8
+    %cfa := %rsp + 8
 
 diff rule (starting at 0x10):           (function pushes rbp)
-    %rbp := *(%cfa + 8)
-    %cfa := %rsp - 16
+    %rbp := *(%cfa - 8)
+    %cfa := %rsp + 16
 
 diff rule (starting at 0x18):           (function pushes rbx)
-    %rbx := *(%cfa + 16)
-    %cfa := %rsp - 24
+    %rbx := *(%cfa - 16)
+    %cfa := %rsp + 24
 
 diff rule (starting at 0x20):           (function reserves remaining stack space)
-    %cfa := %rsp - 120
+    %cfa := %rsp + 120
 ```
 
 Unfortunately this format isn't all roses and sunshine. Compilers can easily make mistakes
@@ -619,10 +619,19 @@ The function has the standard frame pointer (`bp`) prelude which:
 * Sets `bp := sp` (new frame pointer is the current top of the stack)
 
 `bp` has been preserved, and any callee-saved registers that need to be restored
-are saved on the stack at a known offset from `bp`.
+are saved on the stack at a known offset from `bp`. The return address is
+stored just before the caller's `bp`. The caller's stack pointer should
+point before where the return address is saved.
 
-The return address is stored just before the caller's `bp`. The caller's stack
-pointer should point before where the return address is saved.
+So to unwind you just need to do:
+
+```text
+%sp := %bp + 2*POINTER_SIZE
+%ip := *(%bp + 2*POINTER_SIZE)
+%bp := *(%bp + POINTER_SIZE)
+
+(and restore all the other callee-saved registers as described below)
+```
 
 Registers are stored in increasing order (so `reg1` comes before `reg2`).
 
@@ -633,12 +642,13 @@ stack.
 The remaining 24 bits of the opcode are interpreted as follows (from high to low):
 
 ```rust,ignore
-/// Registers to restore (see register mapping above)
+/// Registers to restore (see register mapping in previous section)
 reg1: u3,
 reg2: u3,
 reg3: u3,
 reg4: u3,
 reg5: u3,
+
 _unused: u1,
 
 /// The offset from bp that the registers to restore are saved at,
@@ -651,12 +661,18 @@ stack_offset: u8,
 ### x86/x64 Opcode 2: Frameless (Stack-Immediate)
 
 The callee's stack frame has a known size, so we can find the start
-of the frame by offsetting from sp (the stack pointer). Any callee-saved
-registers that need to be restored are saved at the start of the stack
-frame.
+of the frame by offsetting from sp (the stack pointer). The return
+address is saved immediately after that location. Any callee-saved
+registers that need to be restored are saved immediately after that.
 
-The return address is saved immediately before the start of this frame. The
-caller's stack pointer should point before where the return address is saved.
+So to unwind you just need to do:
+
+```text
+%sp := %sp + stack_size * POINTER_SIZE
+%ip := *(%sp - 8)
+
+(and restore all the other callee-saved registers as described below)
+```
 
 Registers are stored in *reverse* order on the stack from the order the
 decoding algorithm outputs (so `reg[1]` comes before `reg[0]`).
@@ -758,8 +774,16 @@ as such it has fairly simple opcodes. There are 3 kinds of ARM64 opcode:
 This is a "frameless" leaf function. The caller is responsible for
 saving/restoring all of its general purpose registers. The frame pointer
 is still the caller's frame pointer and doesn't need to be touched. The
-return address is stored in the link register (`x30`). All we need to do is
-pop the frame and move the return address back to the program counter (`pc`).
+return address is stored in the link register (`x30`).
+
+So to unwind you just need to do:
+
+```text
+%sp := %sp + stack_size * 16
+%pc := %x30
+
+(no other registers to restore)
+```
 
 The remaining 24 bits of the opcode are interpreted as follows (from high to low):
 
@@ -783,10 +807,20 @@ for this instruction address.
 
 ### ARM64 Opcode 4: Frame-Based
 
-This is a function with the standard prologue. The frame pointer (`x29`) and
-return address (`pc`) were pushed onto the stack in a pair (ARM64 registers
-are saved/restored in pairs), and then the frame pointer was updated
+This is a function with the standard prologue. The return address (`pc`) and the
+frame pointer (`x29`) were pushed onto the stack in a pair and in that order
+(ARM64 registers are saved/restored in pairs), and then the frame pointer was updated
 to the current stack pointer.
+
+So to unwind you just need to do:
+
+```text
+%sp := %x29 + 16
+%pc := *(%x29 + 16)
+%x29 := *(%x29 + 8)
+
+(and restore all the other callee-saved registers as described below)
+```
 
 Any callee-saved registers that need to be restored were then pushed
 onto the stack in pairs in the following order (if they were pushed at
