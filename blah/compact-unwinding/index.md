@@ -707,7 +707,7 @@ single variable-base number so we can encode the ordering of up to
 six registers in a 10-bit space.
 
 This can't really be described well with anything but code, so
-just [read this implementation](https://github.com/getsentry/symbolic/blob/81ce0bbeb4079d2a5b519dbf6ed022027199c0be/symbolic-debuginfo/src/macho/compact.rs#L2121-L2172)
+just [read this implementation](https://github.com/getsentry/symbolic/blob/81ce0bbeb4079d2a5b519dbf6ed022027199c0be/symbolic-debuginfo/src/macho/compact.rs#L1662-L1746)
 or llvm's implementation for how to encode/decode this.
 
 
