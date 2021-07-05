@@ -432,7 +432,10 @@ This includes:
 * Being able to disable *all* AA (yes, people do it)
 * Tons of platform/format-specific properties like hinting, smoothing, variation, gamma, etc
 
-This also means that [you should use the system's native text libraries](https://github.com/pcwalton/font-kit/wiki/FAQ) to match that system's aesthetic (Core Text, DirectWrite, and FreeType on their respective platforms).
+This also means that [you should use the system's native text libraries](https://github.com/servo/font-kit/wiki/FAQ) to match that system's aesthetic (Core Text, DirectWrite, and FreeType on their respective platforms).
+
+
+
 
 
 
