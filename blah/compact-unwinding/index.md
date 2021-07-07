@@ -494,18 +494,18 @@ If a register has the "no register" value, continue iterating the offset forward
 The remaining 24 bits of the opcode are interpreted as follows (from high to low):
 
 ```rust,ignore
+/// The offset from bp that the registers to restore are saved at,
+/// divided by pointer size.
+stack_offset: u8,
+
+_unused: u1,
+
 /// Registers to restore (see register mapping in previous section)
 reg1: u3,
 reg2: u3,
 reg3: u3,
 reg4: u3,
 reg5: u3,
-
-_unused: u1,
-
-/// The offset from bp that the registers to restore are saved at,
-/// divided by pointer size.
-stack_offset: u8,
 ```
 
 
@@ -717,4 +717,11 @@ Things that cause chaos:
 * If the null page was missing, there would be no way to identify the number of instruction bytes the last entry in the table covers. As such, this implementation assumes that it exists, and currently does not validate it ahead of time. If the null page *is* missing, the last entry or page may be treated as the null page, and won't be emitted. (Perhaps we should provide more reliable behaviour here?)
 
 * If there are multiple null pages, or if there is a page with a defined second-level page but no entries of its own, behaviour is unspecified.
+
+
+
+
+# Errata
+
+An earlier version of this article had an incorrect layout for the x86/x64 Frame-Based Opcode. This is because the comment describing the layout in llvm was incorrect (the actual masks were correct, but I didn't compare the two for consistency).
 

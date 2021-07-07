@@ -47,7 +47,8 @@
 <li><a href="#arm64-opcode-2-frameless">4.2.1 ARM64 Opcode 2: Frameless</a><ul></ul></li>
 <li><a href="#arm64-opcode-3-dwarf">4.2.2 ARM64 Opcode 3: Dwarf</a><ul></ul></li>
 <li><a href="#arm64-opcode-4-frame-based">4.2.3 ARM64 Opcode 4: Frame-Based</a><ul></ul></li></ul></li></ul></li>
-<li><a href="#notable-corners">5 Notable Corners</a><ul></ul></li></ul></nav>
+<li><a href="#notable-corners">5 Notable Corners</a><ul></ul></li>
+<li><a href="#errata">6 Errata</a><ul></ul></li></ul></nav>
 <p>A few years ago, Apple introduced a new kind of unwinding info (I’ll explain what that is in the next section) – the “compact unwinding format”, which can be found in <code>__unwind_info</code> sections of binaries.</p>
 <p>Clang also started preferentially emitting that format over DWARF CFI on Apple’s platforms. So to generate good backtraces on Apple platforms, you need to be able to parse and interpret compact unwinding tables.</p>
 <p>Unfortunately, this format is defined only by its implementation in llvm. Notably these files include lots of useful details, but you need to do a lot of studying of the actual implementation to figure everything out:</p>
@@ -411,18 +412,18 @@ address: 0x000121c3, opcode: 0x04000680
 <p>The remaining 24 bits of the opcode are interpreted as follows (from high to low):</p>
 
 <div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
+<span class="doccomment">/// The offset from bp that the registers to restore are saved at,</span>
+<span class="doccomment">/// divided by pointer size.</span>
+<span class="ident">stack_offset</span>: <span class="ident">u8</span>,
+
+<span class="ident">_unused</span>: <span class="ident">u1</span>,
+
 <span class="doccomment">/// Registers to restore (see register mapping in previous section)</span>
 <span class="ident">reg1</span>: <span class="ident">u3</span>,
 <span class="ident">reg2</span>: <span class="ident">u3</span>,
 <span class="ident">reg3</span>: <span class="ident">u3</span>,
 <span class="ident">reg4</span>: <span class="ident">u3</span>,
-<span class="ident">reg5</span>: <span class="ident">u3</span>,
-
-<span class="ident">_unused</span>: <span class="ident">u1</span>,
-
-<span class="doccomment">/// The offset from bp that the registers to restore are saved at,</span>
-<span class="doccomment">/// divided by pointer size.</span>
-<span class="ident">stack_offset</span>: <span class="ident">u8</span>,</pre></div>
+<span class="ident">reg5</span>: <span class="ident">u3</span>,</pre></div>
 <h3 id="x86x64-opcode-2-frameless-stack-immediate" class="section-header"><a href="#x86x64-opcode-2-frameless-stack-immediate">4.1.2 x86/x64 Opcode 2: Frameless (Stack-Immediate)</a></h3>
 <p>The callee’s stack frame has a known size, so we can find the start of the frame by offsetting from sp (the stack pointer). The return address is saved immediately after that location. Any callee-saved registers that need to be restored are saved immediately after that.</p>
 <p>So to unwind you just need to do:</p>
@@ -587,6 +588,8 @@ address: 0x000121c3, opcode: 0x04000680
 <p>If there are multiple null pages, or if there is a page with a defined second-level page but no entries of its own, behaviour is unspecified.</p>
 </li>
 </ul>
+<h1 id="errata" class="section-header"><a href="#errata">6 Errata</a></h1>
+<p>An earlier version of this article had an incorrect layout for the x86/x64 Frame-Based Opcode. This is because the comment describing the layout in llvm was incorrect (the actual masks were correct, but I didn’t compare the two for consistency).</p>
 
     </div>
 
