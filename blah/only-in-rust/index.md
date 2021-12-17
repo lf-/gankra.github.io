@@ -1,6 +1,6 @@
 % Bugs You'll Probably Only Have in Rust
 
-<h2>Alexis Beingessner - June 14, 2017</h2>
+<h2>Aria Beingessner - June 14, 2017</h2>
 
 > The source of this post is [hosted on Github](https://github.com/Gankra/gankra.github.io/blob/master/blah/only-in-rust/index.md). If you find any errors, please file an issue or submit a PR! 😀
 

@@ -1,6 +1,6 @@
 % Building a HashMap in Rust - Part 1: What's a HashMap?
 
-## Alexis Beingessner
+## Aria Beingessner
 
 This is the fourth entry in a series on implementing collections in the Rust programming language. The full list of entries can be found [here][index].
 

@@ -1,7 +1,7 @@
 % Text Rendering Hates You
 
 <header>
-<p class="author">Alexis Beingessner</p>
+<p class="author">Aria Beingessner</p>
 <p class="date">September 28th, 2019</p>
 </header>
 

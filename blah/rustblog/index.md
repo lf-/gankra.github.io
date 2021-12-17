@@ -1,6 +1,6 @@
 % Blogging about Rust using Rust's Compiler Toolchain
 
-## Alexis Beingessner - May 23, 2015 - Rust 1.0.0
+## Aria Beingessner - May 23, 2015 - Rust 1.0.0
 
 A while ago I had an annoying problem: I would like to write blog posts about Rust, but all I have at my disposal is a static file server that I can't modify on a system I have no priviledges on. I could post things on Github or like Mediumblr or something, but that didn't feel... right. I want to host my own words, damn it!
 

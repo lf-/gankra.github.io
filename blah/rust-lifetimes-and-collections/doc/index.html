@@ -22,11 +22,11 @@
     <h1 class="title">Rust, Lifetimes, and Collections</h1>
     <nav id="TOC"><ul>
 <li><a href="#rust,-lifetimes,-and-collections">1 Rust, Lifetimes, and Collections</a><ul>
-<li><a href="#alexis-beingessner">1.1 Alexis Beingessner</a><ul></ul></li></ul></li></ul></nav>
+<li><a href="#Aria-beingessner">1.1 Aria Beingessner</a><ul></ul></li></ul></li></ul></nav>
 <h1 id="rust,-lifetimes,-and-collections" class='section-header'><a
                            href="#rust,-lifetimes,-and-collections">1 Rust, Lifetimes, and Collections</a></h1>
-<h2 id="alexis-beingessner" class='section-header'><a
-                           href="#alexis-beingessner">1.1 Alexis Beingessner</a></h2>
+<h2 id="Aria-beingessner" class='section-header'><a
+                           href="#Aria-beingessner">1.1 Aria Beingessner</a></h2>
 <p>Collections are hard. Using collections safely is even harder. Using collections safely <em>and</em> efficiently is even harder. And let&#39;s toss on &quot;and not wanting to burn your computer to the ground while doing it&quot; to the list for good measure. Fundamentally, there has to be a tradeoff here. If you can index into a run-time-sized array with runtime information, you either need to do some kind of bounds check, or you have to accept that someone can read beyond the intended bounds of memory. And this is just for <em>an array</em>. The simplest data structure there is!</p>
 
 <p>Rust seeks to bridge the performance-safety gap while still being usable. For the most part, this is done with a really fancy type-system and tons of static analysis built on top of some of the best ideas from different programming languages. We believe that if the compiler can prevent you from a bug that manifests at runtime, that&#39;s pretty great. Especially if you&#39;re wading into the kind of territory that C++ occupies. How many people have the energy to learn all the different ways that you can invoke Undefined Behaviour in a language like C++, <em>and</em> actually remember them when it matters? Where many dynamic languages patch over this with lots of runtime solutions (GC really is great for preventing tons of memory errors), Rust just uses a few simple rules to make sure everything is defined, safe, and <em>usually</em> super fast.</p>
@@ -41,7 +41,7 @@
     <span class='comment'>// and after this block. In between I won&#39;t invoke any Undefined Behaviour,</span>
     <span class='comment'>// but I know you can&#39;t tell.</span>
     <span class='comment'>//</span>
-    <span class='comment'>// Love, Alexis</span>
+    <span class='comment'>// Love, Aria</span>
     <span class='kw'>unsafe</span> {
         <span class='ident'>data</span>.<span class='ident'>unsafe_get</span>(<span class='number'>7</span>) <span class='comment'>// 7 is my lucky number, I can&#39;t possibly index outta bounds with that</span>
     }

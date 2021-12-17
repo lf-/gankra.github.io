@@ -1,6 +1,6 @@
 % The Kinds of Implementation-Defined?
 
-<span class="author">Alexis Beingessner</span>
+<span class="author">Aria Beingessner</span>
 
 <span class="date">November 13th, 2018</span>
 

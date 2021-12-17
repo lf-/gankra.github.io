@@ -1,6 +1,6 @@
 % You Should Use cbindgen
 
-Alexis Beingessner
+Aria Beingessner
 
 <img src="icon.png" width="250" style="display:inline; box-shadow:none;"></img>
 <img src="rust.png" width="250" style="display:inline; box-shadow:none;"></img>

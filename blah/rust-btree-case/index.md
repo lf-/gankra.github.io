@@ -1,6 +1,6 @@
 % Rust Collections Case Study: BTreeMap
 
-## Alexis Beingessner
+## Aria Beingessner
 
 This is the third entry in a series on implementing collections in the Rust programming language. The full list of entries can be found [here][index].
 

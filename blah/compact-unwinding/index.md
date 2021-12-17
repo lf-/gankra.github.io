@@ -1,7 +1,7 @@
 % The Apple Compact Unwinding Format: Documented and Explained
 
 <header>
-    <p class="author">Alexis Beingessner</p>
+    <p class="author">Aria Beingessner</p>
     <p class="date">June 9th, 2021</p>
 </header>
 

@@ -2,7 +2,7 @@
 
 # Rust, Lifetimes, and Collections
 
-## Alexis Beingessner
+## Aria Beingessner
 
 Collections are hard. Using collections safely is even harder. Using collections safely *and* efficiently is even harder. And let's toss on "and not wanting to burn your computer to the ground while doing it" to the list for good measure. Fundamentally, there has to be a tradeoff here. If you can index into a run-time-sized array with runtime information, you either need to do some kind of bounds check, or you have to accept that someone can read beyond the intended bounds of memory. And this is just for *an array*. The simplest data structure there is!
 
@@ -19,7 +19,7 @@ fn do_stuff(data: &[u32]) -> u32 {
     // and after this block. In between I won't invoke any Undefined Behaviour,
     // but I know you can't tell.
     //
-    // Love, Alexis
+    // Love, Aria
     unsafe {
         data.unsafe_get(7) // 7 is my lucky number, I can't possibly index outta bounds with that
     }

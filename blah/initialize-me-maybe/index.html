@@ -26,7 +26,7 @@
 
 
     <h1 class="title">Here&#39;s My Type, So Initialize Me Maybe (mem::uninitialized is deprecated)</h1>
-    <p><span class="author">Alexis Beingessner</span></p>
+    <p><span class="author">Aria Beingessner</span></p>
 <p><span class="date">May 21st, 2019 -- Rust Nightly 1.36.0</span></p>
 <p>Rust's infamous <a href="https://doc.rust-lang.org/std/mem/fn.uninitialized.html">mem::uninitialized</a> method has been deprecated in today's nightly build. Its replacement, <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a>, has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible (probably when it hits stable in 6 weeks). This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.</p>
 <p>Most of this post is dedicated to discussing the nature of uninitialized memory and how it can be worked with in Rust. <a href="#memuninitialized">Feel free to skip to the details on why mem::uninitialized is broken</a>.</p>

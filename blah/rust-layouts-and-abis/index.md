@@ -1,7 +1,7 @@
 % Notes on Type Layouts and ABIs in Rust
 
 <header>
-    <p class="author">Alexis Beingessner</p>
+    <p class="author">Aria Beingessner</p>
     <p class="date">October 9th, 2018 -- Rust Nightly 1.30.0</p>
 </header>
 

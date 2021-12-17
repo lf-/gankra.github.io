@@ -1,6 +1,6 @@
 % Why Hashbrown Does A Double-Lookup
 
-<span class="author">Alexis Beingessner</span>
+<span class="author">Aria Beingessner</span>
 
 <span class="date">March 20th, 2019 -- Rust Nightly 1.35.0</span>
 

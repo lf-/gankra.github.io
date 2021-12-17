@@ -1,6 +1,6 @@
 % Here's My Type, So Initialize Me Maybe (mem::uninitialized is deprecated)
 
-<span class="author">Alexis Beingessner</span>
+<span class="author">Aria Beingessner</span>
 
 <span class="date">May 21st, 2019 -- Rust Nightly 1.36.0</span>
 

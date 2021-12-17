@@ -1,6 +1,6 @@
 % Swisstable, a Quick and Dirty Description
 
-<span class="author">Alexis Beingessner</span>
+<span class="author">Aria Beingessner</span>
 
 <span class="date">July 27th, 2019</span>
 

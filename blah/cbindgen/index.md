@@ -1,6 +1,6 @@
 % cbindgen
 
-Alexis Beingessner
+Aria Beingessner
 
 [<img src="icon.png" width="250" style="display:inline; box-shadow:none;"></img>](http://cglab.ca/~abeinges)
 [<img src="rust.png" width="250" style="display:inline; box-shadow:none;"></img>](https://rust-lang.org)

@@ -2,7 +2,7 @@
 
 # Rust, Generics, and Collections
 
-## Alexis Beingessner
+## Aria Beingessner
 
 [Last time](/~abeinges/blah/rust-lifetimes-and-collections/) I wrote about how Rust's notion of lifetimes lets us write and use collections much in the same way that we would in other languages, while protecting us from many of the classic mistakes you can make when working with collections. Things like iterator invalidation and mutating a collection while holding an internal reference just can't happen. All with purely compile-time checks!
 

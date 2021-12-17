@@ -1,6 +1,6 @@
 % Memories of Working on Homestuck
 
-I was contacted a few weeks ago by someone interested in my time working on Homestuck. I dumped a huge pile of thoughts and feels, and [they wrote an article](https://homestuckhiveswap.tumblr.com/post/169353748877/an-interview-with-gankro-homestuck-programmer).
+I was contacted a few weeks ago by someone interested in my time working on Homestuck. I dumped a huge pile of thoughts and feels, and [they wrote an article](https://homestuckhiveswap.tumblr.com/post/169353748877/an-interview-with-Gankra-homestuck-programmer).
 
 The article understandably is fairly edited, but I spent a bunch of time on my replies, and they're pretty personal, so I felt like archiving my response here. So here's the raw content of the email I sent:
 
@@ -27,7 +27,7 @@ April 13th: Andrew realizes doing everything in Flash is a Terrible Idea, Homest
 
 April 14th: I am sad, because I friggin' love Flash, but also excited! I make an account on the MSPA forums and make a thread where I start posting a bunch of little mini games/toys I made in flash. At some point Andrew rolled into the thread, and was like "hey this is cool", and I'm blown away because Andrew Hussie is here saying my stuff is cool! I begged him to draw Problem Sleuth in my shitty Flash-based MS Paint clone, and he did!
 
-<img src="617gankros_flashpaint_ps.jpg">
+<img src="617Gankras_flashpaint_ps.jpg">
 
 Then Andrew PMs me on the forums asking if I'd be interested in working on some more complex interactive stuff for MSPA itself. And I'm like UH YEAH OF COURSE? Making games in Flash is my dream, and Andrew is like my hero!!
 
@@ -85,7 +85,7 @@ Should be even liter than last one, just involving Equius and Nepeta as playable
 
 \[editor's note: this entire paragraph would soon become a massive lie\]
 
-**Alexis Beingessner - 9:00 AM (I presumably wake up)**
+**Aria Beingessner - 9:00 AM (I presumably wake up)**
 
 Well I've gotta write a paper tonight and some game dev stuff to work on during the weekend, what exactly is "next few days" to you?
 
@@ -93,7 +93,7 @@ Well I've gotta write a paper tonight and some game dev stuff to work on during 
 
 How about we jam it in post-paper and pre-weekend?
 
-**Alexis Beingessner**
+**Aria Beingessner**
 
 That would be tonight I guess? If it's the magnitude you suggest I should be able to get it done fairly easily between my various piecemeal obligations.
 
@@ -101,7 +101,7 @@ That would be tonight I guess? If it's the magnitude you suggest I should be abl
 
 Could be tonight. With maybe some last details patched in tomorrow?
 
-**Alexis Beingessner - 4:30PM**
+**Aria Beingessner - 4:30PM**
 
 Yeah that's fine but anything done tomorrow would have to be very early or very late in the day.
 
@@ -275,7 +275,7 @@ ACIdle NEPETA: :33 < dont mention it! <33
 
 Here's an example of us hashing out details, and taking the piss:
 
-**Alexis Beingessner - Sunday, 12:45 AM**
+**Aria Beingessner - Sunday, 12:45 AM**
 
 Only hole I can see is there's no reason why CT can't go through the metal door.
 
@@ -293,7 +293,7 @@ If equius tries to go in the door, make it say:
 
 This is no time to retire. Gotta go after the clown.
 
-**Alexis Beingessner**
+**Aria Beingessner**
 
 I'm kinda confused by this chest stuff? Is the conair poster the first towel??? ...is it a conair towel???
 
@@ -309,7 +309,7 @@ Also I don't know what sort of file size this thing is ballooning toward. Wonder
 
 I'm getting absolutely destroyed on bandwidth lately.
 
-**Alexis Beingessner**
+**Aria Beingessner**
 
 It was dancing just below 5mb before I last compiled, but I haven't compiled in a while (I'm a crazy motherfucker trying to do all the assets in one compile (this will not turn out well)).
 
@@ -319,7 +319,7 @@ It was dancing just below 5mb before I last compiled, but I haven't compiled in 
 
 And here we are getting delirious, and shipping it:
 
-**Alexis Beingessner - 4:00 AM**
+**Aria Beingessner - 4:00 AM**
 
 You can draw??????
 
@@ -327,7 +327,7 @@ You can draw??????
 
 Sometimes I take a break from typing hundreds of pages of dialogue for you to copy-paste into Flash's Actionscript window, line by line.
 
-**Alexis Beingessner**
+**Aria Beingessner**
 
 Backspace Shift Quote Unshift Comma Shift Quote ClickNextLine Backspace Shift Quote Unshift Comma Shift Quote ClickNextLine Backspace Shift Quote Unshift Comma Shift Quote ClickNextLine Backspace Shift Quote Unshift Comma Shift Quote ClickNextLine Backspace Shift Quote Unshift Comma Shift Quote ClickNextLine Backspace Shift Quote Unshift Comma Shift Quote ClickNextLine Backspace Shift Quote Unshift Comma Shift Quote ClickNextLine Backspace Shift Quote Unshift Comma Shift Quote Cl...
 
@@ -339,7 +339,7 @@ Also everything seems patched on my end, Supercar has volunteered to pull an all
 
 I think if we're T minus X minutes to stability, just gotta go eggless. It's silly to wait on that. Can patch it later with an egg and he can put more loving finesse into it.
 
-**Alexis Beingessner - 4:30 AM (extremely goes to bed)**
+**Aria Beingessner - 4:30 AM (extremely goes to bed)**
 
 Okay there. Gonna go collapse.
 
@@ -357,7 +357,7 @@ Also I just noticed you can see the red border on the cut scenes. This I'm sure 
 
 PATCHEZ YO
 
-**Alexis Beingessner - 2:40 PM**
+**Aria Beingessner - 2:40 PM**
 
 Tried to kick the shit outta this'un and it seemed to run fine:
 
