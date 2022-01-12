@@ -54,7 +54,7 @@ Whenever you decide to unwind (panic/throw) or generate a backtrace (crash, gdb,
 You know the current address in the binary your program is executing (`rip`/`pc`) and the current stack pointer (`rsp`/`sp`). Now figure out:
 
 1. (optional) What function you're executing (and ideally what line)
-2. What the return address is (the address the caller was last executing)
+2. What the return address is (*roughly* the address the caller was last executing)
 3. How to restore the caller's registers (most importantly the stack pointer)
 
 And then repeat this over and over until you have walked over the whole stack.
@@ -67,7 +67,7 @@ And then repeat this over and over until you have walked over the whole stack.
 Unwinding Steps 2 and 3 can be done very easily if all functions uses a standard "prologue" that maintains the frame pointer. On x64, the standard prologue is as follows:
 
 1. caller performs a CALL (implicitly PUSHes the return address (`rip`) to the stack)
-2. callee PUSHes `rbp` (the frame caller's frame pointer -- where it's stack starts)
+2. callee PUSHes `rbp` (the caller's frame pointer -- where its stack starts)
 3. callee sets `rbp := rsp` (initializes its own frame pointer)
 
 If you know a function uses this calling convention, you can minimally complete Unwinding Steps 2 and 3 (only restoring `rip` and `rsp`) with the following:
@@ -194,6 +194,8 @@ Stack scanning is incredibly simple: just start walking down the stack and readi
 It's a surprisingly decent fallback.
 
 The main question to answer is "what does a return address look like?". If you have other kinds of debug info or can lookup modules, then you can check if the address maps to a module/function. Otherwise you can try eliminating things like non-canonical addresses.
+
+Unfortunately if you want to support an application that contains a JIT (Firefox, Chrome, and all electron apps...), things get muddier as executable pages may not actually map to any "module". Ideally for those you have frame pointers.
 
 
 
