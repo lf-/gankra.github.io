@@ -146,8 +146,7 @@ Sure, you can build a system that default-initializes every value to 0 and it's 
 
 That might be a genuinely reasonable choice for your language, but it's not an *obvious* one. It's also not one you need to make in such a binary manner! You could make it a *warning* to rely on the default value, but happily run the program anyway. Let the programmer test out their program, but reserve the ability to suggest ways it can improve. In this way you are basically saying the value is still *logically* uninitialized, but the compiler will do its best to try to do something reasonable about it.
 
- (As a total aside, [luau is doing some very cool stuff with this idea of "find things that seem wrong, but try to guess what the programmer meant anyway"](https://luau-lang.org/typecheck). There's real merits to this approach!)
-
+I think there's a lot of really interesting potential in languages that can "do what I mean" but actually tell you about it and help you rework your program into something more robust!
 
 
 
@@ -1421,7 +1420,9 @@ I focused on Rust here for Story Telling reasons, but Swift uses this design as 
 
 It's not *terribly* surprising that they both converged on this solution, because as far as I know it's basically the "ideal" implementation of ownership if you're willing to put in the elbow grease, and both languages *love* putting in compiler elbow grease.
 
-Of course, for Rust a lot of this stuff is part of the surface semantics of the language -- if you mess up your moves it will be a compiler error. For Swift, this stuff shows up more as an *optimization*: it assumes things are moved, and inserts clones (refcount increments) where that doesn't work.
+Of course, for Rust a lot of ownership is part of the surface semantics of the language -- if you mess up your moves it will be a compiler error. For Swift, this stuff shows up more as an implementation detail, than something a user thinks about day-to-day. Moves are a great optimization, so the compiler tries to find places in the program where it can insert moves instead of clones. Having dynamic drop flags makes it easier to move things more often.
+
+[Although Swift is more seriously looking at exposing this stuff to the end-user to make the language more reliable for low-level stuff](https://forums.swift.org/t/a-roadmap-for-improving-swift-performance-predictability-arc-improvements-and-ownership-control/54206).
 
 Ownership is a tool, and tools are for solving the problems you care about!
 
