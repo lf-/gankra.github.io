@@ -520,7 +520,7 @@ So to unwind you just need to do:
 
 ```text
 %sp := %sp + stack_size * POINTER_SIZE
-%ip := *(%sp - 8)
+%ip := *(%sp - POINTER_SIZE)
 
 (and restore all the other callee-saved registers as described below)
 ```

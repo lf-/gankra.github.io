@@ -54,7 +54,7 @@
 <li><a href="#ownership-strategy-null-sentinels-and-reference-counting-with-moves">4.1 Ownership Strategy: Null Sentinels (And Reference Counting with Moves)</a><ul></ul></li>
 <li><a href="#ownership-strategy-empty-sentinels-c-raii-and-move-semantics">4.2 Ownership Strategy: Empty Sentinels (C++ RAII and Move Semantics)</a><ul></ul></li>
 <li><a href="#ownership-strategy-smuggled-drop-flags-early-version-of-rust">4.3 Ownership Strategy: Smuggled Drop Flags (Early Version of Rust)</a><ul></ul></li>
-<li><a href="#ownership-strategy-stack-drop-flags-rust">4.4 Ownership Strategy: Stack Drop Flags (Rust)</a><ul></ul></li>
+<li><a href="#ownership-strategy-stack-drop-flags-rust-and-swift">4.4 Ownership Strategy: Stack Drop Flags (Rust and Swift)</a><ul></ul></li>
 <li><a href="#ownership-strategy-static-drop-rejected-rust-proposal">4.5 Ownership Strategy: Static Drop (Rejected Rust Proposal)</a><ul></ul></li></ul></li>
 <li><a href="#im-fucking-done">5 IM FUCKING DONE</a><ul></ul></li></ul></nav>
 <blockquote>
@@ -232,7 +232,7 @@ language optimized for the big bappy paws of cats. It’s going great – you’
 <li><code>clone x</code>: deep copy x </li>
 <li><code>y.clone_from(&amp;x)</code>: update <code>y</code> to be a clone of <code>x</code> without dropping <code>y</code> </li>
 </ul>
-<p>A <strong>variable</strong> is any location in memory, but by default we will assume they are normally scoped local (stack) variables. Variables may be initialized or uninitialized. We say that initialized variables <em>own</em> their values, because they are the only that that <em>specific</em> instance lives in memory. Variables <em>logically</em> don’t share memory locations with any other variable (but the compiler can still merge them as an optimization).</p>
+<p>A <strong>variable</strong> is any location in memory, but by default we will assume they are normally scoped local (stack) variables. Variables may be initialized or uninitialized. We say that initialized variables <em>own</em> their values, because they’re the only location in memory where that <em>specific</em> instance can be found. Variables <em>logically</em> don’t share memory locations with any other variable (but the compiler can still merge them as an optimization).</p>
 <p>When we <strong>construct</strong> a value we create a new instance of its type (call the type’s constructor), and initialize a variable with the value. Generally we will just write this as <code>x = MyType(...)</code>. To be extra clear, we will write <code>let x = MyType(...)</code> when we are creating the variable at the same time, and <code>relet x = MyType(...)</code> when we are <em>reinitializing</em> an uninitialized variable. Assignment without <code>let</code> or <code>relet</code> will be intentionally ambiguous, and we will discuss how that surface syntax in our language might be “desugarred”.</p>
 <p>When we <strong>drop</strong> a variable, we run the destructor of the instance stored in that variable (destroying the instance forever) and deinitialize the variable. Ideally all instances get dropped before the end of the program, but this is generally only “best effort” (can’t do anything if the computer gets unplugged!). Most importantly we must <em>never</em> drop an instance multiple times. That’s a recipe for double-frees.</p>
 <p>When we <strong>bitcopy</strong> a variable, we just copy the bits to another variable. The destination variable is initialized, and the source variable remains initialized. This is only ever semantically valid for POD types, so we won’t see bitcopy much, but it’s useful to define to properly understand how <em>move</em> is different.</p>
@@ -535,7 +535,9 @@ struct MyType {
 <p>Swift uses Definite Initialization to force you to provide all the values for the fields before ending an initializer or calling methods on <code>self</code>. It’s neat!</p>
 <p>It’s proper DI too, you can conditionally assign fields and do whatever as long as things are Definitely Initialized by the end! Swift also has “convenience initializers” (AKA “delegating initializers”) to distinguish between initializers which <em>really</em> initialize the values, and those that just call into another initializer.</p>
 <p>Interestingly, convenience initializers <em>can</em> call other convenience intializers – you just need to bottom out in a “designated” initializer that actually does the initialization. There is no checking for this, so you can actually just infinitely mutually recurse and blow the stack if you really want to! 💯</p>
-<p>Also for whatever reason when class inheritance is involved you must specifically call a non-convenience (“designated”) initializer of the superclass. No idea why that is, probably some weird ABI thing.</p>
+<p>Although when class inheritance is involved you must specifically call a non-convenience (“designated”) initializer of the superclass. I don’t <em>fully</em> grok all the constraints here, because there’s a lot of weirdness going on around subclasses being able to override things and some really weird legacy Objective-C patterns. </p>
+<p>Basically a subclass is actually allowed to override some initializers of the superclass, and the superclass <em>will</em> actually call them? And that’s useful sometimes? For reasons? But the designated intializers are opted out of this system so you don’t go around in infinite loops up and down the inheritance chain and mess up all the DI logic.</p>
+<p>A bunch of Swift developers tried to explain this to me and it felt like my head was going to explode. I think the entire discussion was best summarized by one of them saying “I think for this to make the <em>most</em> sense you have to put yourself in a Smalltalk mindset”. I can’t.</p>
 <div class="example-wrap"><pre class="language-swift"><code>class  MyType {
     var x: Int32;
     var y: MyBox&lt;Int32&gt;;
@@ -551,6 +553,8 @@ struct MyType {
         print(self.x);
 
         self.y = MyBox(5);
+
+        // If we had a superclass, we would initialize it here
 
         // *now* the compiler knows you&#39;re Definitely Initialized
         // and will let you return or use self like normal.
@@ -965,7 +969,7 @@ drop %x                             // drop x (may or may not be a noop)</code><
 
     <span class="comment">// temp goes out scope here, needs to be dynamically dropped!</span>
 }</code></pre></div>
-<h2 id="ownership-strategy-stack-drop-flags-rust" class="section-header"><a href="#ownership-strategy-stack-drop-flags-rust">4.4 Ownership Strategy: Stack Drop Flags (Rust)</a></h2>
+<h2 id="ownership-strategy-stack-drop-flags-rust-and-swift" class="section-header"><a href="#ownership-strategy-stack-drop-flags-rust-and-swift">4.4 Ownership Strategy: Stack Drop Flags (Rust and Swift)</a></h2>
 <p>So what was the visionary improvement upon Smuggled Drop Flags that Rust settled on?</p>
 <p>Just put the drop flags on the stack like normal variables.</p>
 <p>Yeah that’s it.</p>
@@ -979,6 +983,10 @@ drop %x                             // drop x (may or may not be a noop)</code><
 <span class="ident">consume</span>(<span class="ident">x</span>);
 <span class="comment">// x is now uninitialized, no drop emitted in the binary</span></code></pre></div>
 <p>(Of course this is all also complicated by the existence of unwinding, but literally everything is complicated by the existence of unwinding…)</p>
+<p>I focused on Rust here for Story Telling reasons, but Swift uses this design as well.</p>
+<p>It’s not <em>terribly</em> surprising that they both converged on this solution, because as far as I know it’s basically the “ideal” implementation of ownership if you’re willing to put in the elbow grease, and both languages <em>love</em> putting in compiler elbow grease.</p>
+<p>Of course, for Rust a lot of this stuff is part of the surface semantics of the language – if you mess up your moves it will be a compiler error. For Swift, this stuff shows up more as an <em>optimization</em>: it assumes things are moved, and inserts clones (refcount increments) where that doesn’t work.</p>
+<p>Ownership is a tool, and tools are for solving the problems you care about!</p>
 <h2 id="ownership-strategy-static-drop-rejected-rust-proposal" class="section-header"><a href="#ownership-strategy-static-drop-rejected-rust-proposal">4.5 Ownership Strategy: Static Drop (Rejected Rust Proposal)</a></h2>
 <p>Ah, now for a treat. </p>
 <p>Let us turn back the page in Rust’s history. No, farther. FARTHER!</p>
@@ -1041,7 +1049,7 @@ AAAAAAAA 2</code></pre></div>
 
     <span class="macro">println!</span>(<span class="string">&quot;function over!&quot;</span>);
     <span class="ident">drop</span>(<span class="ident">var2</span>)</code></pre></div>
-<p>Tragically this proposal was just a <em>bit</em> too wild for Rust’s developers at the time, so we never got to really experience this. <em>Curse you pnkfelix, why couldn’t you take pnkfelix’s revolutionary ideas seriously!!</em>]</p>
+<p>Tragically this proposal was just a <em>bit</em> too wild for Rust’s developers at the time, so we never got to really experience this. <em>Curse you pnkfelix, why couldn’t you take pnkfelix’s revolutionary ideas seriously!!</em></p>
 <h1 id="im-fucking-done" class="section-header"><a href="#im-fucking-done">5 IM FUCKING DONE</a></h1>
 <p>AAAAAA THIS ARTICLE WAS SUPPOSED TO BE A BULLETED LIST HOW DID THIS HAPPEN</p>
 <p>WHY DO I KEEP DOING THIS</p>

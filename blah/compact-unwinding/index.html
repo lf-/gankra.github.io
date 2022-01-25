@@ -80,7 +80,7 @@
 <p>You know the current address in the binary your program is executing (<code>rip</code>/<code>pc</code>) and the current stack pointer (<code>rsp</code>/<code>sp</code>). Now figure out:</p>
 <ol>
 <li>(optional) What function you’re executing (and ideally what line)</li>
-<li>What the return address is (the address the caller was last executing)</li>
+<li>What the return address is (<em>roughly</em> the address the caller was last executing)</li>
 <li>How to restore the caller’s registers (most importantly the stack pointer)</li>
 </ol>
 <p>And then repeat this over and over until you have walked over the whole stack.</p>
@@ -88,22 +88,20 @@
 <p>Unwinding Steps 2 and 3 can be done very easily if all functions uses a standard “prologue” that maintains the frame pointer. On x64, the standard prologue is as follows:</p>
 <ol>
 <li>caller performs a CALL (implicitly PUSHes the return address (<code>rip</code>) to the stack)</li>
-<li>callee PUSHes <code>rbp</code> (the frame caller’s frame pointer – where it’s stack starts)</li>
+<li>callee PUSHes <code>rbp</code> (the caller’s frame pointer – where its stack starts)</li>
 <li>callee sets <code>rbp := rsp</code> (initializes its own frame pointer)</li>
 </ol>
 <p>If you know a function uses this calling convention, you can minimally complete Unwinding Steps 2 and 3 (only restoring <code>rip</code> and <code>rsp</code>) with the following:</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered">
-<span class="ident">rsp</span> :<span class="op">=</span> <span class="ident">rbp</span> <span class="op">+</span> <span class="number">16</span>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="ident">rsp</span> :<span class="op">=</span> <span class="ident">rbp</span> <span class="op">+</span> <span class="number">16</span>
 <span class="ident">rip</span> :<span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">rbp</span> <span class="op">+</span> <span class="number">8</span>)
-<span class="ident">rbp</span> :<span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">rbp</span>)</pre></div>
+<span class="ident">rbp</span> :<span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">rbp</span>)</code></pre></div>
 <p>(Note that because that stack grows down, the stack pointer always points to the last thing that was pushed!)</p>
 <p>or natively:</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered">
-<span class="ident">mov</span> <span class="op">%</span><span class="ident">rsp</span> <span class="op">%</span><span class="ident">rbp</span>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="ident">mov</span> <span class="op">%</span><span class="ident">rsp</span> <span class="op">%</span><span class="ident">rbp</span>
 <span class="ident">pop</span> <span class="op">%</span><span class="ident">rbp</span>
-<span class="ident">ret</span></pre></div>
+<span class="ident">ret</span></code></pre></div>
 <p>This convention kicks ass – it gives you perfect super fast backtraces at the cost of:</p>
 <ul>
 <li>~2 extra instructions in your prologue</li>
@@ -149,7 +147,7 @@
 <p>DWARF CFI achieves compression by allowing entries in the table to be a <em>diff</em> on a base entry that covers a range of instructions. The simplest and most efficient diff is just <em>not having a new entry</em>. Unless a new rule is introduced at an address, the previous rule applies.</p>
 <p>To simplify these diffs, DWARF CFI defines a “CFA” (canonical frame address) register. This is conceptually the frame pointer, but doesn’t necessarily have to be. Since most rules end up being something to the effect of “<code>rbx</code> is saved at offset 24 from the start of the frame”, most of our rules end up looking like <code>%rbx := *(%cfa - 24)</code>.</p>
 <p>When we can do this, most of our entries will just be instructions on how to update the CFA. Here’s an example of what the CFI for a function which saves rbp and rbx would look like:</p>
-<pre><code class="language-text">initial rule (covering 0x08 to 0xA8):   (start of function)
+<div class="example-wrap"><pre class="language-text"><code>initial rule (covering 0x08 to 0xA8):   (start of function)
     %rip := *(%cfa);
     %cfa := %rsp + 8
 
@@ -162,14 +160,14 @@ diff rule (starting at 0x18):           (function pushes rbx)
     %cfa := %rsp + 24
 
 diff rule (starting at 0x20):           (function reserves remaining stack space)
-    %cfa := %rsp + 120
-</code></pre>
+    %cfa := %rsp + 120</code></pre></div>
 <p>Unfortunately this format isn’t all roses and sunshine. Compilers can easily make mistakes generating it, and it’s apparently quite slow to evaluate. I quite liked the discussion of these issues in the paper <a href="https://fzn.fr/projects/frdwarf/frdwarf-oopsla19.pdf">Reliable and Fast DWARF-Based Stack Unwinding</a> <em>(Bastian, Kell, Nardelli – Proc. ACM Program. Lang., Vol. 3, No. OOPSLA, Article 146. Publication date: October 2019)</em>.</p>
 <h2 id="stack-scanning" class="section-header"><a href="#stack-scanning">1.5 Stack Scanning</a></h2>
 <p>For completeness sake, here’s the last strategy for unwinding. If you don’t have unwinding tables or frame pointers (or those seem to produce obviously-wrong results), you can resort to <em>stack scanning</em>.</p>
 <p>Stack scanning is incredibly simple: just start walking down the stack and reading values out of it. If any of them look like a return address, assume that’s the return address (and the caller’s stack pointer should be restored to that location).</p>
 <p>It’s a surprisingly decent fallback.</p>
 <p>The main question to answer is “what does a return address look like?”. If you have other kinds of debug info or can lookup modules, then you can check if the address maps to a module/function. Otherwise you can try eliminating things like non-canonical addresses.</p>
+<p>Unfortunately if you want to support an application that contains a JIT (Firefox, Chrome, and all electron apps…), things get muddier as executable pages may not actually map to any “module”. Ideally for those you have frame pointers.</p>
 <h1 id="the-compact-unwinding-format" class="section-header"><a href="#the-compact-unwinding-format">2 The Compact Unwinding Format</a></h1>
 <p>Ok, now we can talk about Apple’s Compact Unwinding Format, which is found in a binary’s <code>__unwind_info</code> section. As a reminder, this is based on <a href="https://github.com/getsentry/symbolic/blob/49bd892c2efbfcf502d20164dac942101ddb43cb/symbolic-debuginfo/src/macho/compact.rs">my implementation of the format</a>.</p>
 <p>I personally found llvm’s terminology for compact unwinding very confusing, so this document will use the following terminology changes:</p>
@@ -213,18 +211,15 @@ diff rule (starting at 0x20):           (function reserves remaining stack space
 <li>Palettizing the opcodes</li>
 </ol>
 <p>Trick 1 is standard for unwinders: the table of mappings is sorted by address, and any entries that would have the same opcode as the previous one are elided. So for instance the following:</p>
-<pre><code class="language-text">address: 1, opcode: 1
+<div class="example-wrap"><pre class="language-text"><code>address: 1, opcode: 1
 address: 2, opcode: 1
-address: 3, opcode: 2
-</code></pre>
+address: 3, opcode: 2</code></pre></div>
 <p>Is just encoded like this:</p>
-<pre><code class="language-text">address: 1, opcode: 1
-address: 3, opcode: 2
-</code></pre>
+<div class="example-wrap"><pre class="language-text"><code>address: 1, opcode: 1
+address: 3, opcode: 2</code></pre></div>
 <p>We have found a few places with “zero-length” entries, where the same address gets repeated, such as the following in <code>libsystem_kernel.dylib</code>:</p>
-<pre><code class="language-text">address: 0x000121c3, opcode: 0x00000000
-address: 0x000121c3, opcode: 0x04000680
-</code></pre>
+<div class="example-wrap"><pre class="language-text"><code>address: 0x000121c3, opcode: 0x00000000
+address: 0x000121c3, opcode: 0x04000680</code></pre></div>
 <p>In this case you can just discard the zero-length one (the first one).</p>
 <p>Trick 2 is more novel: At the first level a global palette of up to 127 opcodes is defined. Each second-level “compressed” (leaf) page can also define up to 128 local opcodes. Then the entries mapping instruction addresses to opcodes can use 8-bit indices into those palettes instead of entire 32-bit opcodes. If an index is smaller than the number of global opcodes, it’s global, otherwise it’s local (subtract the global count to get the local index).</p>
 <blockquote>
@@ -237,8 +232,7 @@ address: 0x000121c3, opcode: 0x04000680
 <h2 id="layout-of-the-page-table" class="section-header"><a href="#layout-of-the-page-table">3.1 Layout of the Page Table</a></h2>
 <p>The page table starts at the very beginning of the <code>__unwind_info</code> section with the root page:</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
-<span class="kw">struct</span> <span class="ident">RootPage</span> {
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">struct</span> <span class="ident">RootPage</span> {
     <span class="doccomment">/// Only version 1 is currently defined</span>
     <span class="ident">version</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">1</span>,
 
@@ -348,14 +342,13 @@ address: 0x000121c3, opcode: 0x04000680
 <span class="kw">struct</span> <span class="ident">LsdaEntry</span> {
     <span class="ident">instruction_address</span>: <span class="ident">u32</span>,
     <span class="ident">lsda_address</span>: <span class="ident">u32</span>,
-}</pre></div>
+}</code></pre></div>
 <h1 id="opcode-format" class="section-header"><a href="#opcode-format">4 Opcode Format</a></h1>
 <p>There are 3 architecture-specific opcode formats: x86, x64, and ARM64.</p>
 <p>All 3 formats have a “null opcode” (<code>0x0000_0000</code>) which indicates that there is no unwinding information for this range of addresses. This happens with things like hand-written assembly subroutines. This implementation will yield it as a valid opcode that converts into <code>CompactUnwindOp::None</code>.</p>
 <p>All 3 formats share a common header in the top 8 bits (from high to low):</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
-<span class="doccomment">/// Whether this instruction is the start of a function.</span>
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="doccomment">/// Whether this instruction is the start of a function.</span>
 <span class="ident">is_start</span>: <span class="ident">u1</span>,
 
 <span class="doccomment">/// Whether there is an lsda entry for this instruction.</span>
@@ -367,7 +360,7 @@ address: 0x000121c3, opcode: 0x04000680
 
 <span class="doccomment">/// The architecture-specific kind of opcode this is, specifying how to</span>
 <span class="doccomment">/// interpret the remaining 24 bits of the opcode.</span>
-<span class="ident">opcode_kind</span>: <span class="ident">u4</span>,</pre></div>
+<span class="ident">opcode_kind</span>: <span class="ident">u4</span>,</code></pre></div>
 <h2 id="x86-and-x64-opcodes" class="section-header"><a href="#x86-and-x64-opcodes">4.1 x86 and x64 Opcodes</a></h2>
 <p>x86 and x64 use the same opcode layout, differing only in the registers being restored. Registers are numbered 0-6, with the following mappings:</p>
 <p>x86:</p>
@@ -401,18 +394,16 @@ address: 0x000121c3, opcode: 0x04000680
 </ul>
 <p><code>bp</code> has been preserved, and any callee-saved registers that need to be restored are saved on the stack at a known offset from <code>bp</code>. The return address is stored just before the caller’s <code>bp</code>. The caller’s stack pointer should point before where the return address is saved.</p>
 <p>So to unwind you just need to do:</p>
-<pre><code class="language-text">%sp := %bp + 2*POINTER_SIZE
+<div class="example-wrap"><pre class="language-text"><code>%sp := %bp + 2*POINTER_SIZE
 %ip := *(%bp + POINTER_SIZE)
 %bp := *(%bp)
 
-(and restore all the other callee-saved registers as described below)
-</code></pre>
+(and restore all the other callee-saved registers as described below)</code></pre></div>
 <p>Registers are stored in increasing order (so <code>reg1</code> comes before <code>reg2</code>).</p>
 <p>If a register has the “no register” value, continue iterating the offset forward. This lets the registers be stored slightly-non-contiguously on the stack.</p>
 <p>The remaining 24 bits of the opcode are interpreted as follows (from high to low):</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
-<span class="doccomment">/// The offset from bp that the registers to restore are saved at,</span>
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="doccomment">/// The offset from bp that the registers to restore are saved at,</span>
 <span class="doccomment">/// divided by pointer size.</span>
 <span class="ident">stack_offset</span>: <span class="ident">u8</span>,
 
@@ -423,21 +414,19 @@ address: 0x000121c3, opcode: 0x04000680
 <span class="ident">reg2</span>: <span class="ident">u3</span>,
 <span class="ident">reg3</span>: <span class="ident">u3</span>,
 <span class="ident">reg4</span>: <span class="ident">u3</span>,
-<span class="ident">reg5</span>: <span class="ident">u3</span>,</pre></div>
+<span class="ident">reg5</span>: <span class="ident">u3</span>,</code></pre></div>
 <h3 id="x86x64-opcode-2-frameless-stack-immediate" class="section-header"><a href="#x86x64-opcode-2-frameless-stack-immediate">4.1.2 x86/x64 Opcode 2: Frameless (Stack-Immediate)</a></h3>
 <p>The callee’s stack frame has a known size, so we can find the start of the frame by offsetting from sp (the stack pointer). The return address is saved immediately after that location. Any callee-saved registers that need to be restored are saved immediately after that.</p>
 <p>So to unwind you just need to do:</p>
-<pre><code class="language-text">%sp := %sp + stack_size * POINTER_SIZE
-%ip := *(%sp - 8)
+<div class="example-wrap"><pre class="language-text"><code>%sp := %sp + stack_size * POINTER_SIZE
+%ip := *(%sp - POINTER_SIZE)
 
-(and restore all the other callee-saved registers as described below)
-</code></pre>
+(and restore all the other callee-saved registers as described below)</code></pre></div>
 <p>Registers are stored in <em>reverse</em> order on the stack from the order the decoding algorithm outputs (so <code>reg[1]</code> comes before <code>reg[0]</code>).</p>
 <p>If a register has the “no register” value, <em>do not</em> continue iterating the offset forward – registers are strictly contiguous (it’s possible “no register” can only be trailing due to the encoding, but I haven’t verified this).</p>
 <p>The remaining 24 bits of the opcode are interpreted as follows (from high to low):</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
-<span class="doccomment">/// How big the stack frame is, divided by pointer size.</span>
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="doccomment">/// How big the stack frame is, divided by pointer size.</span>
 <span class="ident">stack_size</span>: <span class="ident">u8</span>,
 
 <span class="ident">_unused</span>: <span class="ident">u3</span>,
@@ -447,7 +436,7 @@ address: 0x000121c3, opcode: 0x04000680
 
 <span class="doccomment">/// The permutation encoding of the registers that are saved</span>
 <span class="doccomment">/// on the stack (see below).</span>
-<span class="ident">register_permutations</span>: <span class="ident">u10</span>,</pre></div>
+<span class="ident">register_permutations</span>: <span class="ident">u10</span>,</code></pre></div>
 <p>The register permutation encoding is a Lehmer code sequence encoded into a single variable-base number so we can encode the ordering of up to six registers in a 10-bit space.</p>
 <p>This can’t really be described well with anything but code, so just <a href="https://github.com/getsentry/symbolic/blob/81ce0bbeb4079d2a5b519dbf6ed022027199c0be/symbolic-debuginfo/src/macho/compact.rs#L1662-L1746">read this implementation</a> or llvm’s implementation for how to encode/decode this.</p>
 <h3 id="x86x64-opcode-3-frameless-stack-indirect" class="section-header"><a href="#x86x64-opcode-3-frameless-stack-indirect">4.1.3 x86/x64 Opcode 3: Frameless (Stack-Indirect)</a></h3>
@@ -456,8 +445,7 @@ address: 0x000121c3, opcode: 0x04000680
 <p>This requires being able to find the first instruction of the function (TODO: presumably the first is_start entry &lt;= this one?).</p>
 <p>TODO: describe how to extract the value from the <code>sub</code> instruction.</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
-<span class="doccomment">/// Offset from the start of the function where the `sub` instruction</span>
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="doccomment">/// Offset from the start of the function where the `sub` instruction</span>
 <span class="doccomment">/// we need is stored. (NOTE: not divided by anything!)</span>
 <span class="ident">instruction_offset</span>: <span class="ident">u8</span>,
 
@@ -472,7 +460,7 @@ address: 0x000121c3, opcode: 0x04000680
 
 <span class="doccomment">/// The permutation encoding of the registers that are saved on the stack</span>
 <span class="doccomment">/// (see Stack-Immediate for a description of this format).</span>
-<span class="ident">register_permutations</span>: <span class="ident">u10</span>,</pre></div>
+<span class="ident">register_permutations</span>: <span class="ident">u10</span>,</code></pre></div>
 <p><strong>Note</strong>: apparently binaries generated by the clang in Xcode 6 generated corrupted versions of this opcode, but this was fixed in Xcode 7 (released in September 2015), so <em>presumably</em> this isn’t something we’re likely to encounter. But if you encounter messed up opcodes this might be why.</p>
 <h3 id="x86x64-opcode-4-dwarf" class="section-header"><a href="#x86x64-opcode-4-dwarf">4.1.4 x86/x64 Opcode 4: Dwarf</a></h3>
 <p>There is no compact unwind info here, and you should instead use the DWARF CFI in <code>.eh_frame</code> for this line. The remaining 24 bits of the opcode are an offset into the <code>.eh_frame</code> section that should hold the DWARF FDE for this instruction address.</p>
@@ -482,29 +470,26 @@ address: 0x000121c3, opcode: 0x04000680
 <h3 id="arm64-opcode-2-frameless" class="section-header"><a href="#arm64-opcode-2-frameless">4.2.1 ARM64 Opcode 2: Frameless</a></h3>
 <p>This is a “frameless” leaf function. The caller is responsible for saving/restoring all of its general purpose registers. The frame pointer is still the caller’s frame pointer and doesn’t need to be touched. The return address is stored in the link register (<code>x30</code>).</p>
 <p>So to unwind you just need to do:</p>
-<pre><code class="language-text">%sp := %sp + stack_size * 16
+<div class="example-wrap"><pre class="language-text"><code>%sp := %sp + stack_size * 16
 %pc := %x30
 
-(no other registers to restore)
-</code></pre>
+(no other registers to restore)</code></pre></div>
 <p>The remaining 24 bits of the opcode are interpreted as follows (from high to low):</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
-<span class="doccomment">/// How big the stack frame is, divided by 16.</span>
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="doccomment">/// How big the stack frame is, divided by 16.</span>
 <span class="ident">stack_size</span>: <span class="ident">u12</span>,
 
-<span class="ident">_unused</span>: <span class="ident">u12</span>,</pre></div>
+<span class="ident">_unused</span>: <span class="ident">u12</span>,</code></pre></div>
 <h3 id="arm64-opcode-3-dwarf" class="section-header"><a href="#arm64-opcode-3-dwarf">4.2.2 ARM64 Opcode 3: Dwarf</a></h3>
 <p>There is no compact unwind info here, and you should instead use the DWARF CFI in <code>.eh_frame</code> for this line. The remaining 24 bits of the opcode are an offset into the <code>.eh_frame</code> section that should hold the DWARF FDE for this instruction address.</p>
 <h3 id="arm64-opcode-4-frame-based" class="section-header"><a href="#arm64-opcode-4-frame-based">4.2.3 ARM64 Opcode 4: Frame-Based</a></h3>
 <p>This is a function with the standard prologue. The return address (<code>pc</code>) and the frame pointer (<code>x29</code>) were pushed onto the stack in a pair and in that order (ARM64 registers are saved/restored in pairs), and then the frame pointer was updated to the current stack pointer.</p>
 <p>So to unwind you just need to do:</p>
-<pre><code class="language-text">%sp := %x29 + 16
+<div class="example-wrap"><pre class="language-text"><code>%sp := %x29 + 16
 %pc := *(%x29 + 8)
 %x29 := *(%x29)
 
-(and restore all the other callee-saved registers as described below)
-</code></pre>
+(and restore all the other callee-saved registers as described below)</code></pre></div>
 <p>Any callee-saved registers that need to be restored were then pushed onto the stack in pairs in the following order (if they were pushed at all, see below):</p>
 <ol>
 <li><code>x19</code>, <code>x20</code></li>
@@ -519,8 +504,7 @@ address: 0x000121c3, opcode: 0x04000680
 </ol>
 <p>The remaining 24 bits of the opcode are interpreted as follows (from high to low):</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore">
-<span class="ident">_unused</span>: <span class="ident">u15</span>,
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="ident">_unused</span>: <span class="ident">u15</span>,
 
 <span class="comment">// Whether each register pair was pushed</span>
 <span class="ident">d14_and_d15_saved</span>: <span class="ident">u1</span>,
@@ -532,7 +516,7 @@ address: 0x000121c3, opcode: 0x04000680
 <span class="ident">x25_and_x26_saved</span>: <span class="ident">u1</span>,
 <span class="ident">x23_and_x24_saved</span>: <span class="ident">u1</span>,
 <span class="ident">x21_and_x22_saved</span>: <span class="ident">u1</span>,
-<span class="ident">x19_and_x20_saved</span>: <span class="ident">u1</span>,</pre></div>
+<span class="ident">x19_and_x20_saved</span>: <span class="ident">u1</span>,</code></pre></div>
 <h1 id="notable-corners" class="section-header"><a href="#notable-corners">5 Notable Corners</a></h1>
 <p>Here’s some notable corner cases and esoterica of the format. Behaviour in these situations is not strictly guaranteed (as in we may decide to make the implemenation more strict or liberal if it is deemed necessary or desirable). But current behaviour <em>is</em> documented here for the sake of maintenance/debugging. Hopefully it also helps highlight all the ways things can go wrong for anyone using this documentation to write their own tooling.</p>
 <p>For all these cases, if an Error is reported during iteration/search, the <code>CompactUnwindInfoIter</code> will be in an unspecified state for future queries. It will never violate memory safety but it may start yielding chaotic values.</p>

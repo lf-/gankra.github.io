@@ -233,7 +233,7 @@ To help us discuss ownership and look at examples, we will be looking at a lot o
 * `clone x`: deep copy x 
 * `y.clone_from(&x)`: update `y` to be a clone of `x` without dropping `y` 
 
-A **variable** is any location in memory, but by default we will assume they are normally scoped local (stack) variables. Variables may be initialized or uninitialized. We say that initialized variables *own* their values, because they are the only that that *specific* instance lives in memory. Variables *logically* don't share memory locations with any other variable (but the compiler can still merge them as an optimization).
+A **variable** is any location in memory, but by default we will assume they are normally scoped local (stack) variables. Variables may be initialized or uninitialized. We say that initialized variables *own* their values, because they're the only location in memory where that *specific* instance can be found. Variables *logically* don't share memory locations with any other variable (but the compiler can still merge them as an optimization).
 
 When we **construct** a value we create a new instance of its type (call the type's constructor), and initialize a variable with the value. Generally we will just write this as `x = MyType(...)`. To be extra clear, we will write `let x = MyType(...)` when we are creating the variable at the same time, and `relet x = MyType(...)` when we are *reinitializing* an uninitialized variable. Assignment without `let` or `relet` will be intentionally ambiguous, and we will discuss how that surface syntax in our language might be "desugarred".
 
@@ -717,7 +717,11 @@ It's proper DI too, you can conditionally assign fields and do whatever as long 
 
 Interestingly, convenience initializers *can* call other convenience intializers -- you just need to bottom out in a "designated" initializer that actually does the initialization. There is no checking for this, so you can actually just infinitely mutually recurse and blow the stack if you really want to! 💯
 
-Also for whatever reason when class inheritance is involved you must specifically call a non-convenience ("designated") initializer of the superclass. No idea why that is, probably some weird ABI thing.
+Although when class inheritance is involved you must specifically call a non-convenience ("designated") initializer of the superclass. I don't *fully* grok all the constraints here, because there's a lot of weirdness going on around subclasses being able to override things and some really weird legacy Objective-C patterns. 
+
+Basically a subclass is actually allowed to override some initializers of the superclass, and the superclass *will* actually call them? And that's useful sometimes? For reasons? But the designated intializers are opted out of this system so you don't go around in infinite loops up and down the inheritance chain and mess up all the DI logic.
+
+A bunch of Swift developers tried to explain this to me and it felt like my head was going to explode. I think the entire discussion was best summarized by one of them saying "I think for this to make the *most* sense you have to put yourself in a Smalltalk mindset". I can't.
 
 ```swift
 class  MyType {
@@ -735,6 +739,8 @@ class  MyType {
         print(self.x);
 
         self.y = MyBox(5);
+
+        // If we had a superclass, we would initialize it here
 
         // *now* the compiler knows you're Definitely Initialized
         // and will let you return or use self like normal.
@@ -1385,7 +1391,7 @@ fn main() {
 
 
 
-## Ownership Strategy: Stack Drop Flags (Rust)
+## Ownership Strategy: Stack Drop Flags (Rust and Swift)
 
 So what was the visionary improvement upon Smuggled Drop Flags that Rust settled on?
 
@@ -1411,7 +1417,13 @@ consume(x);
 
 (Of course this is all also complicated by the existence of unwinding, but literally everything is complicated by the existence of unwinding...)
 
+I focused on Rust here for Story Telling reasons, but Swift uses this design as well.
 
+It's not *terribly* surprising that they both converged on this solution, because as far as I know it's basically the "ideal" implementation of ownership if you're willing to put in the elbow grease, and both languages *love* putting in compiler elbow grease.
+
+Of course, for Rust a lot of this stuff is part of the surface semantics of the language -- if you mess up your moves it will be a compiler error. For Swift, this stuff shows up more as an *optimization*: it assumes things are moved, and inserts clones (refcount increments) where that doesn't work.
+
+Ownership is a tool, and tools are for solving the problems you care about!
 
 
 
@@ -1503,7 +1515,7 @@ Because the compiler would desugar the program to this:
     drop(var2)
 ```
 
-Tragically this proposal was just a *bit* too wild for Rust's developers at the time, so we never got to really experience this. *Curse you pnkfelix, why couldn't you take pnkfelix's revolutionary ideas seriously!!*]
+Tragically this proposal was just a *bit* too wild for Rust's developers at the time, so we never got to really experience this. *Curse you pnkfelix, why couldn't you take pnkfelix's revolutionary ideas seriously!!*
 
 
 
