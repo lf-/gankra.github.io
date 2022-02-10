@@ -106,7 +106,7 @@ TLDR:
     * What C++ calls a "copy constructor"
   * `y.clone_from(&x)`: update `y` to be a clone of `x` without dropping `y` 
     * What C++ calls a "copy-assign constructor/operator"
-  * You could define move_from to express C++ move-ctors but it would be messy and weird.
+  * `y.move_from(&x)`: move the contents of `x` into `y`, leaving `x` uninitialized (maybe)
 
 * Background Concept 3: Definite Initialization analysis lets you know how initialized variables are at each point in the program. This article will frequently say "if you use Definite Initialization then...", so it's useful to understand the concept.
 
@@ -230,7 +230,8 @@ To help us discuss ownership and look at examples, we will be looking at a lot o
 * `bitcopy x`: bitwise (shallow) copy x
 * `move x`: bitwise (shallow) copy x, and deinitialize the variable
 * `clone x`: deep copy x 
-* `y.clone_from(&x)`: update `y` to be a clone of `x` without dropping `y` 
+* `y.clone_from(&x)`: update `y` to be a clone of `x` without dropping `y`
+* `y.move_from(&x)`: move the contents of `x` into `y`, leaving `x` uninitialized (maybe)
 
 A **variable** is any location in memory, but by default we will assume they are normally scoped local (stack) variables. Variables may be initialized or uninitialized. We say that initialized variables *own* their values, because they're the only location in memory where that *specific* instance can be found. Variables *logically* don't share memory locations with any other variable (but the compiler can still merge them as an optimization).
 
@@ -246,7 +247,9 @@ When we **clone** a variable, we create a new instance that's a deep copy of the
 
 To better describe the semantics of C++, it is also useful to have the notion of `y.clone_from(&x)`. This operation does not create a new instance, but rather updates `y` to be equivalent to a clone of `x`. This removes a constructor-destructor pair from our program, and potentially reuses some resources (although it might just end up destroying and recreating all of the contents of `y` anyway). clone_from is what C++ calls a "copy-assign operator".
 
-You could consider similarly defining `y.move_from(&x)` to try to describe "move constructors" in C++, but this is a lot muddier. Conceptually we would expect "move_from" to deinitialize the source variable, but that isn't *quite* how C++ works. Usually the source variable is reset to the type's "default" value, which is often a sentinel. Previous sections argue that sentinels are *logically* uninitialized, so that's *basically* an ownership-style move, but it's different enough that I don't want to muddy the waters with it.
+We can similarly define `y.move_from(&x)` to try to describe "move-assign operators" in C++, but it's a lot muddier. Conceptually we would expect `move_from` to deinitialize the source variable, but in C++ the source variable is usually reset to the type's "default" (empty) sentinel value. In previous sections I argued that sentinels are *logically* uninitialized, so from that perspective this is a perfectly reasonable ownership-style `move_from` operation.
+
+That said, it's worth keeping in mind that from a C++ compiler's perspective, a "moved out of" variable is still in a perfectly reasonable state. Even to the programmer it might be reasonable and correct to keep using the moved-out-of-value.
 
 For examples I will generally use a "pseudo-Rust" language. We will view it both in a "sugarred" form which reflects the surface syntax a programmer might write, and a "desugarred" form, where we try to determine what that surface syntax actually means. When desugarred, I will try to use the right-hand-side to annotate how the initialization state of each variable changes.
 
@@ -1266,17 +1269,20 @@ drop x                     // drop x, will bail out early because it's empty
 Simple, right? If we wanted to "really" do it like C++, it would look more like this:
 
 ```text
-%x                         // x comes into scope (uninit)
-ArrayStack_init(&x, ...)   // initialize x with some ArrayStack
-%y                         // y comes into scope (uninit)
-ArrayStack_empty(&y)       // default initialize y with an empty ArrayStack
+%x                           // x comes into scope (uninit)
+ArrayStack_init(&x, ...)     // initialize x with some ArrayStack
+%y                           // y comes into scope (uninit)
 
-ArrayStack_move(&x, &y)    // move the *contents* of x into y which will
-                           // generally result in x being ArrayStack_empty
+ArrayStack_move_init(&y, &x) // run a user-definable move ctor which will
+                             // somehow move all of x's contents into y's fresh
+                             // allocation and generally result in x 
+                             // being ArrayStack_empty.
 
-drop y                     // drop y, will actually do work
-drop x                     // drop x, will bail our early because it's empty
+drop y                       // drop y, will actually do work
+drop x                       // drop x, will bail our early because it's empty
 ```
+
+In practice this is often functionally equivalent to just initializing `y` with `ArrayStack_empty` and then using `move_from` to transfer the contents of one into the other -- because ideally creating and destroying empty instances is cheap and has no observable side-effects! (Unfortunately for C++ compiler developers, "often" and "ideally" aren't "always" and "must"...)
 
 The benefit of doing things this way is that if the address of `x` was significant (it contains pointers into itself, or some sort of global handler is holding a pointer to it), then it could have logic in its `move` implementation that fixes those pointers up when moving its *contents* over to `y`. Also the concept that an instance of a type lives in one location forever is maintained, which C++ likes.
 

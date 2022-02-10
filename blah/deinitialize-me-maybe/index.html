@@ -152,7 +152,7 @@ language optimized for the big bappy paws of cats. It’s going great – you’
 <li>What C++ calls a “copy-assign constructor/operator”</li>
 </ul>
 </li>
-<li>You could define move_from to express C++ move-ctors but it would be messy and weird.</li>
+<li><code>y.move_from(&amp;x)</code>: move the contents of <code>x</code> into <code>y</code>, leaving <code>x</code> uninitialized (maybe)</li>
 </ul>
 </li>
 <li>
@@ -230,7 +230,8 @@ language optimized for the big bappy paws of cats. It’s going great – you’
 <li><code>bitcopy x</code>: bitwise (shallow) copy x</li>
 <li><code>move x</code>: bitwise (shallow) copy x, and deinitialize the variable</li>
 <li><code>clone x</code>: deep copy x </li>
-<li><code>y.clone_from(&amp;x)</code>: update <code>y</code> to be a clone of <code>x</code> without dropping <code>y</code> </li>
+<li><code>y.clone_from(&amp;x)</code>: update <code>y</code> to be a clone of <code>x</code> without dropping <code>y</code></li>
+<li><code>y.move_from(&amp;x)</code>: move the contents of <code>x</code> into <code>y</code>, leaving <code>x</code> uninitialized (maybe)</li>
 </ul>
 <p>A <strong>variable</strong> is any location in memory, but by default we will assume they are normally scoped local (stack) variables. Variables may be initialized or uninitialized. We say that initialized variables <em>own</em> their values, because they’re the only location in memory where that <em>specific</em> instance can be found. Variables <em>logically</em> don’t share memory locations with any other variable (but the compiler can still merge them as an optimization).</p>
 <p>When we <strong>construct</strong> a value we create a new instance of its type (call the type’s constructor), and initialize a variable with the value. Generally we will just write this as <code>x = MyType(...)</code>. To be extra clear, we will write <code>let x = MyType(...)</code> when we are creating the variable at the same time, and <code>relet x = MyType(...)</code> when we are <em>reinitializing</em> an uninitialized variable. Assignment without <code>let</code> or <code>relet</code> will be intentionally ambiguous, and we will discuss how that surface syntax in our language might be “desugarred”.</p>
@@ -239,7 +240,8 @@ language optimized for the big bappy paws of cats. It’s going great – you’
 <p>When we <strong>move</strong> a variable, we bitcopy it <em>but also deinitialize it</em>. This does exactly what it says on the tin: the instance is logically moved from one location to the other. You could also say that ownership is transferred from one variable to the other.</p>
 <p>When we <strong>clone</strong> a variable, we create a new instance that’s a deep copy of the value. So generally if the variable owns a heap-allocated pointer, the new instance will have its own fresh heap-allocated poitner. This is what C++ calls a “copy-constructor”.</p>
 <p>To better describe the semantics of C++, it is also useful to have the notion of <code>y.clone_from(&amp;x)</code>. This operation does not create a new instance, but rather updates <code>y</code> to be equivalent to a clone of <code>x</code>. This removes a constructor-destructor pair from our program, and potentially reuses some resources (although it might just end up destroying and recreating all of the contents of <code>y</code> anyway). clone_from is what C++ calls a “copy-assign operator”.</p>
-<p>You could consider similarly defining <code>y.move_from(&amp;x)</code> to try to describe “move constructors” in C++, but this is a lot muddier. Conceptually we would expect “move_from” to deinitialize the source variable, but that isn’t <em>quite</em> how C++ works. Usually the source variable is reset to the type’s “default” value, which is often a sentinel. Previous sections argue that sentinels are <em>logically</em> uninitialized, so that’s <em>basically</em> an ownership-style move, but it’s different enough that I don’t want to muddy the waters with it.</p>
+<p>We can similarly define <code>y.move_from(&amp;x)</code> to try to describe “move-assign operators” in C++, but it’s a lot muddier. Conceptually we would expect <code>move_from</code> to deinitialize the source variable, but in C++ the source variable is usually reset to the type’s “default” (empty) sentinel value. In previous sections I argued that sentinels are <em>logically</em> uninitialized, so from that perspective this is a perfectly reasonable ownership-style <code>move_from</code> operation.</p>
+<p>That said, it’s worth keeping in mind that from a C++ compiler’s perspective, a “moved out of” variable is still in a perfectly reasonable state. Even to the programmer it might be reasonable and correct to keep using the moved-out-of-value.</p>
 <p>For examples I will generally use a “pseudo-Rust” language. We will view it both in a “sugarred” form which reflects the surface syntax a programmer might write, and a “desugarred” form, where we try to determine what that surface syntax actually means. When desugarred, I will try to use the right-hand-side to annotate how the initialization state of each variable changes.</p>
 <p>(You can easily distinguish ownershiplang and Rust based on whether statements end with semicolons. Ownershiplang has none, because parsing is for nerds.)</p>
 <p>So given this surface ownershiplang program:</p>
@@ -874,16 +876,18 @@ pointers which never have their reference count modified. It’s a fair question
 drop y                     // drop y, will actually do work
 drop x                     // drop x, will bail out early because it&#39;s empty</code></pre></div>
 <p>Simple, right? If we wanted to “really” do it like C++, it would look more like this:</p>
-<div class="example-wrap"><pre class="language-text"><code>%x                         // x comes into scope (uninit)
-ArrayStack_init(&amp;x, ...)   // initialize x with some ArrayStack
-%y                         // y comes into scope (uninit)
-ArrayStack_empty(&amp;y)       // default initialize y with an empty ArrayStack
+<div class="example-wrap"><pre class="language-text"><code>%x                           // x comes into scope (uninit)
+ArrayStack_init(&amp;x, ...)     // initialize x with some ArrayStack
+%y                           // y comes into scope (uninit)
 
-ArrayStack_move(&amp;x, &amp;y)    // move the *contents* of x into y which will
-                           // generally result in x being ArrayStack_empty
+ArrayStack_move_init(&amp;y, &amp;x) // run a user-definable move ctor which will
+                             // somehow move all of x&#39;s contents into y&#39;s fresh
+                             // allocation and generally result in x 
+                             // being ArrayStack_empty.
 
-drop y                     // drop y, will actually do work
-drop x                     // drop x, will bail our early because it&#39;s empty</code></pre></div>
+drop y                       // drop y, will actually do work
+drop x                       // drop x, will bail our early because it&#39;s empty</code></pre></div>
+<p>In practice this is often functionally equivalent to just initializing <code>y</code> with <code>ArrayStack_empty</code> and then using <code>move_from</code> to transfer the contents of one into the other – because ideally creating and destroying empty instances is cheap and has no observable side-effects! (Unfortunately for C++ compiler developers, “often” and “ideally” aren’t “always” and “must”…)</p>
 <p>The benefit of doing things this way is that if the address of <code>x</code> was significant (it contains pointers into itself, or some sort of global handler is holding a pointer to it), then it could have logic in its <code>move</code> implementation that fixes those pointers up when moving its <em>contents</em> over to <code>y</code>. Also the concept that an instance of a type lives in one location forever is maintained, which C++ likes.</p>
 <p>Now let’s forget about the nitty-gritty details of C++ and look at how this scales to a more complex example. Once again, we will be assuming you want basically no static analysis and want to be able to spew out your codegen as naively as possible.</p>
 
