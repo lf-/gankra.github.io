@@ -4,14 +4,15 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
+    <meta name="author" content="Aria Beingessner">
+
+    <meta property="og:image" content="../blah/img/glitch.png">
+    <meta property="og:title" content="Let's Corrupt The Web!">
     <title>Let's Corrupt The Web!</title>
-<!--
-    <link href="bootstrap.min.css" rel="stylesheet" type="text/css">
-    <link href="bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
-    <link href="rust.css" rel="stylesheet" type="text/css">
-    <link href="style.css" rel="stylesheet" type="text/css">
--->
+    <link href="../blah/style.css" rel="stylesheet" type="text/css">
+
 <style>
+/*
 body {
     padding: 0px;
     margin: 0px;
@@ -21,6 +22,7 @@ body {
     justify-content: center;
     font-family: sans-serif;
 }
+*/
 .content {
     display: flex;
     flex-direction: row;
@@ -29,6 +31,7 @@ body {
     width: 100%;
     max-width: 80em;
 }
+
 .entry {
     width: 100%;
     padding-bottom: 5em;
@@ -82,13 +85,34 @@ body {
 
 }
 </style>
-
 </head>
 <body>
 
-<div class="content">
+<link href="../blah/header.css" rel="stylesheet" type="text/css"/>
 
-    <div class="prolog">
+<header id="title-bar">
+    <div id = "logo">
+        <a id="logo" href="../blah/">
+            <img src="../blah/img/error-glitch.png"/>
+        </a>
+    </div>
+    
+    <h1 id="title">
+        <div id="title-layer1" class="layer">
+            Faultlore
+            <div id="title-layer2" class="layer">
+                Faultlore
+                <div id="title-layer3" class="layer">
+                    Faultlore
+                </div>
+            </div>
+        </div>
+    </h1>
+</header>
+
+<article class="content">
+
+    <section class="prolog">
         <h1>Let's Corrupt The Web</h1>
         <p>
             <b>Scroll down for pretty pictures!</b>
@@ -130,8 +154,8 @@ body {
             The nice thing about Right Value Wrong Place is that low-level corruption becomes driven by the high-level structure of the content. There's lots of high level structure that dictates a pixel's color or a character's glyph. This also lets your corruption inherit the structure of the original content in unexpected ways! Instead of seeing one glitchy page and knowing what all the others will look like, you discover knew and exciting effects as you browse through content with different structure!
         </p>
 
-    </div>
-    <div class="entry" id="francine">
+    </section>
+    <section class="entry" id="francine">
         <div class="art"><img src="francine.jpg"></div>
         <div class="desc">
             <h2 class="heading"><a href="#francine">
@@ -168,8 +192,8 @@ body {
                 Also, as I was shocked to learn when I first started working with GPUs: they really don't understand transparency, and properly managing transparent things is mostly the CPU's problem, because it messes up the depth buffer. So messing up transparency in the shaders wouldn't work even if there <i>was</i> stuff behind it.
             </p>
         </div>
-    </div>
-    <div class="entry" id="vappy-paws">
+    </section>
+    <section class="entry" id="vappy-paws">
         <div class="art"><img src="vappy-paws.png"></div>
         <div class="desc">
             <h2 class="heading"><a href="#vappy-paws">
@@ -203,8 +227,8 @@ body {
                 This produces a really nice "content-aware" corruption effect, as you can see the corruption creeping around the sink at the top. I have absolutely no idea why it only happens on the left and then abruptly stops.
             </p>
         </div>
-    </div>
-    <div class="entry" id="peach">
+    </section>
+    <section class="entry" id="peach">
         <div class="art"><img src="peach.png"></div>
         <div class="desc">
             <h2 class="heading"><a href="#peach">
@@ -226,8 +250,8 @@ body {
                 I also wanted to show this piece as an exemplar of the typical effect this jpeg corruption creates: a simple glitchy highlight around the left edge of the figure.
             </p>
         </div>
-    </div>
-    <div class="entry" id="marathi-wikipedia">
+    </section>
+    <section class="entry" id="marathi-wikipedia">
         <div class="art"><img src="marathi.png"></div>
         <div class="desc">
             <h2 class="heading"><a href="#marathi-wikipedia">
@@ -253,8 +277,8 @@ body {
                 This effect is achieved by just messing up the arguments WebRender passes into CoreText. I believe every change here is caused by arbitrarily deriving new values from the glyph index, including slightly perturbing the bits of the glyph index itself. Most notably the glyph index's bits are being fed into a bunch of checks for whether we're supposed to apply certain transforms like rotation, which is why there are so many rotations.
             </p>
         </div>
-    </div>
-    <div class="entry" id="english-wikipedia">
+    </section>
+    <section class="entry" id="english-wikipedia">
         <div class="art"><img src="english-wikipedia.png"></div>
         <div class="desc">
             <h2 class="heading"><a href="#english-wikipedia">
@@ -273,8 +297,8 @@ body {
                 I'm also not bothering to show Japanese Wikipedia. Kanji are blocky and generally not actually composed of ligatures, so they didn't actually change very dramatically. Maybe the gibberish is full of beautiful japanese poems, but it's not that visually compelling. Same goes for Korean and Chinese text.
             </p>
         </div>
-    </div>
-    <div class="entry" id="language-not-found">
+    </section>
+    <section class="entry" id="language-not-found">
         <div class="art"><img src="language-not-found.png"></div>
         <div class="desc">
             <h2 class="heading"><a href="#language-not-found">
@@ -290,8 +314,8 @@ body {
                 This is the kind of surprise I love to find!
             </p>
         </div>
-    </div>
-    <div class="entry" id="xelcome-o-nightly">
+    </section>
+    <section class="entry" id="xelcome-o-nightly">
         <div class="art"><img src="xelcome-o-nightly.png"></div>
         <div class="desc">
             <h2 class="heading"><a href="#xelcome-o-nightly">
@@ -310,8 +334,8 @@ body {
                 Strong "Start Wandows Ngrmadly" vibes.
             </p>
         </div>
-    </div>
-    <div class="entry" id="i-have-no-glyphs">
+    </section>
+    <section class="entry" id="i-have-no-glyphs">
         <div class="art"><img src="i-have-no-glyphs.png"></div>
         <div class="desc">
             <h2 class="heading"><a href="#i-have-no-glyphs">
@@ -330,8 +354,8 @@ body {
                 Otherwise, not the best effect. We're in "pure noise" territory.
             </p>
         </div>
-    </div>
-    <div class="entry" id="moon-language">
+    </section>
+    <section class="entry" id="moon-language">
         <div class="art"><img src="moon-language.png"></div>
         <div class="desc">
             <h2 class="heading"><a href="#moon-language">
@@ -347,8 +371,8 @@ body {
                 DO NOT PURCHASE A WARE
             </p>
         </div>
-    </div>
-    <div class="entry" id="big-stretchie">
+    </section>
+    <section class="entry" id="big-stretchie">
         <div class="art"><img src="big-stretchie.png"></div>
         <div class="desc">
             <h2 class="heading"><a href="#big-stretchie">
@@ -361,8 +385,8 @@ body {
                 Big stretch makes big destroy.
             </p>
         </div>
-    </div>
-    <div class="entry" id="ars-technica">
+    </section>
+    <section class="entry" id="ars-technica">
         <div class="art"><img src="ars.jpg"></div>
          <div class="desc">
             <h2 class="heading"><a href="#ars-technica">
@@ -389,9 +413,9 @@ body {
             <p>
                 As discussed in my big rant about "structure", these kinds of changes are pretty underwhelming, which is why I quickly moved to a different approach.
             </p>
-    </div>
+    </section>
 
-</div>
+</article>
 
 </body>
 </html>

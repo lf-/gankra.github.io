@@ -18,17 +18,17 @@
             background-position: 50% 50%;
             justify-content: center;
         }
-        #layer1 {
+        #layer1,#title-layer1 {
             text-shadow: -2px -1px 0 rgba(255,255,0,1);
             display: block;
         }
-        #layer2 {
+        #layer2,#title-layer2 {
             mix-blend-mode: darken;
-            text-shadow: 2px -3px 0 rgba(0,255,255,1);
+            text-shadow: 1px -1px 0 rgba(0,255,255,1);
         }
-        #layer3 {
+        #layer3,#title-layer3 {
             mix-blend-mode: darken;
-            text-shadow: 3px 1px 0 rgba(255,0,255,1);
+            text-shadow: 2px 1px 0 rgba(255,0,255,1);
         }
     }
     
@@ -44,15 +44,15 @@
         #logo {
             width: 300px;
         }
-        #layer1 {
+        #layer1,#title-layer1  {
             text-shadow: -5px -2px 0 rgba(255,255,0,1);
             display: block;
         }
-        #layer2 {
+        #layer2,#title-layer2  {
             mix-blend-mode: darken;
             text-shadow: 3px -4px 0 rgba(0,255,255,1);
         }
-        #layer3 {
+        #layer3,#title-layer3  {
             mix-blend-mode: darken;
             text-shadow: 5px 2px 0 rgba(255,0,255,1);
         }
@@ -67,7 +67,8 @@
     #title {
         display: block;
         height: 100%;
-
+        margin: 0;
+        padding: 0;
         text-overflow: clip;
         overflow: hidden;
         white-space:  nowrap;
