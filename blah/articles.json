@@ -5,112 +5,112 @@
             "path": "deinitialize-me-maybe",
             "toc": true,
             "title": "Destroy All Values: Designing Deinitialization in Programming Languages",
-            "date": "January 23, 2022"
+            "date": "Sun, 23 Jan 2022 00:00:00 +0000"
         },
         {
             "path": "compact-unwinding",
             "toc": true,
             "title": "The Apple Compact Unwinding Format: Documented and Explained",
-            "date": "June 9, 2021"
+            "date": "Wed, 09 Jun 2021 00:00:00 +0000"
         },
         {
             "path": "swift-abi",
             "toc": true,
             "title": "How Swift Achieved Dynamic Linking Where Rust Couldn't",
-            "date": "November 7, 2019"
+            "date": "Thu, 07 Nov 2019 00:00:00 +0000"
         },
         {
             "path": "text-hates-you",
             "toc": false,
             "title": "Text Rendering Hates You",
-            "date": "September 28, 2019"
+            "date": "Sat, 28 Sep 2019 00:00:00 +0000"
         },
         {
             "path": "hashbrown-tldr",
             "toc": false,
             "title": "Swisstable, a Quick and Dirty Description",
-            "date": "July 27, 2019",
+            "date": "Sat, 27 Jul 2019 00:00:00 +0000",
             "aux_date": "Rust Nightly 1.35.0"
-        },
-        {
-            "path": "hashbrown-insert",
-            "toc": false,
-            "title": "Why Hashbrown Does A Double-Lookup",
-            "date": ">May 21, 2019",
-            "aux_date": "Rust Nightly 1.36.0"
         },
         {
             "path": "initialize-me-maybe",
             "toc": false,
             "title": "Here's My Type, So Initialize Me Maybe",
-            "date": "May 21, 2019",
+            "date": "Tue, 21 May 2019 00:00:00 +0000",
+            "aux_date": "Rust Nightly 1.36.0"
+        },
+        {
+            "path": "hashbrown-insert",
+            "toc": false,
+            "title": "Why Hashbrown Does A Double-Lookup",
+            "date": "Wed, 20 Mar 2019 00:00:00 +0000",
             "aux_date": "Rust Nightly 1.36.0"
         },
         {
             "path": "impl-defined",
             "toc": false,
             "title": "The Kinds of Implementation-Defined?",
-            "date": "November 13, 2018"
+            "date": "Tue, 13 Nov 2018 00:00:00 +0000"
         },
         {
             "path": "rust-layouts-and-abis",
             "toc": true,
             "title": "Notes on Type Layouts and ABIs in Rust",
-            "date": "October 9, 2018",
+            "date": "Tue, 09 Oct 2018 00:00:00 +0000",
             "aux_date": "Rust Nightly 1.30.0"
         },
         {
             "path": "only-in-rust",
             "toc": false,
             "title": "Bugs You'll Probably Only Have In Rust",
-            "date": "June 14, 2017"
+            "date": "Wed, 14 Jun 2017 00:00:00 +0000"
         },
         {
             "path": "linear-rust",
             "toc": true,
             "title": "The Pain Of Linear Types In Rust",
-            "date": "May 8, 2017"
+            "date": "Mon, 08 May 2017 00:00:00 +0000"
         },
         {
             "path": "robinhood-part-1",
             "toc": false,
             "title": "A HashMap in Rust - What's a HashMap?",
-            "date": "January 15, 2015",
+            "date": "Thu, 15 Jan 2015 00:00:00 +0000",
             "aux_date": "Rust Nightly 1.0.0"
         },
         {
             "path": "rust-btree-case",
             "toc": false,
             "title": "Rust Collections Case Study: BTreeMap",
-            "date": "June 5, 2015",
+            "date": "Fri, 05 Jun 2015 00:00:00 +0000",
             "aux_date": "Rust Nightly 1.0.0"
         },
         {
             "path": "rust-generics-and-collections",
             "toc": false,
             "title": "Rust, Generics, and Collections",
-            "date": "June 3, 2015",
+            "date": "Wed, 03 Jun 2015 00:00:00 +0000",
             "aux_date": "Rust Nightly 0.12.0"
         },
         {
             "path": "everyone-poops",
             "toc": false,
             "title": "Pre-Pooping Your Pants With Rust",
-            "date": "April 27, 2015",
+            "date": "Mon, 27 Apr 2015 00:00:00 +0000",
             "aux_date": "Rust Nightly 0.12.0"
         },
         {
             "path": "rust-lifetimes-and-collections",
             "toc": false,
             "title": "Rust, Lifetimes, and Collections",
-            "date": "November 9, 2014",
+            "date": "Sun, 09 Nov 2014 00:00:00 +0000",
             "aux_date": "Rust Nightly 0.12.0"
         },
         {
             "path": "homestuck-memories",
             "toc": false,
             "title": "Memories of Working on Homestuck",
-            "date": "May 6, 2020"
+            "date": "Wed, 06 May 2020 00:00:00 +0000"
         }
     ]
 }
