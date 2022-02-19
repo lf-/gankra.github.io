@@ -10,6 +10,12 @@
     <link href="../rust.css" rel="stylesheet" type="text/css">
 <link href="../style.css" rel="stylesheet" type="text/css">
 
+<meta name="author" content="Aria Beingessner">
+<meta property="og:image" content="https://gankra.github.io/img/error-base.png">
+<meta property="og:type" content="article">
+
+<meta property="og:title" content="The Pain Of Linear Types In Rust">
+<meta property="og:url" content="https://gankra.github.io/blah/linear-rust">
 
 </head>
 <body class="rustdoc">
@@ -22,33 +28,33 @@
 
     <link href="../header.css" rel="stylesheet" type="text/css">
 
-<div id="title-bar">
+<header id="title-bar">
     <div id = "logo">
-        <a id="logo" href="..">
+        <a id="logo" href="../">
             <img src="../img/error-glitch.png"/>
         </a>
     </div>
     
-    <div id="title">
-        <div id="layer1" class="layer">
+    <h1 id="title">
+        <div id="title-layer1" class="layer">
             Faultlore
-            <div id="layer2" class="layer">
+            <div id="title-layer2" class="layer">
                 Faultlore
-                <div id="layer3" class="layer">
+                <div id="title-layer3" class="layer">
                     Faultlore
                 </div>
             </div>
         </div>
-    </div>
-</div>
+    </h1>
+</header>
 
-<div class="content">
+<article class="content">
 
-    <h1 class="title">The Pain Of Real Linear Types in Rust</h1><header>
+    <h1 class="title">The Pain Of Real Linear Types in Rust</h1>
+    <header>
     <p class="author">Aria Beingessner</p>
     <p class="date">May 8, 2017</p>
-</header>
-    <nav id="TOC"><ul>
+<nav id="TOC"><ul>
 <li><a href="#definitions-and-the-state-of-rust">1 Definitions And The State Of Rust</a><ul>
 <li><a href="#can-be-used-any-number-of-times">1.1 Can Be Used Any Number Of Times</a><ul></ul></li>
 <li><a href="#cant-be-used-more-than-once">1.2 Can’t Be Used More Than Once</a><ul></ul></li>
@@ -58,7 +64,7 @@
 <li><a href="#the-checker">2.1 The Checker</a><ul></ul></li>
 <li><a href="#the-trait">2.2 The Trait</a><ul></ul></li>
 <li><a href="#usage-examples">2.3 Usage Examples</a><ul></ul></li></ul></li>
-<li><a href="#conclusion">3 Conclusion</a><ul></ul></li></ul></nav>
+<li><a href="#conclusion">3 Conclusion</a><ul></ul></li></ul></nav></header>
 <p>For whatever reason “linear” types in Rust came up at work today, at which point I made my usual assertion that they’d be a nightmare to implement, because they don’t compose well. I tried to explain it off the top of my head, but I figured it’s best for me to just write it out.</p>
 <h1 id="definitions-and-the-state-of-rust" class="section-header"><a href="#definitions-and-the-state-of-rust">1 Definitions And The State Of Rust</a></h1>
 <p>So there’s this thing called a <a href="https://en.wikipedia.org/wiki/Substructural_type_system">Substructural Type System</a>™, that Rust takes some ideas from. </p>
@@ -296,7 +302,11 @@
 <p>Ok having actually written this all out, it’s better than I thought. That said, I still think it’s <em>a lot</em> of paper cuts that pile up to make an overall unpleasant and difficult to implement system. The library work is probably the biggest burden. Something that would realistically take years to shake out.</p>
 <p>Feel free to call me a fool, or ask me questions, on twitter or any of the usual places The Rust Evangelism Strikeforce hangs out.</p>
 <div class="footnotes"><hr><ol><li id="fn1"><p>Technically it calls <code>drop_in_place()</code>, which calls <code>drop()</code> and then recursively calls <code>drop_in_place()</code> on all fields.&nbsp;<a href="#fnref1">↩</a></p></li><li id="fn2"><p>There’s a bunch of hairy details about moving subfields and stuff I don’t care about getting into here.&nbsp;<a href="#fnref2">↩</a></p></li><li id="fn3"><p>The Swift devs have basically the exact same argument for move-only code, and their implicit Copy bound. Hooray!&nbsp;<a href="#fnref3">↩</a></p></li></ol></div>
-    </div>
+    </article>
+
+<footer id="footer">
+
+</footer>
 
 </body>
 </html>

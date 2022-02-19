@@ -10,6 +10,12 @@
     <link href="../rust.css" rel="stylesheet" type="text/css">
 <link href="../style.css" rel="stylesheet" type="text/css">
 
+<meta name="author" content="Aria Beingessner">
+<meta property="og:image" content="https://gankra.github.io/img/error-base.png">
+<meta property="og:type" content="article">
+
+<meta property="og:title" content="How Swift Achieved Dynamic Linking Where Rust Couldn't">
+<meta property="og:url" content="https://gankra.github.io/blah/swift-abi">
 
 </head>
 <body class="rustdoc">
@@ -22,33 +28,33 @@
 
     <link href="../header.css" rel="stylesheet" type="text/css">
 
-<div id="title-bar">
+<header id="title-bar">
     <div id = "logo">
-        <a id="logo" href="..">
+        <a id="logo" href="../">
             <img src="../img/error-glitch.png"/>
         </a>
     </div>
     
-    <div id="title">
-        <div id="layer1" class="layer">
+    <h1 id="title">
+        <div id="title-layer1" class="layer">
             Faultlore
-            <div id="layer2" class="layer">
+            <div id="title-layer2" class="layer">
                 Faultlore
-                <div id="layer3" class="layer">
+                <div id="title-layer3" class="layer">
                     Faultlore
                 </div>
             </div>
         </div>
-    </div>
-</div>
+    </h1>
+</header>
 
-<div class="content">
+<article class="content">
 
-    <h1 class="title">How Swift Achieved Dynamic Linking Where Rust Couldn&#39;t</h1><header>
+    <h1 class="title">How Swift Achieved Dynamic Linking Where Rust Couldn&#39;t</h1>
+    <header>
     <p class="author">Aria Beingessner</p>
     <p class="date">November 7th, 2019</p>
-</header>
-    <nav id="TOC"><ul>
+<nav id="TOC"><ul>
 <li><a href="#background">1 Background</a><ul>
 <li><a href="#swift-tldr">1.1 Swift TLDR</a><ul></ul></li>
 <li><a href="#what-is-abi-stability-and-dynamic-linking">1.2 What Is ABI Stability and Dynamic Linking</a><ul></ul></li>
@@ -61,7 +67,7 @@
 <li><a href="#materialization">2.4 Materialization</a><ul></ul></li>
 <li><a href="#ownership">2.5 Ownership</a><ul></ul></li>
 <li><a href="#opting-out-of-resilience">2.6 Opting Out of Resilience</a><ul></ul></li>
-<li><a href="#esoterica">2.7 Esoterica</a><ul></ul></li></ul></li></ul></nav>
+<li><a href="#esoterica">2.7 Esoterica</a><ul></ul></li></ul></li></ul></nav></header>
 <p>For those who don’t follow Swift’s development, ABI stability has been one of its most ambitious projects and possibly it’s defining feature, <a href="https://swift.org/blog/abi-stability-and-more/">and it finally shipped in Swift 5</a>. The result is something I find endlessly fascinating, because I think Swift has pushed the notion of ABI stability farther than any language without much compromise.</p>
 <p>So I decided to write up a bunch of the interesting high-level details of Swift’s ABI. This <strong>is not</strong> a complete reference for Swift’s ABI, but rather an abstract look at its implementation strategy. If you really want to know exactly how it allocates registers or mangles names, look somewhere else.</p>
 <p>Also for context on why I’m writing this, I’m just naturally inclined to compare the design of Swift to Rust, because those are the two languages I have helped develop. Also some folks like to complain that Rust doesn’t bother with ABI stability, and I think looking at how Swift <em>does</em> helps elucidate why that is.</p>
@@ -456,7 +462,11 @@ https://github.com/apple/swift/blob/6bd3f117c6e5937d1ada2cc09aed00a179dfa972/doc
 https://github.com/apple/swift/blob/master/docs/OwnershipManifesto.md
 -->
 
-    </div>
+    </article>
+
+<footer id="footer">
+
+</footer>
 
 </body>
 </html>

@@ -10,6 +10,12 @@
     <link href="../rust.css" rel="stylesheet" type="text/css">
 <link href="../style.css" rel="stylesheet" type="text/css">
 
+<meta name="author" content="Aria Beingessner">
+<meta property="og:image" content="https://gankra.github.io/img/error-base.png">
+<meta property="og:type" content="article">
+
+<meta property="og:title" content="Why Hashbrown Does A Double-Lookup">
+<meta property="og:url" content="https://gankra.github.io/blah/hashbrown-insert">
 
 </head>
 <body class="rustdoc">
@@ -22,27 +28,27 @@
 
     <link href="../header.css" rel="stylesheet" type="text/css">
 
-<div id="title-bar">
+<header id="title-bar">
     <div id = "logo">
-        <a id="logo" href="..">
+        <a id="logo" href="../">
             <img src="../img/error-glitch.png"/>
         </a>
     </div>
     
-    <div id="title">
-        <div id="layer1" class="layer">
+    <h1 id="title">
+        <div id="title-layer1" class="layer">
             Faultlore
-            <div id="layer2" class="layer">
+            <div id="title-layer2" class="layer">
                 Faultlore
-                <div id="layer3" class="layer">
+                <div id="title-layer3" class="layer">
                     Faultlore
                 </div>
             </div>
         </div>
-    </div>
-</div>
+    </h1>
+</header>
 
-<div class="content">
+<article class="content">
 
     <h1 class="title">Why Hashbrown Does A Double-Lookup</h1>
     <header>
@@ -243,7 +249,11 @@ entry API:</p>
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="ident">map</span>.<span class="ident">entry</span>(<span class="ident">k</span>).<span class="ident">or_insert</span>(<span class="ident">v</span>);</code></pre></div>
 <p>only ever does <code>hash(); get(); really_insert();</code></p>
 
-    </div>
+    </article>
+
+<footer id="footer">
+
+</footer>
 
 </body>
 </html>

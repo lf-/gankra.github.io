@@ -10,6 +10,12 @@
     <link href="../rust.css" rel="stylesheet" type="text/css">
 <link href="../style.css" rel="stylesheet" type="text/css">
 
+<meta name="author" content="Aria Beingessner">
+<meta property="og:image" content="https://gankra.github.io/img/error-base.png">
+<meta property="og:type" content="article">
+
+<meta property="og:title" content="The Apple Compact Unwinding Format: Documented and Explained">
+<meta property="og:url" content="https://gankra.github.io/blah/compact-unwinding">
 
 </head>
 <body class="rustdoc">
@@ -22,33 +28,33 @@
 
     <link href="../header.css" rel="stylesheet" type="text/css">
 
-<div id="title-bar">
+<header id="title-bar">
     <div id = "logo">
-        <a id="logo" href="..">
+        <a id="logo" href="../">
             <img src="../img/error-glitch.png"/>
         </a>
     </div>
     
-    <div id="title">
-        <div id="layer1" class="layer">
+    <h1 id="title">
+        <div id="title-layer1" class="layer">
             Faultlore
-            <div id="layer2" class="layer">
+            <div id="title-layer2" class="layer">
                 Faultlore
-                <div id="layer3" class="layer">
+                <div id="title-layer3" class="layer">
                     Faultlore
                 </div>
             </div>
         </div>
-    </div>
-</div>
+    </h1>
+</header>
 
-<div class="content">
+<article class="content">
 
-    <h1 class="title">The Apple Compact Unwinding Format: Documented and Explained</h1><header>
+    <h1 class="title">The Apple Compact Unwinding Format: Documented and Explained</h1>
+    <header>
     <p class="author">Aria Beingessner</p>
     <p class="date">June 9th, 2021</p>
-</header>
-    <nav id="TOC"><ul>
+<nav id="TOC"><ul>
 <li><a href="#background-unwinding-and-debug-info">1 Background: Unwinding and Debug Info</a><ul>
 <li><a href="#unwinding">1.1 Unwinding</a><ul></ul></li>
 <li><a href="#frame-pointer-unwinding-standard-prologues">1.2 Frame Pointer Unwinding (Standard Prologues)</a><ul></ul></li>
@@ -69,7 +75,7 @@
 <li><a href="#arm64-opcode-3-dwarf">4.2.2 ARM64 Opcode 3: Dwarf</a><ul></ul></li>
 <li><a href="#arm64-opcode-4-frame-based">4.2.3 ARM64 Opcode 4: Frame-Based</a><ul></ul></li></ul></li></ul></li>
 <li><a href="#notable-corners">5 Notable Corners</a><ul></ul></li>
-<li><a href="#errata">6 Errata</a><ul></ul></li></ul></nav>
+<li><a href="#errata">6 Errata</a><ul></ul></li></ul></nav></header>
 <p>A few years ago, Apple introduced a new kind of unwinding info (I’ll explain what that is in the next section) – the “compact unwinding format”, which can be found in <code>__unwind_info</code> sections of binaries.</p>
 <p>Clang also started preferentially emitting that format over DWARF CFI on Apple’s platforms. So to generate good backtraces on Apple platforms, you need to be able to parse and interpret compact unwinding tables.</p>
 <p>Unfortunately, this format is defined only by its implementation in llvm. Notably these files include lots of useful details, but you need to do a lot of studying of the actual implementation to figure everything out:</p>
@@ -596,7 +602,11 @@ address: 0x000121c3, opcode: 0x04000680</code></pre></div>
 <h1 id="errata" class="section-header"><a href="#errata">6 Errata</a></h1>
 <p>An earlier version of this article had an incorrect layout for the x86/x64 Frame-Based Opcode. This is because the comment describing the layout in llvm was incorrect (the actual masks were correct, but I didn’t compare the two for consistency).</p>
 
-    </div>
+    </article>
+
+<footer id="footer">
+
+</footer>
 
 </body>
 </html>

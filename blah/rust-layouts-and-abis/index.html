@@ -10,6 +10,12 @@
     <link href="../rust.css" rel="stylesheet" type="text/css">
 <link href="../style.css" rel="stylesheet" type="text/css">
 
+<meta name="author" content="Aria Beingessner">
+<meta property="og:image" content="https://gankra.github.io/img/error-base.png">
+<meta property="og:type" content="article">
+
+<meta property="og:title" content="Notes on Type Layouts and ABIs in Rust">
+<meta property="og:url" content="https://gankra.github.io/blah/rust-layouts-and-abis">
 
 </head>
 <body class="rustdoc">
@@ -22,33 +28,33 @@
 
     <link href="../header.css" rel="stylesheet" type="text/css">
 
-<div id="title-bar">
+<header id="title-bar">
     <div id = "logo">
-        <a id="logo" href="..">
+        <a id="logo" href="../">
             <img src="../img/error-glitch.png"/>
         </a>
     </div>
     
-    <div id="title">
-        <div id="layer1" class="layer">
+    <h1 id="title">
+        <div id="title-layer1" class="layer">
             Faultlore
-            <div id="layer2" class="layer">
+            <div id="title-layer2" class="layer">
                 Faultlore
-                <div id="layer3" class="layer">
+                <div id="title-layer3" class="layer">
                     Faultlore
                 </div>
             </div>
         </div>
-    </div>
-</div>
+    </h1>
+</header>
 
-<div class="content">
+<article class="content">
 
-    <h1 class="title">Notes on Type Layouts and ABIs in Rust</h1><header>
+    <h1 class="title">Notes on Type Layouts and ABIs in Rust</h1>
+    <header>
     <p class="author">Aria Beingessner</p>
     <p class="date">October 9th, 2018 -- Rust Nightly 1.30.0</p>
-</header>
-    <nav id="TOC"><ul>
+<nav id="TOC"><ul>
 <li><a href="#the-anatomy-of-a-platform">1 The Anatomy of a Platform</a><ul></ul></li>
 <li><a href="#the-anatomy-of-a-type">2 The Anatomy of a Type</a><ul>
 <li><a href="#size">2.1 Size</a><ul></ul></li>
@@ -64,7 +70,7 @@
 <li><a href="#segmented-architectures">3.3 Segmented Architectures</a><ul></ul></li>
 <li><a href="#calling-conventions">3.4 Calling Conventions</a><ul>
 <li><a href="#problem-and-motivation-for-calling-conventions">3.4.1 Problem and Motivation for Calling Conventions</a><ul></ul></li>
-<li><a href="#some-examples-of-calling-conventions">3.4.2 Some Examples of Calling Conventions</a><ul></ul></li></ul></li></ul></li></ul></nav>
+<li><a href="#some-examples-of-calling-conventions">3.4.2 Some Examples of Calling Conventions</a><ul></ul></li></ul></li></ul></li></ul></nav></header>
 <p>Over the years I’ve found myself with a weird amount of knowledge about how types and ABIs in Rust work, and I wanted to write it all down in one place so that… it’s written down in one place. Much of this information can or should be found in the <a href="https://doc.rust-lang.org/reference/">Rust Language Reference</a> and the <a href="https://doc.rust-lang.org/nomicon/">Rustonomicon</a>.</p>
 <p>Special thanks to Nicole Mazzuca for doing tons of fact-checking on this one!</p>
 <h1 id="the-anatomy-of-a-platform" class="section-header"><a href="#the-anatomy-of-a-platform">1 The Anatomy of a Platform</a></h1>
@@ -377,7 +383,11 @@ void process2(struct IntAndFloats vals):</code></pre></div><div class="example-w
 (vals.c, vals.d):  register xmm0</code></pre></div>
 <p>The x64 ABI chunks structs into 8-byte chunks and does a recursive classification of the fields. In this case, we see that for the first half of <code>IntAndFloats</code> the integer <code>a</code> “dominates” the float <code>b</code>, and so that chunk is passed in general purpose registers. However the second chunk consists entirely of floats, and so is passed in <code>xmm0</code>. This shows us that we need to know the exact ABIs of all of the fields of a composite to properly pass it in the x64 ABI.</p>
 
-    </div>
+    </article>
+
+<footer id="footer">
+
+</footer>
 
 </body>
 </html>
