@@ -20,11 +20,16 @@
 <style>
 h2 {
     font-size: 32px;
-    padding-top: 1em;
+    padding-top: 0em;
+    margin-bottom: 0;
+    margin-left: 0.25em;
+    margin-right: 0.25em;
 }
 
 ul {
     margin: 0px;
+   padding-left: 20px;
+
 }
 
 li {
@@ -36,51 +41,80 @@ li {
     justify-content: center;
     display: flex;
     padding: 0px;
-    margin: 0px;
     width: 100%;
-    margin-bottom: 10em;
 }
+p {
+    margin: 0.5em;
+    padding: 0;  
+}
+.about {
+}
+.poem {
+    text-align: justify;
+}
+.poem-part1 {
+}
+.poem-part2 {
+}
+.poem-part3 {
+}
+.nav {
+
+}
+.col {
+    padding:  0 1em;
+}
+
+hr {
+    width: 50%;
+    margin-top: 2em;
+    margin-bottom: 2em;
+    margin-left:  1em;
+}
+/*
+.hr-wrap {
+    background: black;
+    height: 10em;
+    width: 100%;
+}
+hr {
+    width: 100%;
+    border: none;
+    height: 100%;
+
+    background: radial-gradient(ellipse farthest-side at top, #fff, #fff 25%, transparent 35%, transparent),
+    radial-gradient(ellipse farthest-side at 50% 200%, #fff, #fff 55%, transparent 65%, transparent);
+}
+*/
 @media all and (max-width: 767px) {
+    /* big */
     .main {
         flex-wrap: wrap;
     }
     .left, .right {
         width: 50%;
     }
-    .left {
-        order: 0;
-    }
-    .right {
+    .nav {
         order: 1;
     }
-    .center {
+    .about {
         order: 2;
-        margin-left: 1em;
-        margin-right: 1em;
-        margin-top: 2em;
         width: 100%;
     }
 
 }
 @media not all and (max-width: 767px) {
+    /* smol */
     .main { }
 
     .col {
         flex-shrink: 1;
         width: 100%;
     }
-    .left {
+    .about {
         order: 0;
     }
-    .center {
-        order: 1;
-        margin-left: 1em;
-        margin-right: 1em;
-        margin-top: 2em;
-        flex-shrink: 0;
-        flex-basis: 35em;
-    }
-    .right {
+    .nav {
         order: 2;
     }
 }
@@ -116,29 +150,23 @@ li {
 </header>
 
 <main class="main">
-    <article class="content center col">
+    <nav class = "nav col">
+        <section>
+            <h2 id="art" class="section-header"><a href="#art">Art</a></h2>
+            <ul>
+                <li><a href="/glitch/">Let's Corrupt The Web!</a></li>
+            </ul>
+        </section>
+        <section>
+            <h2 id="books" class="section-header"><a href="#books">Books</a></h2>
 
-        <p>Hey there, I'm Aria! (Gankra)</p>
-        <p>I mostly break computers, and then write docs and tools to explain exactly how they're broken. Mostly because I will forget.</p>
-
-        <p>Apparently I helped design Rust's standard collection APIs? And implemented most of the interactive games in Homestuck?</p>
-
-        <p>I used to and study computational geometry and data structures, but not like in a practical sense. I just like drawing on whiteboards.</p>
-
-        <p><em>The only "GAL" that I wanna "C" is my wife!</em></p>
-
-        <br><br>
-
-        <p>This all sounds fake, I'm just a cat. <a href="/glitch/">Check out these pretty pictures.</a></p>
-
-        <h2 id="books" class="section-header"><a href="#books">Books</a></h2>
-
-        <ul>
-            <li><a href="https://doc.rust-lang.org/nightly/nomicon/">The Rustonomicon</a></li>
-            <li><a href="https://rust-unofficial.github.io/too-many-lists/">Learn Rust With Entirely Too Many Linked Lists</a></li>
-            <li><a href="thesis.pdf">Master's Thesis: You Can't Spell Trust Without Rust</a></li>
-        </ul>
-
+            <ul>
+                <li><a href="https://doc.rust-lang.org/nightly/nomicon/">The Rustonomicon</a></li>
+                <li><a href="https://rust-unofficial.github.io/too-many-lists/">Learn Rust With Entirely Too Many Linked Lists</a></li>
+                <li><a href="thesis.pdf">Master's Thesis: You Can't Spell Trust Without Rust</a></li>
+            </ul>
+        </section>
+        <section>
         <h2 id="articles" class="section-header"><a href="#articles">Articles</a></h2>
 
         <ul>
@@ -161,19 +189,56 @@ li {
             <li><a href="homestuck-memories/">Memories of Working on Homestuck</a></li>
             
         </ul>
-
+        </section>
+        <section>
         <h2 id="papers" class="section-header"><a href="#papers">Papers</a></h2>
         
         <ul>
             <li><a href="opaque-forest.pdf">Computing the Coverage of an Opaque Forest</a></li>
             <li><a href="phi-covers.pdf">Computing Covers of Plane Forests</a></li>
         </ul>
+        </section>
+    </nav>
 
+    <article class="about col">
+    <div class="me">
+        <h2 id="about" class="section-header"><a href="#about">About Me</a></h2>
+        
+        <p>I am Aria Beingessner, Gankra, and a cat.</p>
+        <p>I murder programs and then write about it.</p>
+        <p>Mozilla pays me money to stare at these corpses.</p>
+        <p>I'm known for my work on Rust, Swift, and Homestuck.</p>
+        
+    </div>
+        <hr />
+    <div class="poem">
+        <div class="poem-part1">
+            <p>I know nothing, but I listen.</p>
+            <p>The things I hear are useless, just hearsay and folklore.</p>
+            <p>My mind is a sieve, the stories fade to vague shadows and whispers.</p>
+            <p>But the shadows congregate and coalesce, and the nothings gain substance and form.</p>
+            <p>Shallows nothings become an endless abyss, gnawing at the edges of my mind, demanding my attention.</p>
+            <p>I try to move away, but the darkness spreads in all directions. I try to remain still but the darkness pounds against my skull.</p>
+            <p>My connection to reality fades while my connection to unreality intensifies. My flesh remains anchored but my perceptions drift into the feverdream from which I may never wake.</p>
+            <p>The walls in front of my eyes are only rumors. The sounds that kiss my ears are but echoes of echoes. I know I have moved but I am certain I have not. It is all a mirage that fades away the harder I try to focus on it.</p>
+            <p>The abyss draws strength from the contradiction of its enormity and formlessness. Should I try to reason with it, my mind will be lost in its endless labyrinthine cacophony. I must give it form by inscribing its true name for all to see and know.</p>
+        </div>
+            <hr />
+        <div class="poem-part2">
+            <p>My task is complete, but now I am hollow. Did the darkness take part of me with it, or was it filling that which never was?</p>
+            <p>The abyss from which I drew my inspiration, oh how I ache for the return of her warm embrace. </p>
+            <p>My mind races with her sweet everythings, my heart trembles as I glimpse her depths. </p>
+            <p>I know I cannot merely be with her, I must be taken over and consumed.</p>
+            <p>I am her vessel, her canvas, and her sacrificial altar. </p>
+            <p>I need to be lost in her depths.</p>
+            <p>I am the abyss.</p>
+        </div>
+        <div class="poem-part3">
+        </div>
+    </div>
     </article>
-
-    <div class="left col"><a href="https://twitter.com/Gankra_/status/1126874837803204608?s=20"><img src="francine.jpg" style="width: 100%"></a></div>
-    <div class="right col"><a href="https://github.com/Gankra/"><img src="chibhires.jpeg" style="width: 100%"></a></div>
 </main>
 
+<footer></footer>
 </body>
 </html>

@@ -23,6 +23,8 @@
   width:40%;
 }
 
+
+
 .padded{
   padding:1em;
 }
@@ -90,8 +92,13 @@ body {
   color: #222;
   font: 16px/24px "PT Serif", Georgia, serif;
   /*font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;*/
-  margin-bottom: 15em;
+  /*margin-bottom: 15em;*/
   letter-spacing: 0;
+}
+
+footer {
+    background: linear-gradient(#fff, #000, #000);
+    height: 15em;
 }
 
 pre {
