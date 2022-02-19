@@ -1,0 +1,121 @@
+
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+
+<channel>
+    <title>Faultlore</title>
+    <link>https://gankra.github.io/blah/</link>
+    <atom:link href="http://gankra.github.io/rss.xml" rel="self" type="application/rss+xml"/>
+    <description>Aria's Feverdreams</description>
+    <language>en-us</language> 
+
+
+    <image>
+      <url>https://gankra.github.io/blah/img/error-base.png</url>
+      <title>Faultlore</title>
+      <link>https://gankra.github.io/blah/</link>
+    </image> 
+
+    <item>
+        <title>Destroy All Values: Designing Deinitialization in Programming Languages - Faultlore</title>
+        <link>https://gankra.github.io/blah/deinitialize-me-maybe</link>
+        <description>Destroy All Values: Designing Deinitialization in Programming Languages</description>
+    </item>
+
+    <item>
+        <title>The Apple Compact Unwinding Format: Documented and Explained - Faultlore</title>
+        <link>https://gankra.github.io/blah/compact-unwinding</link>
+        <description>The Apple Compact Unwinding Format: Documented and Explained</description>
+    </item>
+
+    <item>
+        <title>How Swift Achieved Dynamic Linking Where Rust Couldn't - Faultlore</title>
+        <link>https://gankra.github.io/blah/swift-abi</link>
+        <description>How Swift Achieved Dynamic Linking Where Rust Couldn't</description>
+    </item>
+
+    <item>
+        <title>Text Rendering Hates You - Faultlore</title>
+        <link>https://gankra.github.io/blah/text-hates-you</link>
+        <description>Text Rendering Hates You</description>
+    </item>
+
+    <item>
+        <title>Swisstable, a Quick and Dirty Description - Faultlore</title>
+        <link>https://gankra.github.io/blah/hashbrown-tldr</link>
+        <description>Swisstable, a Quick and Dirty Description</description>
+    </item>
+
+    <item>
+        <title>Why Hashbrown Does A Double-Lookup - Faultlore</title>
+        <link>https://gankra.github.io/blah/hashbrown-insert</link>
+        <description>Why Hashbrown Does A Double-Lookup</description>
+    </item>
+
+    <item>
+        <title>Here's My Type, So Initialize Me Maybe - Faultlore</title>
+        <link>https://gankra.github.io/blah/initialize-me-maybe</link>
+        <description>Here's My Type, So Initialize Me Maybe</description>
+    </item>
+
+    <item>
+        <title>The Kinds of Implementation-Defined? - Faultlore</title>
+        <link>https://gankra.github.io/blah/impl-defined</link>
+        <description>The Kinds of Implementation-Defined?</description>
+    </item>
+
+    <item>
+        <title>Notes on Type Layouts and ABIs in Rust - Faultlore</title>
+        <link>https://gankra.github.io/blah/rust-layouts-and-abis</link>
+        <description>Notes on Type Layouts and ABIs in Rust</description>
+    </item>
+
+    <item>
+        <title>Bugs You'll Probably Only Have In Rust - Faultlore</title>
+        <link>https://gankra.github.io/blah/only-in-rust</link>
+        <description>Bugs You'll Probably Only Have In Rust</description>
+    </item>
+
+    <item>
+        <title>The Pain Of Linear Types In Rust - Faultlore</title>
+        <link>https://gankra.github.io/blah/linear-rust</link>
+        <description>The Pain Of Linear Types In Rust</description>
+    </item>
+
+    <item>
+        <title>A HashMap in Rust - What's a HashMap? - Faultlore</title>
+        <link>https://gankra.github.io/blah/robinhood-part-1</link>
+        <description>A HashMap in Rust - What's a HashMap?</description>
+    </item>
+
+    <item>
+        <title>Rust Collections Case Study: BTreeMap - Faultlore</title>
+        <link>https://gankra.github.io/blah/rust-btree-case</link>
+        <description>Rust Collections Case Study: BTreeMap</description>
+    </item>
+
+    <item>
+        <title>Rust, Generics, and Collections - Faultlore</title>
+        <link>https://gankra.github.io/blah/rust-generics-and-collections</link>
+        <description>Rust, Generics, and Collections</description>
+    </item>
+
+    <item>
+        <title>Pre-Pooping Your Pants With Rust - Faultlore</title>
+        <link>https://gankra.github.io/blah/everyone-poops</link>
+        <description>Pre-Pooping Your Pants With Rust</description>
+    </item>
+
+    <item>
+        <title>Rust, Lifetimes, and Collections - Faultlore</title>
+        <link>https://gankra.github.io/blah/rust-lifetimes-and-collections</link>
+        <description>Rust, Lifetimes, and Collections</description>
+    </item>
+
+    <item>
+        <title>Memories of Working on Homestuck - Faultlore</title>
+        <link>https://gankra.github.io/blah/homestuck-memories</link>
+        <description>Memories of Working on Homestuck</description>
+    </item>
+
+</channel>
+</rss> 
