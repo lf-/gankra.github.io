@@ -1,6 +1,9 @@
 % Rust Collections Case Study: BTreeMap
 
-## Aria Beingessner
+<header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">June 5, 2015 -- Rust Nightly 1.0.0</p>
+</header>
 
 This is the third entry in a series on implementing collections in the Rust programming language. The full list of entries can be found [here][index].
 

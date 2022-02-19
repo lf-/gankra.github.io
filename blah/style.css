@@ -1,3 +1,13 @@
+ @media all and (max-width: 767px) {
+    /* smol */
+    .content {
+      padding: 0 8px;
+    }
+}
+@media not all and (max-width: 767px) {
+    /* big */
+}
+
 .header{
   margin-left:5em;
   margin-right: 5em;
@@ -43,15 +53,27 @@ th, td {
 .author {
   font-weight: bold;
   font-size: 1.5em;
-  line-height: 0.5;
+  line-height: 1em;
+  padding: 0;
+  margin: 0;
 }
 
 .date {
   font-style: italic;
   font-size: 1.5em;
-  line-height: 0.5;
+  line-height: 1em;
+  padding: 0;
+  margin: 0;
+  margin-top: 10px;
   margin-bottom: 40px;
   display: block;
+}
+
+span.author {
+  padding: 0;
+}
+span.date {
+  padding: 0;
 }
 
 a {
@@ -59,13 +81,26 @@ a {
   color: #08c;
 }
 
+p {
+  padding: 8px 0;
+}
+
 body {
-  font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
+  margin: 0;
+  color: #222;
+  font: 16px/24px "PT Serif", Georgia, serif;
+  /*font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;*/
   margin-bottom: 15em;
+  letter-spacing: 0;
+}
+
+pre {
+  font: 14px monospace;
 }
 
 h1, h2, h3 {
   margin-top: 40px;
+  line-height: 1.5em;
 }
 
 /*

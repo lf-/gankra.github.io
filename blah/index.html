@@ -4,10 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <title>Corruption Cat</title>
+    <title>Faultlore</title>
 
-    <link href="bootstrap.min.css" rel="stylesheet" type="text/css">
-    <link href="bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
     <link href="rust.css" rel="stylesheet" type="text/css">
     <link href="style.css" rel="stylesheet" type="text/css">
 
@@ -25,8 +23,7 @@ li {
    padding-top: 1.5em;
    list-style-type: none;
 }
-body {
-    font-size: 15px;
+.main {
     flex-direction: row;
     justify-content: center;
     display: flex;
@@ -35,8 +32,8 @@ body {
     width: 100%;
     margin-bottom: 10em;
 }
-@media all and (max-width: 700px) {
-    body {
+@media all and (max-width: 767px) {
+    .main {
         flex-wrap: wrap;
     }
     .left, .right {
@@ -57,8 +54,8 @@ body {
     }
 
 }
-@media not all and (max-width: 700px) {
-    body { }
+@media not all and (max-width: 767px) {
+    .main { }
 
     .col {
         flex-shrink: 1;
@@ -81,63 +78,90 @@ body {
 }
 </style>
 
+
+
+
+
 </head>
 <body class="rustdoc">
 
-<div class="content center col">
+<link href="header.css" rel="stylesheet" type="text/css"/>
 
-    <p>Hey there, I'm Aria! (Gankra)</p>
-    <p>I mostly break computers, and then write docs and tools to explain exactly how they're broken. Mostly because I will forget.</p>
-
-    <p>Apparently I helped design Rust's standard collection APIs? And implemented most of the interactive games in Homestuck?</p>
-
-    <p>I used to and study computational geometry and data structures, but not like in a practical sense. I just like drawing on whiteboards.</p>
-
-    <p><em>The only "GAL" that I wanna "C" is my wife!</em></p>
-
-    <br><br>
-
-    <p>This all sounds fake, I'm just a cat. <a href="/glitch/">Check out these pretty pictures.</a></p>
-
-    <h2 id="books" class="section-header"><a href="#books">Books</a></h2>
-
-    <ul>
-        <li><a href="https://doc.rust-lang.org/nightly/nomicon/">The Rustonomicon</a></li>
-        <li><a href="https://rust-unofficial.github.io/too-many-lists/">Learn Rust With Entirely Too Many Linked Lists</a></li>
-        <li><a href="thesis.pdf">Master's Thesis: You Can't Spell Trust Without Rust</a></li>
-    </ul>
-
-    <h2 id="articles" class="section-header"><a href="#articles">Articles</a></h2>
-
-    <ul>
-        <li><a href="deinitialize-me-maybe/">Destroy All Values: Designing Deinitialization in Programming Languages</a></li>
-        <li><a href="compact-unwinding/">The Apple Compact Unwinding Format: Documented and Explained</a></li>
-        <li><a href="swift-abi/">How Swift Achieved Dynamic Linking Where Rust Couldn't</a></li>
-        <li><a href="text-hates-you/">Text Rendering Hates You</a></li>
-        <li><a href="hashbrown-tldr/">Swisstable, a Quick and Dirty Description</a></li>
-        <li><a href="initialize-me-maybe/">Here's My Type, So Initialize Me Maybe</a></li>
-        <li><a href="rust-layouts-and-abis/">Notes on Type Layouts and ABIs in Rust</a></li>
-        <li><a href="only-in-rust/">Bugs You'll Probably Only Have In Rust</a></li>
-        <li><a href="linear-rust/">The Pain Of Linear Types In Rust</a></li>
-        <li><a href="robinhood-part-1/">Building a HashMap in Rust - What's a HashMap?</a></li>
-        <li><a href="rust-btree-case/">Rust Collections Case Study: BTreeMap</a></li>
-        <li><a href="rust-generics-and-collections/">Rust, Generics, and Collections</a></li>
-        <li><a href="rust-lifetimes-and-collections/">Rust, Lifetimes, and Collections</a></li>
-    </ul>
-    <br>
-    <p><a href="https://doc.rust-lang.org/nightly/nomicon/leaking.html">Looking for that embarassing pre-poop-your-pants article? It was adapted into a much better section of the Rustonomicon</a>.</p>
-
-    <h2 id="papers" class="section-header"><a href="#papers">Papers</a></h2>
-    <ul>
-        <li><a href="opaque-forest.pdf">Computing the Coverage of an Opaque Forest</a></li>
-        <li><a href="phi-covers.pdf">Computing Covers of Plane Forests</a></li>
-    </ul>
-
+<div id="title-bar">
+    <div id = "logo">
+        <a id="logo" href="./">
+            <img src="img/error-glitch.png"/>
+        </a>
+    </div>
+    
+    <div id="title">
+        <div id="layer1" class="layer">
+            Faultlore
+            <div id="layer2" class="layer">
+                Faultlore
+                <div id="layer3" class="layer">
+                    Faultlore
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
-<div class="left col"><a href="https://twitter.com/Gankra_/status/1126874837803204608?s=20"><img src="francine.jpg" style="width: 100%"></a></div>
-<div class="right col"><a href="https://github.com/Gankra/"><img src="chibhires.jpeg" style="width: 100%"></a></div>
+<div class="main">
+    <div class="content center col">
 
+        <p>Hey there, I'm Aria! (Gankra)</p>
+        <p>I mostly break computers, and then write docs and tools to explain exactly how they're broken. Mostly because I will forget.</p>
+
+        <p>Apparently I helped design Rust's standard collection APIs? And implemented most of the interactive games in Homestuck?</p>
+
+        <p>I used to and study computational geometry and data structures, but not like in a practical sense. I just like drawing on whiteboards.</p>
+
+        <p><em>The only "GAL" that I wanna "C" is my wife!</em></p>
+
+        <br><br>
+
+        <p>This all sounds fake, I'm just a cat. <a href="/glitch/">Check out these pretty pictures.</a></p>
+
+        <h2 id="books" class="section-header"><a href="#books">Books</a></h2>
+
+        <ul>
+            <li><a href="https://doc.rust-lang.org/nightly/nomicon/">The Rustonomicon</a></li>
+            <li><a href="https://rust-unofficial.github.io/too-many-lists/">Learn Rust With Entirely Too Many Linked Lists</a></li>
+            <li><a href="thesis.pdf">Master's Thesis: You Can't Spell Trust Without Rust</a></li>
+        </ul>
+
+        <h2 id="articles" class="section-header"><a href="#articles">Articles</a></h2>
+
+        <ul>
+            <li><a href="deinitialize-me-maybe/">Destroy All Values: Designing Deinitialization in Programming Languages</a></li>
+            <li><a href="compact-unwinding/">The Apple Compact Unwinding Format: Documented and Explained</a></li>
+            <li><a href="swift-abi/">How Swift Achieved Dynamic Linking Where Rust Couldn't</a></li>
+            <li><a href="text-hates-you/">Text Rendering Hates You</a></li>
+            <li><a href="hashbrown-tldr/">Swisstable, a Quick and Dirty Description</a></li>
+            <li><a href="initialize-me-maybe/">Here's My Type, So Initialize Me Maybe</a></li>
+            <li><a href="rust-layouts-and-abis/">Notes on Type Layouts and ABIs in Rust</a></li>
+            <li><a href="only-in-rust/">Bugs You'll Probably Only Have In Rust</a></li>
+            <li><a href="linear-rust/">The Pain Of Linear Types In Rust</a></li>
+            <li><a href="robinhood-part-1/">Building a HashMap in Rust - What's a HashMap?</a></li>
+            <li><a href="rust-btree-case/">Rust Collections Case Study: BTreeMap</a></li>
+            <li><a href="rust-generics-and-collections/">Rust, Generics, and Collections</a></li>
+            <li><a href="rust-lifetimes-and-collections/">Rust, Lifetimes, and Collections</a></li>
+        </ul>
+        <br>
+        <p><a href="https://doc.rust-lang.org/nightly/nomicon/leaking.html">Looking for that embarassing pre-poop-your-pants article? It was adapted into a much better section of the Rustonomicon</a>.</p>
+
+        <h2 id="papers" class="section-header"><a href="#papers">Papers</a></h2>
+        <ul>
+            <li><a href="opaque-forest.pdf">Computing the Coverage of an Opaque Forest</a></li>
+            <li><a href="phi-covers.pdf">Computing Covers of Plane Forests</a></li>
+        </ul>
+
+    </div>
+
+    <div class="left col"><a href="https://twitter.com/Gankra_/status/1126874837803204608?s=20"><img src="francine.jpg" style="width: 100%"></a></div>
+    <div class="right col"><a href="https://github.com/Gankra/"><img src="chibhires.jpeg" style="width: 100%"></a></div>
+</div>
 
 </body>
 </html>

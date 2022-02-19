@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>Pre-Pooping Your Pants With Rust</title>
+
+    
+    <link href="../rust.css" rel="stylesheet" type="text/css">
+<link href="../style.css" rel="stylesheet" type="text/css">
+
+
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    <link href="../header.css" rel="stylesheet" type="text/css">
+
+<div id="title-bar">
+    <div id = "logo">
+        <a id="logo" href="..">
+            <img src="../img/error-glitch.png"/>
+        </a>
+    </div>
+    
+    <div id="title">
+        <div id="layer1" class="layer">
+            Faultlore
+            <div id="layer2" class="layer">
+                Faultlore
+                <div id="layer3" class="layer">
+                    Faultlore
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="content">
+
+    <h1 class="title">Pre-Pooping Your Pants With Rust</h1>
+    <header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">April 27, 2015 -- Rust Nightly 0.12.0</p>
+</header>
+<blockquote>
+<p>Wow I sure wrote this article, huh? What the fuck was I thinking, and why did everyone love this so much and latch onto it? I’ve preserved it for the sake of “history” but for real I made a much more useful version of this <a href="https://doc.rust-lang.org/nightly/nomicon/leaking.html">in the Rustonomicon’s section on leaking</a>. Also I rebranded “Pre-Pooping Your Pants” as just “Leak Amplification”.</p>
+</blockquote>
+<h1 id="leakpocalypse" class="section-header"><a href="#leakpocalypse">Leakpocalypse</a></h1>
+<p>Much existential anguish and ennui was recently triggered by <a href="https://github.com/rust-lang/rust/issues/24292">Rust Issue #24292: std::thread::JoinGuard (and scoped) are unsound because of reference cycles</a>. If you feel like you’re sufficiently familiar with Leakpocalypse 2k15, feel free to skip to the next section. If you’ve been thoroughly stalking all my online interactions, then you’ve basically seen everything in this post already. Feel free to close this tab and return to scanning my IRC logs.</p>
+<p>The issue in question states:</p>
+<blockquote>
+<p>You can use a reference cycle to leak a JoinGuard and then the scoped thread can access freed memory</p>
+</blockquote>
+<p>This is a very serious claim, since all the relevant APIs are marked as safe, and a use-after-free is something that should be <em>impossible</em> for safe code to perform.</p>
+<p>The main focus is on the <code>thread::scoped</code> API which spawns a thread that can safely access the contents of another thread’s stack frame <em>in a statically guaranteed way</em>. The basic idea idea is that <code>thread::scoped</code> returns a JoinGuard type (<code>jg</code> in <code>fn bad</code> in the above example).</p>
+<p>JoinGuard’s destructor blocks on the thread joining, and isn’t allowed to outlive any of the things that were passed into <code>thread::scoped</code>. This enables really nice things like:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use</span> <span class="ident">std::vec::Vec</span>;
+<span class="kw">use</span> <span class="ident">std::thread</span>;
+<span class="kw">fn</span> <span class="ident">increment_elements</span>(<span class="ident">slice</span>: <span class="kw-2">&amp;mut</span> [<span class="ident">u32</span>]) {
+    <span class="kw">for</span> <span class="ident">a</span> <span class="kw">in</span> <span class="ident">slice</span>.<span class="ident">iter_mut</span>() { <span class="kw-2">*</span><span class="ident">a</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>; }
+}
+
+<span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+    <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> (<span class="number">0</span>..<span class="number">100</span>) { <span class="ident">v</span>.<span class="ident">push</span>(<span class="ident">i</span>); }
+
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">threads</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+    <span class="kw">for</span> <span class="ident">slice</span> <span class="kw">in</span> <span class="ident">v</span>.<span class="ident">chunks_mut</span>(<span class="number">10</span>) {
+        <span class="ident">threads</span>.<span class="ident">push</span>(<span class="ident">thread::scoped</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
+            <span class="ident">increment_elements</span>(<span class="ident">slice</span>);
+        }));
+    }
+    <span class="comment">// when `threads` gets dropped here, `main` will block</span>
+    <span class="comment">// on all the threads joining.</span>
+}</code></pre></div>
+<p>which dispatches some workload on every element in an array in 10-element chunks to separate threads (you’d probably want a pool for this; not the point). Magically Rust is able to statically guarantee this is safe without even knowing what a thread is! All it knows is that there’s there’s a Vec <code>threads</code> full of these JoinGuard things which borrow <code>v</code>, and thus can’t outlive it. (Actually Rust also doesn’t really understand Vec either. It <em>really</em> thinks <code>threads</code> is directly borrowing <code>v</code>, even if empty.)</p>
+<p>Pretty nifty!</p>
+<p>Unfortunately, <strong>this is completely wrong</strong>. This assumes that destructors are <em>guaranteed to run in safe code</em>. A lot of us in the Rust community (myself included) had grown to assume this was true. After all, we have a function that does nothing but drop an element without calling its destructor called <code>mem::forget</code>, and it’s marked as <code>unsafe</code>!</p>
+<p>Turns out this is simply a legacy detail from The Long Long Ago. There are in fact several ways to <em>write</em> mem::forget using only safe code provided by the standard library. A few of them can be regarded as simply implementation bugs, but one is fundamental: <code>rc::Rc</code>.</p>
+<p><a href="https://doc.rust-lang.org/nightly/std/rc/">Rc</a> is our reference counted smart pointer type. It’s actually pretty simple: you put data in a reference counted pointer with <code>Rc::new</code>. The reference count increases when you <code>clone</code> an Rc, and decreases when you <code>drop</code> one. No need to touch the reference count otherwise; the lifetime system will ensure that any internal references to the data are relinquished before the Rc they were obtained through is dropped.</p>
+<p>On its own, Rc is totally fine. Because reference-counting is inherently a <em>sharing</em> of data, you can only get <em>shared</em> references to the internal data. This generally precludes <em>mutating</em> the internals of the Rc, so everything is frozen in time once it’s put in there.</p>
+<p>Except Rust has internal mutability. While sharing generally implies immutability in Rust, internal mutability is the exception. The <a href="https://doc.rust-lang.org/nightly/std/cell/">Cell</a> types are the primary mechanism for internal mutability: they allow their contents to be mutated while being shared. For this reason they are marked as non-thread-safe. <a href="mutex"><code>sync::Mutex</code></a> is their thread-safe counterpart.</p>
+<p>Now let’s put those two tools together and write <code>mem::forget</code>:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">safe_forget</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">data</span>: <span class="ident">T</span>) {
+    <span class="kw">use</span> <span class="ident">std::rc::Rc</span>;
+    <span class="kw">use</span> <span class="ident">std::cell::RefCell</span>;
+
+    <span class="kw">struct</span> <span class="ident">Leak</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="ident">cycle</span>: <span class="ident">RefCell</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">Leak</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span><span class="op">&gt;</span>,
+        <span class="ident">data</span>: <span class="ident">T</span>,
+    }
+
+    <span class="kw">let</span> <span class="ident">e</span> <span class="op">=</span> <span class="ident">Rc::new</span>(<span class="ident">Leak</span> {
+        <span class="ident">cycle</span>: <span class="ident">RefCell::new</span>(<span class="prelude-val">None</span>),
+        <span class="ident">data</span>: <span class="ident">data</span>,
+    });
+    <span class="kw-2">*</span><span class="ident">e</span>.<span class="ident">cycle</span>.<span class="ident">borrow_mut</span>() <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">Rc::new</span>(<span class="ident">e</span>.<span class="ident">clone</span>())); <span class="comment">// Create a cycle</span>
+}</code></pre></div>
+<p>This is some janky nonsense, but long-story-short we can create reference-counted cycles using Rc and RefCell. The end result is that the destructor of the value put into our <code>Leak</code> type is <em>never</em> called, even though all of the Rcs have become unreachable! Never calling a destructor is actually fine on its own: you can abort the program or loop forever to similar effect. However in this case Rc <em>has told us that it has called the destructor</em>. We can verify this with this simple program:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">struct</span> <span class="ident">Foo</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">i32</span>);
+
+    <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Foo</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+        <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
+            <span class="kw-2">*</span><span class="self">self</span>.<span class="number">0</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
+        }
+    }
+
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data</span> <span class="op">=</span> <span class="number">0</span>;
+
+    {
+        <span class="kw">let</span> <span class="ident">foo</span> <span class="op">=</span> <span class="ident">Foo</span>(<span class="kw-2">&amp;mut</span> <span class="ident">data</span>);
+        <span class="ident">safe_forget</span>(<span class="ident">foo</span>);
+    }
+
+    <span class="comment">// super make sure there&#39;s no outstanding borrows</span>
+    <span class="comment">// this will not compile if `foo` was not dropped!</span>
+    <span class="ident">data</span> <span class="op">+</span><span class="op">=</span> <span class="number">1</span>;
+
+    <span class="macro">println!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">data</span>); <span class="comment">// prints 1, should print 2</span>
+}</code></pre></div>
+<p>which <a href="http://is.gd/QSrQjK">totally runs</a>. Now that we have <code>safe_drop</code>, let’s get to the problematic in the issue that started this mess. Most of it is really just guaranteeing that the bug is reliably observable. It can be boiled down to the following:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="prelude-val">Ok</span>(<span class="number">4</span>);
+    <span class="kw">if</span> <span class="kw">let</span> <span class="kw-2">&amp;mut</span> <span class="prelude-val">Ok</span>(<span class="kw-2">ref</span> <span class="ident">v</span>) <span class="op">=</span> <span class="ident">v</span> {
+        <span class="kw">let</span> <span class="ident">jg</span> <span class="op">=</span> <span class="ident">thread::scoped</span>(<span class="kw">move</span> <span class="op">|</span><span class="op">|</span> {
+            <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">v</span>); <span class="comment">// read on separate thread</span>
+        });
+        <span class="ident">safe_forget</span>(<span class="ident">jg</span>); <span class="comment">// now the thread won&#39;t be joined</span>
+    }
+    <span class="kw-2">*</span><span class="ident">v</span> <span class="op">=</span> <span class="prelude-val">Err</span>(<span class="string">&quot;foo&quot;</span>); <span class="comment">// concurrent mutate with read; data race!</span>
+}</code></pre></div>
+<p>which also observes Undefined Behaviour, but less reliably.</p>
+<p>This is unquestionably a flaw in <em>something</em> in the Rust standard library since it should be statically impossible to use-after-free or data-race in safe code, and we’ve managed to do <em>both</em>. The question is really <em>which</em> thing is wrong. The original issue placed the blame on <code>thread::scoped</code>, because it was posted by a compiler dev who was well aware that you could leak destructors in safe code.</p>
+<p>However this triggered a huge amount of frustration in the community because everything they’d seen up until then had seemed to point to leaking destructors being unsafe. The <code>thread::scoped</code> API was <em>stabilized</em>. <a href="https://github.com/rust-lang/rfcs/pull/574">Another API RFC</a> was based on this assumption! <code>mem::forget</code> is marked as <code>unsafe</code> and that’s all it does!</p>
+<p>The only <em>real</em> problem seemed to be the alignment of the following stars:</p>
+<ul>
+<li>Reference Counting</li>
+<li>Internal Mutability</li>
+<li>Rc accepting data that doesn’t live forever (non-<code>'static</code>)</li>
+</ul>
+<p>If you remove any of the following then <em>there is no problem</em>. This of course resulted in people (again, myself included) variously demanding every possible combination of the above being removed. Yet more demanded an opt-in-built-in-trait <code>Leak</code> for specifying if your destructor can be leaked safely.</p>
+<p>All of this would be <em>major</em> breakage and work with 1.0 <em>three weeks</em> away. So the status quo is almost certainly going to win: <code>mem::forget</code> is in fact totally safe, and code cannot assume this to be the case. <code>thread::scoped</code> must be redone.</p>
+<p>Relevant RFCs are as follows:</p>
+<ul>
+<li><a href="https://github.com/rust-lang/rfcs/pull/1066">Alter mem::forget to be safe</a></li>
+<li><a href="https://github.com/rust-lang/rfcs/pull/1084">Scoped threads, take 2</a></li>
+<li><a href="https://github.com/rust-lang/rfcs/pull/1085">Leak and Destructor Guarantees</a></li>
+</ul>
+<p>Note that Rust has never guaranteed <em>leaks</em> don’t occur in general. Leaks, like race conditions (not to be mistaken with <a href="http://docs.oracle.com/cd/E19205-01/820-0619/geojs/index.html">data races</a>), are such a vague concept that they’re basically impossible to prevent. Putting stuff in a HashMap that you’ll never ask for again is a kind of leak. Allocating stuff on the stack and then looping forever is a kind of leak. The case where you put it on the heap and forget to ever free it is a specific kind of leak that people seem particularly terrified of for whatever reason. The issue at hand is whether data that is statically known to be “gone” can fail to have its destructor called during normal, safe execution.</p>
+<h2 id="dealing-with-it" class="section-header"><a href="#dealing-with-it">Dealing With It</a></h2>
+<p>So initially I was pretty crestfallen. My work with collections had always assumed destructors were guaranteed to be run. This gave you the really nice property that you could make a special “handler” type that completely mangled the internal representation of a type <em>transiently</em>, and then fixed it when it was destructed. Paired with Rust’s lifetime system, this guaranteed that the transient inconsistent state was <em>statically unobservable</em> (except by the handler, of course)! Rust code could be <em>more reckless</em> than C++!</p>
+<p>The canonical example of this was to be <code>Vec::drain_range(a, b)</code>:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// do we need all these fields? Maybe? Don&#39;t want to think about it</span>
+<span class="comment">// for an example!</span>
+<span class="kw">struct</span> <span class="ident">DrainRange</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="ident">vec</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
+    <span class="ident">num_to_drain</span>: <span class="ident">usize</span>,
+    <span class="ident">start_pos</span>: <span class="ident">usize</span>,
+    <span class="ident">left</span>: <span class="kw-2">*mut</span> <span class="ident">T</span>,
+    <span class="ident">right</span>: <span class="kw-2">*mut</span> <span class="ident">T</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="comment">// Produces an iterator that removes the elements in `self[a..b]`</span>
+    <span class="comment">// Note: b is excluded per Rust range notation</span>
+    <span class="kw">fn</span> <span class="ident">drain_range</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>, <span class="ident">a</span>: <span class="ident">usize</span>, <span class="ident">b</span>: <span class="ident">usize</span>) -&gt; <span class="ident">DrainRange</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="macro">assert!</span>(<span class="ident">a</span> <span class="op">&lt;</span><span class="op">=</span> <span class="ident">b</span>, <span class="string">&quot;invalid range&quot;</span>);
+        <span class="macro">assert!</span>(<span class="ident">b</span> <span class="op">&lt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">len</span>(), <span class="string">&quot;index out of bounds&quot;</span>);
+
+        <span class="ident">DrainRange</span> {
+            <span class="ident">left</span>: <span class="self">self</span>.<span class="ident">ptr</span>().<span class="ident">offset</span>(<span class="ident">a</span> <span class="kw">as</span> <span class="ident">isize</span>),
+            <span class="ident">right</span>: <span class="self">self</span>.<span class="ident">ptr</span>().<span class="ident">offset</span>(<span class="ident">b</span> <span class="kw">as</span> <span class="ident">isize</span>),
+            <span class="ident">start_pos</span>: <span class="ident">a</span>,
+            <span class="ident">num_to_drain</span>: <span class="ident">b</span> <span class="op">-</span> <span class="ident">a</span>,
+            <span class="ident">vec</span>: <span class="self">self</span>,
+        }
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">DrainRange</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) {
+        <span class="comment">// Drop all outstanding contents</span>
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="self">self</span> { }
+
+        <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">vec</span>.<span class="ident">ptr</span>();
+        <span class="kw">let</span> <span class="ident">backshift_src</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">start_pos</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">num_to_drain</span>;
+        <span class="kw">let</span> <span class="ident">backshift_dst</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">start_pos</span>;
+
+        <span class="kw">let</span> <span class="ident">old_len</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">vec</span>.<span class="ident">len</span>();
+        <span class="kw">let</span> <span class="ident">new_len</span> <span class="op">=</span> <span class="ident">old_len</span> <span class="op">-</span> <span class="self">self</span>.<span class="ident">num_to_drain</span>;
+        <span class="kw">let</span> <span class="ident">to_move</span> <span class="op">=</span> <span class="ident">new_len</span> <span class="op">-</span> <span class="self">self</span>.<span class="ident">start_pos</span>;
+
+
+        <span class="kw">unsafe</span> {
+            <span class="comment">// Backshift all the elements!</span>
+            <span class="ident">ptr::copy</span>(
+                <span class="ident">ptr</span>.<span class="ident">offset</span>(<span class="ident">backshift_src</span> <span class="kw">as</span> <span class="ident">isize</span>),
+                <span class="ident">ptr</span>.<span class="ident">offset</span>(<span class="ident">backshift_dst</span> <span class="kw">as</span> <span class="ident">isize</span>),
+                <span class="ident">to_move</span>,
+            );
+
+            <span class="comment">// Tell the Vec to only consider this range of memory &quot;used&quot;</span>
+            <span class="self">self</span>.<span class="ident">vec</span>.<span class="ident">set_len</span>(<span class="ident">new_len</span>);
+        }
+    }
+}
+
+<span class="comment">// impl details for sake of completion</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">DrainRange</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span>;
+
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">left</span> <span class="op">==</span> <span class="self">self</span>.<span class="ident">right</span> {
+            <span class="prelude-val">None</span>
+        } <span class="kw">else</span> {
+            <span class="kw">unsafe</span> {
+                <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">ptr::read</span>(<span class="self">self</span>.<span class="ident">left</span>));
+                <span class="comment">// let&#39;s ignore size_of&lt;T&gt; == 0 for simplicity</span>
+                <span class="self">self</span>.<span class="ident">left</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">left</span>.<span class="ident">offset</span>(<span class="number">1</span>);
+                <span class="ident">result</span>
+            }
+        }
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="ident">DoubleEndedIterator</span> <span class="kw">for</span> <span class="ident">DrainRange</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">next_back</span>(<span class="kw-2">&amp;mut</span> <span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">left</span> <span class="op">==</span> <span class="self">self</span>.<span class="ident">right</span> {
+            <span class="prelude-val">None</span>
+        } <span class="kw">else</span> {
+            <span class="kw">unsafe</span> {
+                <span class="comment">// let&#39;s ignore size_of&lt;T&gt; == 0 for simplicity</span>
+                <span class="self">self</span>.<span class="ident">right</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">right</span>.<span class="ident">offset</span>(<span class="op">-</span><span class="number">1</span>);
+                <span class="prelude-val">Some</span>(<span class="ident">ptr::read</span>(<span class="self">self</span>.<span class="ident">right</span>))
+            }
+        }
+    }
+}</code></pre></div>
+<p>This design is even unwinding-safe! Yay! …but not destructor leak safe. Consider the following:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">main</span>() {
+    <span class="kw">let</span> <span class="ident">vec</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="ident">Box::new</span>(<span class="number">1</span>)];
+    {
+        <span class="kw">let</span> <span class="ident">drainer</span> <span class="op">=</span> <span class="ident">vec</span>.<span class="ident">drain_range</span>(<span class="number">0</span>, <span class="number">1</span>);
+        <span class="comment">// pull out and drop `box 1`, freeing the memory it points to</span>
+        <span class="ident">drainer</span>.<span class="ident">next</span>();
+        <span class="ident">safe_forget</span>(<span class="ident">drainer</span>);
+    }
+    <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">vec</span>); <span class="comment">// use after free of memory pointed to by `box 1`</span>
+}</code></pre></div>
+<p>This was troubling! I looked through some of the collections code in std to see if there was anything else that was relying on destructors for safety, and was pleased to see that there wasn’t any that I could find (which isn’t to say none exist)! I came to see that there was a vague hierarchy of how bad leaking a dtor is:</p>
+<ol>
+<li>no dtor - leaking is irrelevant: primitives, pointers.</li>
+<li>leaks system resources - not a <em>big</em> deal: Most collections and smaht pointer types, when they contain primitives will simply waste heap space if leaked.</li>
+<li>leaks arbitrary other dtors - acceptable but nasty: Collections and smaht pointer types in general.</li>
+<li>leaves the world in an <em>unexpected</em> but safe state - a scary footgun: <code>RingBuf::drain</code> should make the collection empty after the borrow its <code>Drain</code> iterator produces expires, but this is only guaranteed by the destructor as currently written. The collection <em>is</em> left in a consistent state otherwise.</li>
+<li>leaves the world in a broken state - unacceptable: <code>Vec::drain_range</code> as written above.</li>
+</ol>
+<p>Generally, one should strive to push their destructor reliance as far up this hierarchy as is practical, with the last category in the hierarchy <em>verboten</em> by an API that claims to be safe.</p>
+<p>This hierarchy is based on the assumption that leaking a destructor should be considered a bug <em>in running code</em>. That is, application code should be welcome to assume that a leak doesn’t randomly occur in code they control or under reasonable conditions in code they call. As is always the case in Rust, libraries have the onerous position of ensuring they are hardened against a leak.</p>
+<p>The fact that an API <em>admits</em> causing a leak (such as Rc) should not be considered a bug in and of itself. Especially if the leak is convoluted to invoke (as is arguably the case with Rc). While <code>mem::forget</code> is going to be safe to call, it should generally still be regarded as something that <em>unsafe</em> code does.</p>
+<h2 id="pre-pooping-your-pants" class="section-header"><a href="#pre-pooping-your-pants">Pre-Pooping Your Pants</a></h2>
+<p>So how do we push <code>drain_range</code> up the hierarchy? It turns out this is totally trivial! Just add this single line to the <code>drain_range</code> constructor:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Tell the Vec that it doesn&#39;t have any elements</span>
+<span class="comment">// stored after the minimum bound.</span>
+<span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">set_len</span>(<span class="ident">a</span>); }</code></pre></div>
+<p>Now if we leak a DrainRange, we leak the destructors of the values that were supposed to be drained, as well as <em>completely lose</em> all the values that were supposed to be backshifted at the end. This is pretty squarely in the “unexpected but safe state” category, in addition to causing arbitrary other leaks. This is definitely <em>not great</em>, but still a <em>big</em> improvement over admitting accessing logically uninitialized memory!</p>
+<p>This is what I call the Pre-Poop Your Pants (PPYP) pattern. Why Pre-Poop Your Pants? Well I like to think of the constructor-destructor pattern like a person eating. You eat some stuff (construction), process it, and then clean up any junk by pooping it out.</p>
+<p>If a destructor gets lost, this is like <em>never pooping</em>. Dependent on the destructor, this can have varying consequences.</p>
+<ul>
+<li>Category 1 types are broken down completely by the body, and never needed to be pooped anyway.</li>
+<li>Category 2 types are basically benign, but clog up the system and may cause critical failure if constipation persists.</li>
+<li>Category 3 types are big bundles of stuff. Hopefully nothing in there is nasty!</li>
+<li>Category 4 types are like safe drugs. They’re going to give your system a bad trip if they’re not properly handled! If you’re in a safe space when it happens you might be fine, but otherwise it can cause <em>really bad things</em>.</li>
+<li>Category 5 types are like dangerous drugs. You can overdose and die if they aren’t properly handled, and should be carefully controlled.</li>
+</ul>
+<p>The Pre-Poop Your Pants pattern is the following deviation from the normal digestion pattern: as soon as you consume something, be sure to poop the nastiest bits right into your pants. If everything goes according to plan, you can clean out your pants when you take your normal poop. If something goes wrong, you’ve got poopy pants but at least you’re better off than otherwise.</p>
+<p>The PPYP name emphasizes the following:</p>
+<ul>
+<li>It’s a <em>suboptimal compromise</em>: no one wants poopy pants, but it’s not the worst thing in the world.</li>
+<li>It’s transient when things go right: If you poop your pants in the forest and no one hears, did it really happen?</li>
+<li>It’s not always possible: the bad stuff may be too mixed in with the stuff that needs to be processed. The recipe may need to be completely rethought to avoid this (as is the case for <code>thread::scoped</code>).</li>
+<li>It’s vaguely incoherent and meaningless on its own: this is a property inherited from its connection to the venerable Resource Acquisition Is Initialization (RAII) pattern.</li>
+<li>It’s funny: I really just wanted to write about poopy pants for a while, and you actually just read it.</li>
+</ul>
+<p>Oh, and <a href="https://github.com/rust-lang/rust/pull/24781">drain_range lives</a>!</p>
+
+    </div>
+
+</body>
+</html>

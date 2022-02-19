@@ -1,8 +1,9 @@
 % Here's My Type, So Initialize Me Maybe (mem::uninitialized is deprecated)
 
-<span class="author">Aria Beingessner</span>
-
-<span class="date">May 21st, 2019 -- Rust Nightly 1.36.0</span>
+<header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">May 21st, 2019 -- Rust Nightly 1.36.0</p>
+</header>
 
 Rust's infamous [mem::uninitialized][] method has been deprecated in today's nightly build. Its replacement, [MaybeUninit][], has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible (probably when it hits stable in 6 weeks). This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.
 

@@ -7,10 +7,8 @@
     <title>Swisstable, a Quick and Dirty Description</title>
 
     
-        <link href="../bootstrap.min.css" rel="stylesheet" type="text/css">
-    <link href="../bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
     <link href="../rust.css" rel="stylesheet" type="text/css">
-   <link href="../style.css" rel="stylesheet" type="text/css">
+<link href="../style.css" rel="stylesheet" type="text/css">
 
 
 </head>
@@ -22,13 +20,36 @@
     </div>
     <![endif]-->
 
-    <div class="content">
+    <link href="../header.css" rel="stylesheet" type="text/css">
 
+<div id="title-bar">
+    <div id = "logo">
+        <a id="logo" href="..">
+            <img src="../img/error-glitch.png"/>
+        </a>
+    </div>
+    
+    <div id="title">
+        <div id="layer1" class="layer">
+            Faultlore
+            <div id="layer2" class="layer">
+                Faultlore
+                <div id="layer3" class="layer">
+                    Faultlore
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="content">
 
     <h1 class="title">Swisstable, a Quick and Dirty Description</h1>
-    <p><span class="author">Aria Beingessner</span></p>
-<p><span class="date">July 27th, 2019</span></p>
-<p>Ok here's how to implement Swisstable as simply as possible, with a bunch of random notes. I'm assuming you're familiar with the basics of an open-addressing hashmap implementation, and will be skipping over all those details. If you want to brush up on those issues, you can read my primer on <a href="https://gankra.github.io/blah/robinhood-part-1/">the old Rust Robin Hood implementation</a>.</p>
+    <header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">July 27th, 2019</p>
+</header>
+<p>Ok here’s how to implement Swisstable as simply as possible, with a bunch of random notes. I’m assuming you’re familiar with the basics of an open-addressing hashmap implementation, and will be skipping over all those details. If you want to brush up on those issues, you can read my primer on <a href="https://gankra.github.io/blah/robinhood-part-1/">the old Rust Robin Hood implementation</a>.</p>
 <p>High level concepts to keep in mind:</p>
 <ul>
 <li>open-addressing</li>
@@ -37,7 +58,7 @@
 <li>chunked (SIMD) triangular (quadratic-ish) probing</li>
 <li>tombstones to avoid backshifts</li>
 </ul>
-<p>Bit fiddling tricks will be omitted because they're not that interesting, and I made sure they were really well documented <a href="https://github.com/rust-lang/hashbrown/tree/master/src/raw">in hashbrown</a> (the Rust impl), so you can just crib the implementations from there (seriously, it's only 100 lines of code, mostly comments). So if I ever say &quot;do X in parallel (func_name)&quot; that's your cue to check the parallel bit tricks implementation for func_name and its detailed documentation.</p>
+<p>Bit fiddling tricks will be omitted because they’re not that interesting, and I made sure they were really well documented <a href="https://github.com/rust-lang/hashbrown/tree/master/src/raw">in hashbrown</a> (the Rust impl), so you can just crib the implementations from there (seriously, it’s only 100 lines of code, mostly comments). So if I ever say “do X in parallel (func_name)” that’s your cue to check the parallel bit tricks implementation for func_name and its detailed documentation.</p>
 <p>Just so you can get your bearings in that implementation:</p>
 <ul>
 <li>mod.rs - the actual hashtable impl</li>
@@ -47,26 +68,26 @@
 </ul>
 <p>The hashtable has the parallel bit-trick details abstracted away by the generic and sse2 modules (impl picked at compile time).</p>
 <h1 id="memory-layout" class="section-header"><a href="#memory-layout">Memory Layout</a></h1>
-<p>A table's layout is defined by:</p>
+<p>A table’s layout is defined by:</p>
 <ul>
 <li>n buckets (power of 2, for classic modulo trick reasons)</li>
 <li>a static Group WIDTH (16 bytes for SSE2; usize for software fallback; ARM always uses fallback because NEON is too high latency for our usecase)</li>
 </ul>
 <p>A table is just a single allocation containing:</p>
 <ul>
-<li>an array of n+WIDTH &quot;control&quot; bytes</li>
-<li>an array of n keys of type T (your keys can be T=(K, V) to make it a proper map; you don't want to unzip them into an array of K and an array of V since accessing a key is highly correlated with accessing its value)</li>
+<li>an array of n+WIDTH “control” bytes</li>
+<li>an array of n keys of type T (your keys can be T=(K, V) to make it a proper map; you don’t want to unzip them into an array of K and an array of V since accessing a key is highly correlated with accessing its value)</li>
 </ul>
-<p>Our buckets are like <code>Option&lt;T&gt;</code>, where the control bytes are the Some/None tag, but having a whole byte means we can pack extra metadata in there (more on that later). We have an extra WIDTH control bytes on the end that mirrors the first WIDTH bytes so that we don't have to worry about how to partially wrap a SIMD access that should otherwise wrap around to the start of the array. However when <code>n &lt; WIDTH</code>, this mirroring is a bit subtle. See the excellent documentation in set_ctrl for how this works. TL;DR - the mirror is right-justified, so you will have a bunch of empty buckets between the real buckets and the mirror ones.</p>
+<p>Our buckets are like <code>Option&lt;T&gt;</code>, where the control bytes are the Some/None tag, but having a whole byte means we can pack extra metadata in there (more on that later). We have an extra WIDTH control bytes on the end that mirrors the first WIDTH bytes so that we don’t have to worry about how to partially wrap a SIMD access that should otherwise wrap around to the start of the array. However when <code>n &lt; WIDTH</code>, this mirroring is a bit subtle. See the excellent documentation in set_ctrl for how this works. TL;DR - the mirror is right-justified, so you will have a bunch of empty buckets between the real buckets and the mirror ones.</p>
 <p>Your outlined table metadata is:</p>
 <ul>
 <li><code>bucket_mask: usize</code> (= n - 1)</li>
 <li><code>ctrl: *u8</code> (points at the control bytes array; which is also the start of the alloc)</li>
 <li><code>data: *T</code> (points at the start of the keys array, yes recomputing this is too slow; dangles in the empty case)</li>
-<li><code>growth_left: usize</code> (number of empty spaces we can tolerate filling; tombstones deplete this without affecting len, so this isn't just a function of len, bucket_mask, and load-factor)</li>
+<li><code>growth_left: usize</code> (number of empty spaces we can tolerate filling; tombstones deplete this without affecting len, so this isn’t just a function of len, bucket_mask, and load-factor)</li>
 <li><code>len: usize</code> (number of actual values stored in the map)</li>
 </ul>
-<p>I tried storing the size/capacity/etc metadata in the same allocation, but that requires more branches to handle the static empty map, and I couldn't find any performance wins from making a HashMap thinner.</p>
+<p>I tried storing the size/capacity/etc metadata in the same allocation, but that requires more branches to handle the static empty map, and I couldn’t find any performance wins from making a HashMap thinner.</p>
 <p>Load-factor is a tunable parameter, all that matters is that you make sure there is always at least one empty bucket (feel free to crib the implementation).</p>
 <h1 id="control-bytes-and-hashes" class="section-header"><a href="#control-bytes-and-hashes">Control Bytes and Hashes</a></h1>
 <p>A control byte has one of 3 values:</p>
@@ -76,19 +97,19 @@
 <li><code>0b0xxx_xxxx</code> = FULL (x is a hash fragment, more on that below)</li>
 </ul>
 <p>This representation will be useful for us when doing cute bit tricks. Note that we can tell if a bucket contains a key or not by just looking at the top bit.</p>
-<p>There are two operations we perform with a hash (I hate these names but these are the ones you'll see in the implementations):</p>
+<p>There are two operations we perform with a hash (I hate these names but these are the ones you’ll see in the implementations):</p>
 <ul>
 <li>h1 - the whole hash truncated to a usize, used as an index into our array (apply modulo arithmetic to it)</li>
-<li>h2 - the top 7 bits of the hash, in FULL control byte format (see above); note that this will motivate you to have a hash function with good, uhhhhh, &quot;entropy&quot; in the high bits</li>
+<li>h2 - the top 7 bits of the hash, in FULL control byte format (see above); note that this will motivate you to have a hash function with good, uhhhhh, “entropy” in the high bits</li>
 </ul>
-<p>When we insert a key into the table, we store its h2 value in the associated control byte. When searching the table we can compare our search key's h2 to each control byte. If they don't match, then we know that we don't have to look at the key stored there at all. With a good hash function we only have ~1/128 odds of a false positive here, so we almost never look at keys except for exactly equal ones! (We use the high bits for h2 so that they'll be uncorrelated with the index h1, which is the log(n) lowest bits.)</p>
+<p>When we insert a key into the table, we store its h2 value in the associated control byte. When searching the table we can compare our search key’s h2 to each control byte. If they don’t match, then we know that we don’t have to look at the key stored there at all. With a good hash function we only have ~1/128 odds of a false positive here, so we almost never look at keys except for exactly equal ones! (We use the high bits for h2 so that they’ll be uncorrelated with the index h1, which is the log(n) lowest bits.)</p>
 <h1 id="searching-and-probing" class="section-header"><a href="#searching-and-probing">Searching and Probing</a></h1>
-<p>Note that in general our SIMD accesses won't be properly aligned, so be sure to use the unaligned load/store functions. You can only use aligned ops when walking from the start of the array (iterator/realloc-ish stuff).</p>
+<p>Note that in general our SIMD accesses won’t be properly aligned, so be sure to use the unaligned load/store functions. You can only use aligned ops when walking from the start of the array (iterator/realloc-ish stuff).</p>
 <p>So, searching:</p>
 <ol>
 <li>start at bucket h1 (mod n)</li>
 <li>load the Group of bytes starting at the current bucket</li>
-<li>search the Group for your key's h2 in parallel (match_byte)</li>
+<li>search the Group for your key’s h2 in parallel (match_byte)</li>
 <li>for each match, check if the keys are equal, return if found</li>
 <li>search the Group for an EMPTY bucket in parallel (match_empty)</li>
 <li>if there was any matches, return false</li>
@@ -96,12 +117,12 @@
 </ol>
 <p>Probing is done by incrementing the current bucket by a triangularly increasing multiple of Groups: jump by 1 more group every time. So first we jump by 1 group (meaning we just continue our linear scan), then 2 groups (skipping over 1 group), then 3 groups (skipping over 2 groups), and so on.</p>
 <p>Interestingly, this pattern perfectly lines up with our power-of-two size such that we will visit every single bucket exactly once without any repeats (searching is therefore guaranteed to terminate as we always have at least one EMPTY bucket).</p>
-<p>Also note that our non-linear probing strategy makes us fairly robust against weird degenerate collision chains that can make us accidentally quadratic (Hash DoS). Also <strong>also</strong> note that we expect to almost never actually probe, since that's WIDTH (8-16) non-EMPTY buckets we need to fail to find our key in.</p>
+<p>Also note that our non-linear probing strategy makes us fairly robust against weird degenerate collision chains that can make us accidentally quadratic (Hash DoS). Also <strong>also</strong> note that we expect to almost never actually probe, since that’s WIDTH (8-16) non-EMPTY buckets we need to fail to find our key in.</p>
 <h1 id="insertion" class="section-header"><a href="#insertion">Insertion</a></h1>
 <p>Insertion is done in two passes</p>
 <ul>
 <li>Pass 1: just run the search algorithm. If it returns a result, then overwrite that and return.</li>
-<li>Pass 2: actual insertion (now knowing the key isn't present, we search for EMPTY/DELETED).</li>
+<li>Pass 2: actual insertion (now knowing the key isn’t present, we search for EMPTY/DELETED).</li>
 </ul>
 <p>So, actual insertion:</p>
 <ol>
@@ -110,49 +131,49 @@
 <li>search the Group for EMPTY or DELETED in parallel (match_empty_or_deleted)</li>
 <li>if there was no match (unlikely), probe and GOTO 2</li>
 <li>otherwise, get the first match and enter the SMALL TABLE NASTY CORNER CASE ZONE</li>
-<li>check that the match (mod n) isn't FULL.</li>
+<li>check that the match (mod n) isn’t FULL.</li>
 </ol>
-<p>This can happen for small (n &lt; WIDTH) tables, because there are fake EMPTY bytes between us and the mirror bytes. If it does happen, then we know: we're a tiny table that fits in a Group, and that the guaranteed-to-exist empty bucket wasn't anywhere between h1 and the end of the table.</p>
+<p>This can happen for small (n &lt; WIDTH) tables, because there are fake EMPTY bytes between us and the mirror bytes. If it does happen, then we know: we’re a tiny table that fits in a Group, and that the guaranteed-to-exist empty bucket wasn’t anywhere between h1 and the end of the table.</p>
 <ol start="7">
-<li>if it <em>wasn't</em> FULL, return that location for insertion</li>
+<li>if it <em>wasn’t</em> FULL, return that location for insertion</li>
 <li>if it <em>was</em> FULL, load the (aligned!) Group at the start of the table</li>
 <li>search the Group for EMPTY or DELETED in parallel (match_empty_or_deleted)</li>
 <li>return the first location for insertion (guaranteed to exist!)</li>
 </ol>
 <h1 id="deletion" class="section-header"><a href="#deletion">Deletion</a></h1>
 <p>The search routine for deletion is really easy: just run the search algorithm. There you found the thing to remove. The tricky bit is the cleanup.</p>
-<p>So we saw in the searching algorithm that our cue to probe is an entire contiguous Group of FULL/DELETED entries. So if the entry we want to delete is in within such a contiguous Group, setting it to EMPTY may &quot;break&quot; the search path for any key that probed over it. So we need to check if that's the case, and if so, replace ourselves with DELETED. To put that another way: we need to find the nearest EMPTYs to our left and to our right, and make sure they're less than WIDTH apart.</p>
-<p>Note how extreme that is: we only ever insert a tombstone if the entry we want to delete is in a pack of WIDTH non-EMPTY buckets. Under reasonable load factors that's very unlikely!</p>
+<p>So we saw in the searching algorithm that our cue to probe is an entire contiguous Group of FULL/DELETED entries. So if the entry we want to delete is in within such a contiguous Group, setting it to EMPTY may “break” the search path for any key that probed over it. So we need to check if that’s the case, and if so, replace ourselves with DELETED. To put that another way: we need to find the nearest EMPTYs to our left and to our right, and make sure they’re less than WIDTH apart.</p>
+<p>Note how extreme that is: we only ever insert a tombstone if the entry we want to delete is in a pack of WIDTH non-EMPTY buckets. Under reasonable load factors that’s very unlikely!</p>
 <p>So, removal:</p>
 <ol>
 <li>start at the removal bucket</li>
 <li>load the Group of bytes starting at that bucket</li>
-<li>search the Group for EMPTY in parallel (match_empty), and record the first empty found (&quot;end&quot;)</li>
+<li>search the Group for EMPTY in parallel (match_empty), and record the first empty found (“end”)</li>
 <li>load the Group of bytes <em>before</em> that bucket</li>
-<li>search the Group for EMPTY in parallel (match_empty), and record the last empty found (&quot;start&quot;)</li>
+<li>search the Group for EMPTY in parallel (match_empty), and record the last empty found (“start”)</li>
 <li>if the distance between start and end is &gt;= WIDTH, set the bucket to DELETED</li>
 <li>otherwise, set the bucket to EMPTY</li>
 </ol>
 <p>(implementation note, 3, 5, and 6 is just <code>a.leading_zeroes() + b.trailing_zeroes() &gt;= WIDTH</code>, although be careful which is which in your implementation, lots of negations and endianess confusion to be had!)</p>
 <h1 id="the-empty-singleton" class="section-header"><a href="#the-empty-singleton">The Empty Singleton</a></h1>
-<p>You don't want to allocate for empty tables, so just statically allocate an Group-aligned(!) array of <code>[EMPTY; WIDTH]</code> and point your empty collection at it. If you implemented everything right, it should just workout because you'll load those WIDTH bytes into a Group, see it's empty, and always conclude there's nothing to do. When you need to actually insert, your load factor should tell you to resize right away. You mostly only need to add extra guards in places like <code>clear</code> and whenever you would realloc/free the table (all very slow paths, so no concern).</p>
-<p>There's a minor hard-to-hit footgun here if your implementation somehow associates your pointer into the control bytes with the type of your keys. If you do this, the empty singleton may be under-aligned or you may run afoul of TBAA-style things. The fact that we hold separate pointers for keys and ctrls makes it pretty easy to avoid this. Just keep the ctrl pointer a boring untyped pointer-to-bytes.</p>
+<p>You don’t want to allocate for empty tables, so just statically allocate an Group-aligned(!) array of <code>[EMPTY; WIDTH]</code> and point your empty collection at it. If you implemented everything right, it should just workout because you’ll load those WIDTH bytes into a Group, see it’s empty, and always conclude there’s nothing to do. When you need to actually insert, your load factor should tell you to resize right away. You mostly only need to add extra guards in places like <code>clear</code> and whenever you would realloc/free the table (all very slow paths, so no concern).</p>
+<p>There’s a minor hard-to-hit footgun here if your implementation somehow associates your pointer into the control bytes with the type of your keys. If you do this, the empty singleton may be under-aligned or you may run afoul of TBAA-style things. The fact that we hold separate pointers for keys and ctrls makes it pretty easy to avoid this. Just keep the ctrl pointer a boring untyped pointer-to-bytes.</p>
 <h1 id="extra-notes" class="section-header"><a href="#extra-notes">Extra Notes</a></h1>
 <ul>
 <li>
-<p>You need your hash function to resize the array, as you need to recompute everyone's h1 value, which you didn't store. This means that swisstable will take a nasty perf hit if you have a very expensive hash function. This also makes it harder to use external state for hashing (e.g. an interner the map doesn't know about), as more &quot;random&quot; operations will need that state passed in just in case.</p>
+<p>You need your hash function to resize the array, as you need to recompute everyone’s h1 value, which you didn’t store. This means that swisstable will take a nasty perf hit if you have a very expensive hash function. This also makes it harder to use external state for hashing (e.g. an interner the map doesn’t know about), as more “random” operations will need that state passed in just in case.</p>
 </li>
 <li>
-<p>There's a ton of cute tricks you can do on resizes, but they're not super interesting to explain (read the code)</p>
+<p>There’s a ton of cute tricks you can do on resizes, but they’re not super interesting to explain (read the code)</p>
 </li>
 <li>
 <p>The control byte mirror is really just implemented by always setting two ctrls unconditionally (locations, of course, computed with cute tricks). Most of the time you just write the same byte to the same location twice in a row, so not a huge perf issue.</p>
 </li>
 <li>
-<p>There's a bunch of random opportunities to do some operation branchless by doing a cute bitmask trick (e.g. updating <code>growth_left</code> by incrementing/decrementing based on the top bit of the ctrl)</p>
+<p>There’s a bunch of random opportunities to do some operation branchless by doing a cute bitmask trick (e.g. updating <code>growth_left</code> by incrementing/decrementing based on the top bit of the ctrl)</p>
 </li>
 <li>
-<p>There's a lot of places where you could use unlikely/likely intrinsics, but we got really mixed results. Sometimes it helped codegen, sometimes it hurt it. Compilers.</p>
+<p>There’s a lot of places where you could use unlikely/likely intrinsics, but we got really mixed results. Sometimes it helped codegen, sometimes it hurt it. Compilers.</p>
 </li>
 </ul>
 

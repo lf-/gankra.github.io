@@ -1,8 +1,9 @@
 % Rust, Lifetimes, and Collections
 
-# Rust, Lifetimes, and Collections
-
-## Aria Beingessner
+<header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">November 9, 2014 -- Rust Nightly 0.12.0</p>
+</header>
 
 Collections are hard. Using collections safely is even harder. Using collections safely *and* efficiently is even harder. And let's toss on "and not wanting to burn your computer to the ground while doing it" to the list for good measure. Fundamentally, there has to be a tradeoff here. If you can index into a run-time-sized array with runtime information, you either need to do some kind of bounds check, or you have to accept that someone can read beyond the intended bounds of memory. And this is just for *an array*. The simplest data structure there is!
 

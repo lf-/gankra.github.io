@@ -1,5 +1,9 @@
 % Memories of Working on Homestuck
 
+<header>
+    <p class="author">Aria Beingessner</p>
+</header>
+
 I was contacted a few weeks ago by someone interested in my time working on Homestuck. I dumped a huge pile of thoughts and feels, and [they wrote an article](https://homestuckhiveswap.tumblr.com/post/169353748877/an-interview-with-Gankra-homestuck-programmer).
 
 The article understandably is fairly edited, but I spent a bunch of time on my replies, and they're pretty personal, so I felt like archiving my response here. So here's the raw content of the email I sent:

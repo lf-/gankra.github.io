@@ -7,10 +7,8 @@
     <title>Bugs You&#39;ll Probably Only Have in Rust</title>
 
     
-       <link href="../style.css" rel="stylesheet" type="text/css">
-    <link href="../bootstrap.min.css" rel="stylesheet" type="text/css">
-    <link href="../bootstrap-responsive.min.css" rel="stylesheet" type="text/css">
     <link href="../rust.css" rel="stylesheet" type="text/css">
+<link href="../style.css" rel="stylesheet" type="text/css">
 
 
 </head>
@@ -22,95 +20,85 @@
     </div>
     <![endif]-->
 
-    <div class="content">
+    <link href="../header.css" rel="stylesheet" type="text/css">
 
+<div id="title-bar">
+    <div id = "logo">
+        <a id="logo" href="..">
+            <img src="../img/error-glitch.png"/>
+        </a>
+    </div>
+    
+    <div id="title">
+        <div id="layer1" class="layer">
+            Faultlore
+            <div id="layer2" class="layer">
+                Faultlore
+                <div id="layer3" class="layer">
+                    Faultlore
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="content">
 
     <h1 class="title">Bugs You&#39;ll Probably Only Have in Rust</h1>
-    <h2>Aria Beingessner - June 14, 2017</h2>
-
+    <header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">June 14, 2017</p>
+</header>
 <blockquote>
 <p>The source of this post is <a href="https://github.com/Gankra/gankra.github.io/blob/master/blah/only-in-rust/index.md">hosted on Github</a>. If you find any errors, please file an issue or submit a PR! 😀</p>
 </blockquote>
-
-<hr>
-
-<p>Recently, <a href="https://www.ralfj.de/blog/2017/06/09/mutexguard-sync.html">Ralf Jung found a bug in Rust&#39;s standard library</a>. Congrats to him! 🎉</p>
-
-<p>The bug was a missing annotation, and the result was that users of Rust&#39;s stdlib could compile some incorrect programs that violated memory safety. 🙀 Fortunately, those incorrect programs would be pretty surprising to see in the wild, so no one should be affected. Adding the annotation should fix the bug without anyone noticing.</p>
-
+<hr />
+<p>Recently, <a href="https://www.ralfj.de/blog/2017/06/09/mutexguard-sync.html">Ralf Jung found a bug in Rust’s standard library</a>. Congrats to him! 🎉</p>
+<p>The bug was a missing annotation, and the result was that users of Rust’s stdlib could compile some incorrect programs that violated memory safety. 🙀 Fortunately, those incorrect programs would be pretty surprising to see in the wild, so no one should be affected. Adding the annotation should fix the bug without anyone noticing.</p>
 <p>On twitter an interesting question was raised: is this the first Rust-specific bug class?</p>
-
-<p>Nope! There&#39;s actually a few of them, which is why I did my best to document them in <a href="https://doc.rust-lang.org/nomicon/">The Rustonomicon</a> (which I&#39;ve started working on again, and hope to improve and finish). But the Rust-specific bugs documented in the nomicon are mixed in with lots of details and bugs that happen in other languages, so I thought it would be interesting to put all the Rust-specific ones together in one place.</p>
-
-<h1 id='what-these-bugs-arent' class='section-header'><a href='#what-these-bugs-arent'>What These Bugs Aren&#39;t</a></h1>
-<p>So just to be clear, there&#39;s lots of bugs that Rust code can have. Many of them you would expect to see in any language: integer overflow, index out of bounds, failing to sanitize input, etc.</p>
-
-<p>Others are <em>kinda</em> Rust-specific, in that they&#39;re a consequence of certain features: <a href="https://doc.rust-lang.org/nomicon/exception-safety.html">exception safety</a>, dangling raw pointers, <a href="https://doc.rust-lang.org/nomicon/safe-unsafe-meaning.html#how-safe-and-unsafe-interact">inappropriately trusting interfaces</a>, etc. However we won&#39;t be focusing on these issues because they&#39;re just as relevant in Rust&#39;s close relatives: C++ and Swift. (Swift doesn&#39;t really have exception safety issues; and C++ doesn&#39;t really have trust issues, insofar as C++ doesn&#39;t really try to distinguish between &quot;safe&quot; and &quot;unsafe&quot; operations)</p>
-
-<p>But the bugs I want to focus on I&#39;ve only seen in Rust code, as a result of unique type-system interactions. I won&#39;t go so far as to say that no other language has these issues. I just don&#39;t know them, and I wouldn&#39;t expect to see them.</p>
-
-<p>Also I should note that all the bugs I want to focus on will be related to writing unsafe code. So these aren&#39;t things you generally need to worry about day-to-day when using Rust. The reason they&#39;re related to unsafe code is because these bugs are generally places where we&#39;re doing clever/subtle things for you which are always correct <em>in safe code</em> but fall over once you start doing the things <code>unsafe</code> lets you.</p>
-
-<h1 id='ralfs-bug-oops-unsafe-autotraits' class='section-header'><a href='#ralfs-bug-oops-unsafe-autotraits'>Ralf&#39;s Bug: Oops Unsafe Autotraits</a></h1>
+<p>Nope! There’s actually a few of them, which is why I did my best to document them in <a href="https://doc.rust-lang.org/nomicon/">The Rustonomicon</a> (which I’ve started working on again, and hope to improve and finish). But the Rust-specific bugs documented in the nomicon are mixed in with lots of details and bugs that happen in other languages, so I thought it would be interesting to put all the Rust-specific ones together in one place.</p>
+<h1 id="what-these-bugs-arent" class="section-header"><a href="#what-these-bugs-arent">What These Bugs Aren’t</a></h1>
+<p>So just to be clear, there’s lots of bugs that Rust code can have. Many of them you would expect to see in any language: integer overflow, index out of bounds, failing to sanitize input, etc.</p>
+<p>Others are <em>kinda</em> Rust-specific, in that they’re a consequence of certain features: <a href="https://doc.rust-lang.org/nomicon/exception-safety.html">exception safety</a>, dangling raw pointers, <a href="https://doc.rust-lang.org/nomicon/safe-unsafe-meaning.html#how-safe-and-unsafe-interact">inappropriately trusting interfaces</a>, etc. However we won’t be focusing on these issues because they’re just as relevant in Rust’s close relatives: C++ and Swift. (Swift doesn’t really have exception safety issues; and C++ doesn’t really have trust issues, insofar as C++ doesn’t really try to distinguish between “safe” and “unsafe” operations)</p>
+<p>But the bugs I want to focus on I’ve only seen in Rust code, as a result of unique type-system interactions. I won’t go so far as to say that no other language has these issues. I just don’t know them, and I wouldn’t expect to see them.</p>
+<p>Also I should note that all the bugs I want to focus on will be related to writing unsafe code. So these aren’t things you generally need to worry about day-to-day when using Rust. The reason they’re related to unsafe code is because these bugs are generally places where we’re doing clever/subtle things for you which are always correct <em>in safe code</em> but fall over once you start doing the things <code>unsafe</code> lets you.</p>
+<h1 id="ralfs-bug-oops-unsafe-autotraits" class="section-header"><a href="#ralfs-bug-oops-unsafe-autotraits">Ralf’s Bug: Oops Unsafe Autotraits</a></h1>
 <p>TL;DR: if you write <code>unsafe</code> you <em>must</em> closely audit <code>Send</code> and <code>Sync</code> for your types!</p>
+<p>This one’s going to need a fair bit of background, because it’s the consequence of a several obscure Rust features.</p>
+<p>There’s a trait (interface) in Rust called Sync. It’s a marker trait, which just means that the interface doesn’t actually have any methods or types you need to provide to implement. It’s basically a type-level boolean: either you implement it or you don’t. Implementing Sync is a declaration that your type has a property: it’s safe for two threads to access it concurrently. Generic APIs which want to share data between threads do that by requiring <code>T: Sync</code> so that they’re safe.</p>
+<p>Almost every type in Rust can implement Sync, because sharing in Rust means read-only access. There’s no worries about two threads reading from an integer at the same time, so integers are Sync. Similarly a type made of integers is safe, and so on. The interesting Sync types come from concurrency primitives which actually let you mutate in shared contexts: Mutex, RwLock, AtomicUsize, etc. Very few types aren’t Sync. The most notable one is probably Rc, which is a non-atomically reference counted pointer, because it lets you increment the count in shared contexts without proper synchronization.</p>
+<p>There’s two quirks about Sync that make it different from almost any other trait in Rust: it’s unsafe, and it’s an autotrait.</p>
+<p>Being unsafe just means that when you implement Sync, you have to use the <code>unsafe</code> keyword. The benefit of this is purely a matter of rules lawyering: it must be impossible to violate memory safety with Rust and its standard library – unless you wrote <code>unsafe</code>. We make Sync unsafe because, unlike most other traits, there is no “defense” that can be taken against a bad Sync implementation. If we get it wrong then we’re letting our users write Data Races, which violate memory safety!</p>
+<p>But stopping there would have been an unacceptable state of affairs. Making <code>unsafe</code> a big scary “all bets are off” button is only compelling if most of our users <em>don’t need to use that button</em>. Rust is trying to be a language for writing concurrent applications, so sharing your type between threads requiring <code>unsafe</code> would be really bad.</p>
+<p>This is solved by Sync being an autotrait. An autotrait, which is a feature that is currently unstable and basically only used by the standard library, is a trait that’s structurally derived for all types in existence. So if your type contains only Sync types, you’re Sync without you saying a word about it. So everyone gets to share their types across threads without writing <code>unsafe</code>!</p>
+<p>For <em>almost</em> every type in existence, this works perfectly: if you’re made up of things that can be safely shared between threads, then you can be safely shared between threads. If you contain anything that can’t be, then you can’t be.</p>
+<p>For the few types where this system gets the wrong answer, Autotraits can be manually implemented or unimplemented. It is in these manual implementations that you must write <code>unsafe</code>, and accept the burden of memory safety. As a safety mechanism, several “fishy” types explicitly don’t implement Sync, so that any type containing them has to explicitly declare that it’s ok. The most notable example of this <code>*mut</code>, the raw pointer type.</p>
+<p>And here we get to Ralf’s Bug: a type (MutexGuard) autoderived Sync, when it shouldn’t have. That’s it. We should have been a bit more vigilant and noticed this, but we didn’t. Dang. 🙈</p>
+<p>But wait, how could this have happened? I just argued that it should be impossible to violate memory safety without writing <code>unsafe</code>, but our bug just violated memory safety, and it was because we <em>didn’t</em> write anything!</p>
+<p>The answer is that, in fact, we did write <code>unsafe</code> – <a href="https://github.com/rust-lang/rust/blob/995f741a0e3a57d4142c0590b3266514fa0a0e29/src/libstd/sync/mutex.rs#L407-L414">in the implementation of MutexGuard</a>. (score one for rules lawyers!) The only reason MutexGuard being Sync is problematic is because it has imbued itself with special semantics using unsafe code – the ability to reach into a Mutex and access its data without any synchronization.</p>
+<p><em>Usually</em> this isn’t a problem because our “fishy type” protection catches it. But in this case MutexGuard just holds a perfectly normal reference to a Mutex – and Mutexes are Sync, so that should be fine!</p>
+<p>So there’s our first bug that You Should Only See In Rust: writing unsafe code, and failing to audit the stdlib’s two unsafe autotraits for your types: Send and Sync.</p>
+<p><a href="https://github.com/rust-lang/rust/pull/41624">And here’s the fix</a>: properly overriding the Sync impl for MutexGuard… right next to the line where we had already done that for Send two years ago. 😭</p>
+<h1 id="unbound-lifetimes" class="section-header"><a href="#unbound-lifetimes">Unbound Lifetimes</a></h1>
+<p>TL;DR: don’t infer lifetimes that unsafe pointers produce!</p>
+<p>So Rust has these lifetime things. They’re type-level variables for talking about scopes/regions in your program. We attach them to references to indicate what scope of the program we can guarantee the reference will be valid for. Mostly, lifetimes only show up to create a relationship between two references. For example:</p>
 
-<p>This one&#39;s going to need a fair bit of background, because it&#39;s the consequence of a several obscure Rust features.</p>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">foo</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">u32</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">u32</span>;</code></pre></div>
+<p>Here we’re saying “I take in any reference to u32, and returns a reference to a u32 that lasts at least as long”. Because this is an incredibly common idiom, we have a rule that lets you leave off the lifetimes here. So this says the same thing:</p>
 
-<p>There&#39;s a trait (interface) in Rust called Sync. It&#39;s a marker trait, which just means that the interface doesn&#39;t actually have any methods or types you need to provide to implement. It&#39;s basically a type-level boolean: either you implement it or you don&#39;t. Implementing Sync is a declaration that your type has a property: it&#39;s safe for two threads to access it concurrently. Generic APIs which want to share data between threads do that by requiring <code>T: Sync</code> so that they&#39;re safe.</p>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">foo</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">u32</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">u32</span>;</code></pre></div>
+<p>When a lifetime in the output also appears in the input (as is the case here), we say that it’s <em>bound</em> by the input. This gives the compiler something to reason about. Specifically it determines that the output must, somehow, be derived from the input. So the caller of our function can make sure the input stays valid as long as we keep around the output:</p>
 
-<p>Almost every type in Rust can implement Sync, because sharing in Rust means read-only access. There&#39;s no worries about two threads reading from an integer at the same time, so integers are Sync. Similarly a type made of integers is safe, and so on. The interesting Sync types come from concurrency primitives which actually let you mutate in shared contexts: Mutex, RwLock, AtomicUsize, etc. Very few types aren&#39;t Sync. The most notable one is probably Rc, which is a non-atomically reference counted pointer, because it lets you increment the count in shared contexts without proper synchronization.</p>
-
-<p>There&#39;s two quirks about Sync that make it different from almost any other trait in Rust: it&#39;s unsafe, and it&#39;s an autotrait.</p>
-
-<p>Being unsafe just means that when you implement Sync, you have to use the <code>unsafe</code> keyword. The benefit of this is purely a matter of rules lawyering: it must be impossible to violate memory safety with Rust and its standard library -- unless you wrote <code>unsafe</code>. We make Sync unsafe because, unlike most other traits, there is no &quot;defense&quot; that can be taken against a bad Sync implementation. If we get it wrong then we&#39;re letting our users write Data Races, which violate memory safety!</p>
-
-<p>But stopping there would have been an unacceptable state of affairs. Making <code>unsafe</code> a big scary &quot;all bets are off&quot; button is only compelling if most of our users <em>don&#39;t need to use that button</em>. Rust is trying to be a language for writing concurrent applications, so sharing your type between threads requiring <code>unsafe</code> would be really bad.</p>
-
-<p>This is solved by Sync being an autotrait. An autotrait, which is a feature that is currently unstable and basically only used by the standard library, is a trait that&#39;s structurally derived for all types in existence. So if your type contains only Sync types, you&#39;re Sync without you saying a word about it. So everyone gets to share their types across threads without writing <code>unsafe</code>!</p>
-
-<p>For <em>almost</em> every type in existence, this works perfectly: if you&#39;re made up of things that can be safely shared between threads, then you can be safely shared between threads. If you contain anything that can&#39;t be, then you can&#39;t be.</p>
-
-<p>For the few types where this system gets the wrong answer, Autotraits can be manually implemented or unimplemented. It is in these manual implementations that you must write <code>unsafe</code>, and accept the burden of memory safety. As a safety mechanism, several &quot;fishy&quot; types explicitly don&#39;t implement Sync, so that any type containing them has to explicitly declare that it&#39;s ok. The most notable example of this <code>*mut</code>, the raw pointer type.</p>
-
-<p>And here we get to Ralf&#39;s Bug: a type (MutexGuard) autoderived Sync, when it shouldn&#39;t have. That&#39;s it. We should have been a bit more vigilant and noticed this, but we didn&#39;t. Dang. 🙈</p>
-
-<p>But wait, how could this have happened? I just argued that it should be impossible to violate memory safety without writing <code>unsafe</code>, but our bug just violated memory safety, and it was because we <em>didn&#39;t</em> write anything!</p>
-
-<p>The answer is that, in fact, we did write <code>unsafe</code> -- <a href="https://github.com/rust-lang/rust/blob/995f741a0e3a57d4142c0590b3266514fa0a0e29/src/libstd/sync/mutex.rs#L407-L414">in the implementation of MutexGuard</a>. (score one for rules lawyers!) The only reason MutexGuard being Sync is problematic is because it has imbued itself with special semantics using unsafe code -- the ability to reach into a Mutex and access its data without any synchronization.</p>
-
-<p><em>Usually</em> this isn&#39;t a problem because our &quot;fishy type&quot; protection catches it. But in this case MutexGuard just holds a perfectly normal reference to a Mutex -- and Mutexes are Sync, so that should be fine!</p>
-
-<p>So there&#39;s our first bug that You Should Only See In Rust: writing unsafe code, and failing to audit the stdlib&#39;s two unsafe autotraits for your types: Send and Sync.</p>
-
-<p><a href="https://github.com/rust-lang/rust/pull/41624">And here&#39;s the fix</a>: properly overriding the Sync impl for MutexGuard... right next to the line where we had already done that for Send two years ago. 😭</p>
-
-<h1 id='unbound-lifetimes' class='section-header'><a href='#unbound-lifetimes'>Unbound Lifetimes</a></h1>
-<p>TL;DR: don&#39;t infer lifetimes that unsafe pointers produce!</p>
-
-<p>So Rust has these lifetime things. They&#39;re type-level variables for talking about scopes/regions in your program. We attach them to references to indicate what scope of the program we can guarantee the reference will be valid for. Mostly, lifetimes only show up to create a relationship between two references. For example:</p>
-
-<pre class="rust rust-example-rendered">
-<span class="kw">fn</span> <span class="ident">foo</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">u32</span>;</pre>
-
-<p>Here we&#39;re saying &quot;I take in any reference to u32, and returns a reference to a u32 that lasts at least as long&quot;. Because this is an incredibly common idiom, we have a rule that lets you leave off the lifetimes here. So this says the same thing:</p>
-
-<pre class="rust rust-example-rendered">
-<span class="kw">fn</span> <span class="ident">foo</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">u32</span>;</pre>
-
-<p>When a lifetime in the output also appears in the input (as is the case here), we say that it&#39;s <em>bound</em> by the input. This gives the compiler something to reason about. Specifically it determines that the output must, somehow, be derived from the input. So the caller of our function can make sure the input stays valid as long as we keep around the output:</p>
-
-<pre class="rust rust-example-rendered">
-
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code>
 <span class="kw">fn</span> <span class="ident">main</span>() {
     <span class="kw">let</span> <span class="ident">x</span>;
     {
         <span class="kw">let</span> <span class="ident">y</span> <span class="op">=</span> <span class="number">0</span>;
         <span class="ident">x</span> <span class="op">=</span> <span class="ident">foo</span>(<span class="kw-2">&amp;</span><span class="ident">y</span>);
     }
-    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>);
-}</pre>
-
-<pre><code class="language-text">error: `y` does not live long enough
+    <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>);
+}</code></pre></div>
+<div class="example-wrap"><pre class="language-text"><code>error: `y` does not live long enough
   --&gt; &lt;anon&gt;:10:5
    |
 9  |         x = foo(&amp;y);
@@ -119,50 +107,42 @@
    |     ^ `y` dropped here while still borrowed
 11 |     println!(&quot;{}&quot;, x);
 12 | }
-   | - borrowed value needs to live until here
-</code></pre>
-
+   | - borrowed value needs to live until here</code></pre></div>
 <p>And the body of our function can make sure the output is derived from the input (or something that lives longer):</p>
 
-<pre class="rust rust-example-rendered">
-<span class="kw">fn</span> <span class="ident">foo1</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">u32</span> {
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">fn</span> <span class="ident">foo1</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">u32</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">u32</span> {
     <span class="kw">return</span> <span class="ident">input</span>;               <span class="comment">// ok, output derived from input</span>
 }
 
 <span class="kw">static</span> <span class="ident">global_int</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
-<span class="kw">fn</span> <span class="ident">foo2</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">u32</span> {
+<span class="kw">fn</span> <span class="ident">foo2</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">u32</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">u32</span> {
     <span class="kw">return</span> <span class="kw-2">&amp;</span><span class="ident">global_int</span>;         <span class="comment">// ok, globals live longer than everything</span>
 }
 
-<span class="kw">fn</span> <span class="ident">foo3</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">u32</span> {
+<span class="kw">fn</span> <span class="ident">foo3</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">u32</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">u32</span> {
     <span class="kw">let</span> <span class="ident">temp</span> <span class="op">=</span> <span class="number">0</span>;               <span class="comment">// ERROR: doesn&#39;t live long enough</span>
     <span class="kw">return</span> <span class="kw-2">&amp;</span><span class="ident">temp</span>;
-}</pre>
-
-<pre><code class="language-text">error: `temp` does not live long enough
+}</code></pre></div>
+<div class="example-wrap"><pre class="language-text"><code>error: `temp` does not live long enough
   --&gt; &lt;anon&gt;:12:13
    |
 12 |     return &amp;temp;
    |             ^^^^ does not live long enough
 13 | }
    | - borrowed value only lives until here
-   |
-</code></pre>
+   |</code></pre></div>
+<p>Ok, so what does the compiler do if you give it a lifetime that <em>isn’t</em> bound – an <em>unbound</em> lifetime?</p>
 
-<p>Ok, so what does the compiler do if you give it a lifetime that <em>isn&#39;t</em> bound -- an <em>unbound</em> lifetime?</p>
-
-<pre class="rust rust-example-rendered">
-<span class="kw">fn</span> <span class="ident">foo1</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>() <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">u32</span> {
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">fn</span> <span class="ident">foo1</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">u32</span> {
     <span class="kw">let</span> <span class="ident">temp</span> <span class="op">=</span> <span class="number">0</span>;
     <span class="kw">return</span> <span class="kw-2">&amp;</span><span class="ident">temp</span>;               <span class="comment">// ERROR: doesn&#39;t live long enough</span>
 }
 
 <span class="kw">static</span> <span class="ident">global_int</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0</span>;
-<span class="kw">fn</span> <span class="ident">foo2</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>() <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">u32</span> {
+<span class="kw">fn</span> <span class="ident">foo2</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">u32</span> {
     <span class="kw">return</span> <span class="kw-2">&amp;</span><span class="ident">global_int</span>;         <span class="comment">// ok, globals live longer than everything</span>
-}</pre>
-
-<pre><code class="language-text">error: `temp` does not live long enough
+}</code></pre></div>
+<div class="example-wrap"><pre class="language-text"><code>error: `temp` does not live long enough
  --&gt; &lt;anon&gt;:3:13
   |
 3 |     return &amp;temp;
@@ -179,15 +159,11 @@ note: borrowed value must be valid for the lifetime &#39;a as defined on the bod
 3 | |     return &amp;temp;
 4 | | }
   | |_^
-
-</code></pre>
-
+</code></pre></div>
 <p>It prevents us from using anything other than a reference to a global. Ok, that seems reasonable.</p>
-
 <p>But what happens when we throw some unsafe code at the issue?</p>
 
-<pre class="rust rust-example-rendered">
-<span class="kw">fn</span> <span class="ident">foo</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">input</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">u32</span> {
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">foo</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">input</span>: <span class="kw-2">*const</span> <span class="ident">u32</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">u32</span> {
     <span class="kw">unsafe</span> {
         <span class="kw">return</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">input</span>
     }
@@ -199,69 +175,49 @@ note: borrowed value must be valid for the lifetime &#39;a as defined on the bod
         <span class="kw">let</span> <span class="ident">y</span> <span class="op">=</span> <span class="number">7</span>;
         <span class="ident">x</span> <span class="op">=</span> <span class="ident">foo</span>(<span class="kw-2">&amp;</span><span class="ident">y</span>);
     }
-    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;hello: {}&quot;</span>, <span class="ident">x</span>);
-}</pre>
-
-<pre><code class="language-text">hello: 2384275376
-</code></pre>
-
+    <span class="macro">println!</span>(<span class="string">&quot;hello: {}&quot;</span>, <span class="ident">x</span>);
+}</code></pre></div>
+<div class="example-wrap"><pre class="language-text"><code>hello: 2384275376</code></pre></div>
 <p>UHHHH 🙀</p>
-
 <p>It turns out that unbound lifetimes are really bad when unsafe code gets involved.</p>
+<p>Basically, if you dereference a raw pointer, this produces an unbound lifetime. This is because we don’t know what scope could possibly be right. Unbound lifetimes are basically the “yes men” of the type system – they change shape to be whatever scope we ask them to fit. This is genuinely useful in the case of raw pointers, because there isn’t a better answer. Normally it’s <em>also</em> fine because we either discard the reference quickly, or we pass it somewhere that causes the lifetime to become bound and act reasonably (a struct field, or the return value of a function).</p>
+<p>But if you mess up your signatures and leave an unbound lifetime in there… look out!</p>
+<p>Note that our code only compiled because we used an explicit lifetime variable; this doesn’t compile:</p>
 
-<p>Basically, if you dereference a raw pointer, this produces an unbound lifetime. This is because we don&#39;t know what scope could possibly be right. Unbound lifetimes are basically the &quot;yes men&quot; of the type system -- they change shape to be whatever scope we ask them to fit. This is genuinely useful in the case of raw pointers, because there isn&#39;t a better answer. Normally it&#39;s <em>also</em> fine because we either discard the reference quickly, or we pass it somewhere that causes the lifetime to become bound and act reasonably (a struct field, or the return value of a function).</p>
-
-<p>But if you mess up your signatures and leave an unbound lifetime in there... look out!</p>
-
-<p>Note that our code only compiled because we used an explicit lifetime variable; this doesn&#39;t compile:</p>
-
-<pre class="rust rust-example-rendered">
-<span class="kw">fn</span> <span class="ident">foo</span>(<span class="ident">input</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">u32</span> {
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">fn</span> <span class="ident">foo</span>(<span class="ident">input</span>: <span class="kw-2">*const</span> <span class="ident">u32</span>) -&gt; <span class="kw-2">&amp;</span><span class="ident">u32</span> {
     <span class="kw">unsafe</span> {
         <span class="kw">return</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">input</span>
     }
-}</pre>
-
-<pre><code class="language-text">error[E0106]: missing lifetime specifier
+}</code></pre></div>
+<div class="example-wrap"><pre class="language-text"><code>error[E0106]: missing lifetime specifier
  --&gt; &lt;anon&gt;:1:30
   |
 1 | fn foo(input: *const u32) -&gt; &amp;u32 {
   |                              ^ expected lifetime parameter
   |
   = help: this function&#39;s return type contains a borrowed value with an elided lifetime, but the lifetime cannot be derived from the arguments
-  = help: consider giving it an explicit bounded or &#39;static lifetime
-</code></pre>
-
+  = help: consider giving it an explicit bounded or &#39;static lifetime</code></pre></div>
 <p>So one way to keep yourself safe is to use lifetime elision as much as possible.</p>
-
-<p><a href="https://github.com/rust-lang/rust/issues/17500#issue-43719812">Here&#39;s a (pre-1.0) bug where we messed this up in the Rust standard library.</a></p>
-
-<h1 id='destructor-leaking---the-leakpocalypse' class='section-header'><a href='#destructor-leaking---the-leakpocalypse'>Destructor Leaking - The Leakpocalypse</a></h1>
-<p>TL;DR: don&#39;t rely on borrows expiring meaning destructors ran!</p>
-
-<p>Every language I know of that has destructors comes with a little asterisk: destructors aren&#39;t guaranteed to actually run. Or to put it another way:</p>
-
+<p><a href="https://github.com/rust-lang/rust/issues/17500#issue-43719812">Here’s a (pre-1.0) bug where we messed this up in the Rust standard library.</a></p>
+<h1 id="destructor-leaking---the-leakpocalypse" class="section-header"><a href="#destructor-leaking---the-leakpocalypse">Destructor Leaking - The Leakpocalypse</a></h1>
+<p>TL;DR: don’t rely on borrows expiring meaning destructors ran!</p>
+<p>Every language I know of that has destructors comes with a little asterisk: destructors aren’t guaranteed to actually run. Or to put it another way:</p>
 <blockquote>
-<p>THIS SOFTWARE IS PROVIDED &#39;&#39;AS IS&#39;&#39; AND WITHOUT ANY EXPRESS OR
+<p>THIS SOFTWARE IS PROVIDED ’‘AS IS’’ AND WITHOUT ANY EXPRESS OR
 IMPLIED WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED
 WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</p>
 </blockquote>
+<p>In Rust, Swift, and C++, the standard example of this is stuffing a type-with-a-destructor inside a reference-counted cycle. Even when no more references to the data remain, the cycle will keep itself alive and “leak” the destructor forever.</p>
+<p>In Swift and C++ this is kinda annoying, but not a big deal. In Rust, it’s a bigger deal.</p>
+<p>This is because in Rust, unlike the other two languages, “something is no longer alive” is an event that lets you do new things with your still-alive values – it can free up borrows!</p>
 
-<p>In Rust, Swift, and C++, the standard example of this is stuffing a type-with-a-destructor inside a reference-counted cycle. Even when no more references to the data remain, the cycle will keep itself alive and &quot;leak&quot; the destructor forever.</p>
-
-<p>In Swift and C++ this is kinda annoying, but not a big deal. In Rust, it&#39;s a bigger deal.</p>
-
-<p>This is because in Rust, unlike the other two languages, &quot;something is no longer alive&quot; is an event that lets you do new things with your still-alive values -- it can free up borrows!</p>
-
-<pre class="rust rust-example-rendered">
-<span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="number">0</span>;
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="number">0</span>;
 {
-    <span class="kw">let</span> <span class="ident">y</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">x</span>;
-    <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>); <span class="comment">// ERROR: x is borrowed</span>
+    <span class="kw">let</span> <span class="ident">y</span> <span class="op">=</span> <span class="kw-2">&amp;mut</span> <span class="ident">x</span>;
+    <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>); <span class="comment">// ERROR: x is borrowed</span>
 }
-<span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>);     <span class="comment">// OK</span></pre>
-
-<pre><code class="language-text">error[E0502]: cannot borrow `x` as immutable because it is also borrowed as mutable
+<span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>);     <span class="comment">// OK</span></code></pre></div>
+<div class="example-wrap"><pre class="language-text"><code>error[E0502]: cannot borrow `x` as immutable because it is also borrowed as mutable
  --&gt; &lt;anon&gt;:5:24
   |
 4 |         let y = &amp;mut x;
@@ -269,100 +225,66 @@ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</p>
 5 |         println!(&quot;{}&quot;, x); // ERROR: x is borrowed
   |                        ^ immutable borrow occurs here
 6 |     }
-  |     - mutable borrow ends here
-</code></pre>
-
-<p>This is an important tool for API design in Rust. It&#39;s what lets us safely make iterators for collections without having to copy them or add invalidation checks. It lets us safely keep pointers to reference-counted data without actually touching the reference count. Being able to rely on &quot;a borrow has expired&quot; meaning the thing that held the borrow is gone forever is good and safe.</p>
-
-<p>What you <em>can&#39;t</em> do is assume that the borrow expiring that was held by a type means that type had its destructor run. For instance, if you do the reference-counted cycle leak trick, Rust will correctly determine that the borrow can safely expire -- after all no one can ever access the reference that was leaked.</p>
-
+  |     - mutable borrow ends here</code></pre></div>
+<p>This is an important tool for API design in Rust. It’s what lets us safely make iterators for collections without having to copy them or add invalidation checks. It lets us safely keep pointers to reference-counted data without actually touching the reference count. Being able to rely on “a borrow has expired” meaning the thing that held the borrow is gone forever is good and safe.</p>
+<p>What you <em>can’t</em> do is assume that the borrow expiring that was held by a type means that type had its destructor run. For instance, if you do the reference-counted cycle leak trick, Rust will correctly determine that the borrow can safely expire – after all no one can ever access the reference that was leaked.</p>
 <p>The Rust stdlib devs fell awry of this, and had developed two APIs that were relying on this fact. When <a href="https://github.com/rust-lang/rust/issues/24292">this was pointed out</a> there was a bit of a panic in the community, and thus the <a href="https://github.com/rust-lang/rfcs/pull/1066">The Leakpocalypse</a> occured.</p>
-
 <p>In the end we declared that this sort of thing was just a fact of life. However while handling the fallout of this decision, we figured out a way to make this pattern work, sort of.</p>
-
-<p>For example, <code>drain</code> was an experimental API that relied on destructors running. It was an iterator that moved the values out of a collection, without actually consuming the collection&#39;s allocation -- as if you called <code>pop</code> until there was nothing left. Of course, we wanted to do it without having to create any temporary allocations or keep the collection in a valid state.</p>
-
-<p>We reasoned this was safe because the Drain iterator would hold a mutable borrow on the collection, statically preventing anyone from accessing it while removing elements. The destructor of the drain would empty out any elements that hadn&#39;t been read yet, and then update the collection&#39;s metadata to reflect its emptiness. Perfect!</p>
-
-<p>Except, someone could leak the Drain&#39;s destructor, and then the collection would be accessible in a corrupt state.</p>
-
-<p>The solution to this was a trick we called <em>leak amplification</em>, because it basically raised the stakes of a destructor leak: if you leak me, I&#39;ll leak you right back.</p>
-
-<p>The trick was to change the code that constructed a Drain to tell the collection that it was now empty. So, if at any point the Drain was leaked, the collection would find itself in a perfectly valid state. However this would also result in a leak of all the destructors of all the unprocessed elements being leaked. You leak me, I&#39;ll leak you right back.</p>
-
+<p>For example, <code>drain</code> was an experimental API that relied on destructors running. It was an iterator that moved the values out of a collection, without actually consuming the collection’s allocation – as if you called <code>pop</code> until there was nothing left. Of course, we wanted to do it without having to create any temporary allocations or keep the collection in a valid state.</p>
+<p>We reasoned this was safe because the Drain iterator would hold a mutable borrow on the collection, statically preventing anyone from accessing it while removing elements. The destructor of the drain would empty out any elements that hadn’t been read yet, and then update the collection’s metadata to reflect its emptiness. Perfect!</p>
+<p>Except, someone could leak the Drain’s destructor, and then the collection would be accessible in a corrupt state.</p>
+<p>The solution to this was a trick we called <em>leak amplification</em>, because it basically raised the stakes of a destructor leak: if you leak me, I’ll leak you right back.</p>
+<p>The trick was to change the code that constructed a Drain to tell the collection that it was now empty. So, if at any point the Drain was leaked, the collection would find itself in a perfectly valid state. However this would also result in a leak of all the destructors of all the unprocessed elements being leaked. You leak me, I’ll leak you right back.</p>
 <p>However if the Drain destructor was allowed to run, which is almost always the case, then it would do all the cleanup and no one would know the difference. Nice!</p>
-
-<p>Sadly, some APIs don&#39;t have any way to apply leak amplification, as was the case for the original design of thread::scoped. For that API, we had to force the user of our API to run inside a closure we call, so that we could run any cleanup code we wanted after their closure terminated. This works, it&#39;s just less ergonomic and composable.</p>
-
-<h1 id='honorable-mention-zero-sized-types-zsts' class='section-header'><a href='#honorable-mention-zero-sized-types-zsts'>Honorable Mention: Zero Sized Types (ZSTs)</a></h1>
+<p>Sadly, some APIs don’t have any way to apply leak amplification, as was the case for the original design of thread::scoped. For that API, we had to force the user of our API to run inside a closure we call, so that we could run any cleanup code we wanted after their closure terminated. This works, it’s just less ergonomic and composable.</p>
+<h1 id="honorable-mention-zero-sized-types-zsts" class="section-header"><a href="#honorable-mention-zero-sized-types-zsts">Honorable Mention: Zero Sized Types (ZSTs)</a></h1>
 <p>TL;DR: be sure that <code>size_of::&lt;T&gt;() == 0</code> is handled reasonably for allocations and offsets!</p>
-
-<p>Ok so this one actually shows up in a few other languages (at very least Swift and Go), but it&#39;s really cool and I want to talk about it. To be fair, I <em>think</em> these problems are the worst in Rust.</p>
-
-<p>Rust lets you create types that have nothing in them, and thus have zero size. For example, the empty tuple <code>()</code>. Instances of these types are completely useless -- after all they hold no state. However they serve two purposes:</p>
-
+<p>Ok so this one actually shows up in a few other languages (at very least Swift and Go), but it’s really cool and I want to talk about it. To be fair, I <em>think</em> these problems are the worst in Rust.</p>
+<p>Rust lets you create types that have nothing in them, and thus have zero size. For example, the empty tuple <code>()</code>. Instances of these types are completely useless – after all they hold no state. However they serve two purposes:</p>
 <ol>
 <li>As static encodings of properties/facts</li>
-<li>As ways to &quot;throw away&quot; parts of a generic design</li>
+<li>As ways to “throw away” parts of a generic design</li>
 </ol>
-
 <p>As an example of (1), the author of the Diesel ORM often brags that building up SQL queries in Diesel actually just builds up a really complicated zero-sized type, which the compiler then statically resolves for minimum runtime overhead.</p>
-
 <p>As an example of (2), <code>HashSet&lt;T&gt;</code> is implemented as a trivial wrapper around <code>HashMap&lt;T, ()&gt;</code>. Because the language knows instances of <code>()</code> are useless, all the code in HashMap that manipulates values is completely eliminated, producing an optimized HashSet implementation. As a more extreme example, <code>Vec&lt;()&gt;</code> is basically just a glorified counter.</p>
-
 <p>However, in low level (unsafe) code zero-sized types can be a bit hazardous, for two reasons:</p>
-
 <ul>
-<li><p>If you try to malloc some number of zero-sized types naively, you&#39;ll pass an allocation size of 0 to the allocator, which is implementation-defined at best. Also you want to avoid allocating these things anyway!</p></li>
-<li><p>If you try to offset a pointer to a zero-sized type naively, you will get nowhere. This breaks a C-style &quot;two pointers moving towards each other&quot; iterator.</p></li>
+<li>
+<p>If you try to malloc some number of zero-sized types naively, you’ll pass an allocation size of 0 to the allocator, which is implementation-defined at best. Also you want to avoid allocating these things anyway!</p>
+</li>
+<li>
+<p>If you try to offset a pointer to a zero-sized type naively, you will get nowhere. This breaks a C-style “two pointers moving towards each other” iterator.</p>
+</li>
 </ul>
-
 <p><a href="https://doc.rust-lang.org/nomicon/vec-zsts.html">I discuss how to handle these cases in the nomicion</a>.</p>
-
-<p>To the best of my memory (which is bad), the stdlib has never <em>shipped</em> with ZST bugs in it, but I&#39;ve certainly caught these bugs when reviewing patches. Subtle details about ZSTs and allocations were common enough issues in contributions that I ended up building the RawVec abstraction to handle all those details for everyone in the stdlib.</p>
-
-<p>Since I mentioned Go and Swift, I&#39;ll briefly note that they do slightly different things here.</p>
-
+<p>To the best of my memory (which is bad), the stdlib has never <em>shipped</em> with ZST bugs in it, but I’ve certainly caught these bugs when reviewing patches. Subtle details about ZSTs and allocations were common enough issues in contributions that I ended up building the RawVec abstraction to handle all those details for everyone in the stdlib.</p>
+<p>Since I mentioned Go and Swift, I’ll briefly note that they do slightly different things here.</p>
 <p>Swift decouples size from stride. ZSTs have a stride of 1 (byte), and allocations and offsets key off stride. So this means an Array of 100 empty tuples will allocate a buffer of 100 bytes that are never read/written. This is effectively the same solution that C++ has for empty types, but the decoupling of size and stride lets Swift stuff a bunch of zero-sized types in a struct and still declare that the struct is zero-sized with a stride of 1. I believe C++ would be forced to give every ZST in the struct its own byte.</p>
-
-<p>It seems like Go is closer to Rust in legitimately optimizing away ZSTs, but I&#39;m not super confident in the details. Because Go is garbage collected, it seems like it needs to handle a lot of the details here for you, so ZSTs aren&#39;t as big of a concern in practice.</p>
-
-<p><a href="https://dave.cheney.net/2014/03/25/the-empty-struct">This blog post</a> seems to have some interesting details about ZSTs in Go, but I don&#39;t know how accurate it is.</p>
-
-<h1 id='honorable-mention-variance' class='section-header'><a href='#honorable-mention-variance'>Honorable Mention: Variance</a></h1>
+<p>It seems like Go is closer to Rust in legitimately optimizing away ZSTs, but I’m not super confident in the details. Because Go is garbage collected, it seems like it needs to handle a lot of the details here for you, so ZSTs aren’t as big of a concern in practice.</p>
+<p><a href="https://dave.cheney.net/2014/03/25/the-empty-struct">This blog post</a> seems to have some interesting details about ZSTs in Go, but I don’t know how accurate it is.</p>
+<h1 id="honorable-mention-variance" class="section-header"><a href="#honorable-mention-variance">Honorable Mention: Variance</a></h1>
 <p>TL;DR: be sure to eat all of your PhantomDatas for breakfast!</p>
-
 <p>Variance is the thing that makes it so that you can pass a Cat to a function that expects an Animal in an object-oriented language, but not an <code>ArrayList&lt;Cat&gt;</code> where an <code>ArrayList&lt;Animal&gt;</code> is expected. In Rust, variance is applied to lifetimes: you can pass a long-lived thing to a function that expects short-lived things.</p>
-
-<p>Rust is already relatively unique in that it actually exposes type variance as something user-defined types can have (<code>&amp;MyType&lt;&amp;&#39;long T&gt;</code> can potentially be passed where <code>&amp;MyType&lt;&amp;&#39;short T&gt;</code> is expected). This is because variance is usually made unsound by shared mutability: if you turn an <code>ArrayList&lt;Cat&gt;</code> into an <code>ArrayList&lt;Animal&gt;</code>, and someone puts a <code>Dog</code> in, then anyone still holding the <code>ArrayList&lt;Cat&gt;</code> will interpret that Dog as a Cat! As it turns out, Rust&#39;s type system is incredibly good at managing aliasing and mutability, so it&#39;s easier for us to use variance in more places.</p>
-
-<p>However Rust mostly handles variance in a similar manner to Sync: it&#39;s automatic and based on the values stored in the type. This leads to a similar scenario to Sync: once you start using unsafe code, it can get confused and give you variance when you shouldn&#39;t have it.</p>
-
-<p>The solution to this is to, whenever your type stores values that Rust can&#39;t &quot;see&quot;, use PhantomData. <code>PhantomData&lt;T&gt;</code> is a cool little language feature that lets you tell the compiler &quot;look I&#39;m not gonna directly store this type, but just pretend I did&quot;. It&#39;s zero-sized, so it has no impact on your type at runtime.</p>
-
+<p>Rust is already relatively unique in that it actually exposes type variance as something user-defined types can have (<code>&amp;MyType&lt;&amp;'long T&gt;</code> can potentially be passed where <code>&amp;MyType&lt;&amp;'short T&gt;</code> is expected). This is because variance is usually made unsound by shared mutability: if you turn an <code>ArrayList&lt;Cat&gt;</code> into an <code>ArrayList&lt;Animal&gt;</code>, and someone puts a <code>Dog</code> in, then anyone still holding the <code>ArrayList&lt;Cat&gt;</code> will interpret that Dog as a Cat! As it turns out, Rust’s type system is incredibly good at managing aliasing and mutability, so it’s easier for us to use variance in more places.</p>
+<p>However Rust mostly handles variance in a similar manner to Sync: it’s automatic and based on the values stored in the type. This leads to a similar scenario to Sync: once you start using unsafe code, it can get confused and give you variance when you shouldn’t have it.</p>
+<p>The solution to this is to, whenever your type stores values that Rust can’t “see”, use PhantomData. <code>PhantomData&lt;T&gt;</code> is a cool little language feature that lets you tell the compiler “look I’m not gonna directly store this type, but just pretend I did”. It’s zero-sized, so it has no impact on your type at runtime.</p>
 <p>For instance:</p>
 
-<pre class="rust rust-example-rendered">
-<span class="kw">struct</span> <span class="ident">MySmahtPointer</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-  <span class="ident">allocation</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>,       <span class="comment">// Something complex we can&#39;t do in the type system</span>
-  <span class="ident">_boo</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">T</span><span class="op">&gt;</span>, <span class="comment">// But hey there&#39;s some mutably shared T&#39;s in there!</span>
-}</pre>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct</span> <span class="ident">MySmahtPointer</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+  <span class="ident">allocation</span>: <span class="kw-2">*mut</span> <span class="ident">u8</span>,       <span class="comment">// Something complex we can&#39;t do in the type system</span>
+  <span class="ident">_boo</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="kw-2">*mut</span> <span class="ident">T</span><span class="op">&gt;</span>, <span class="comment">// But hey there&#39;s some mutably shared T&#39;s in there!</span>
+}</code></pre></div>
+<p>Pre-1.0, Rust actually used to have markers that explicitly requested a “kind” of variance, but it was deemed too confusing in practice. The PhantomData system was adopted because it let you just “say what you’re doing” and have the compiler figure it out for you.</p>
+<p>Note that in the above example, removing the PhantomData would be a compilation error, as we refuse to let you claim you’re generic over a type without actually telling us how you’re using it. However there are more subtle definitions which may lead to incorrect results, like this:</p>
 
-<p>Pre-1.0, Rust actually used to have markers that explicitly requested a &quot;kind&quot; of variance, but it was deemed too confusing in practice. The PhantomData system was adopted because it let you just &quot;say what you&#39;re doing&quot; and have the compiler figure it out for you.</p>
-
-<p>Note that in the above example, removing the PhantomData would be a compilation error, as we refuse to let you claim you&#39;re generic over a type without actually telling us how you&#39;re using it. However there are more subtle definitions which may lead to incorrect results, like this:</p>
-
-<pre class="rust rust-example-rendered">
-<span class="kw">struct</span> <span class="ident">MySmahtPointer</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
-  <span class="ident">allocation</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>,  <span class="comment">// Something complex we can&#39;t do in the type system</span>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct</span> <span class="ident">MySmahtPointer</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+  <span class="ident">allocation</span>: <span class="kw-2">*mut</span> <span class="ident">u8</span>,  <span class="comment">// Something complex we can&#39;t do in the type system</span>
   <span class="ident">aux_value</span>: <span class="ident">T</span>,         <span class="comment">// Compiler thinks this is the only way we&#39;re using it,</span>
                         <span class="comment">// and gives us variance incorrectly.</span>
-}</pre>
-
+}</code></pre></div>
 <p>I discuss this situation in more detail <a href="https://doc.rust-lang.org/nomicon/subtyping.html">here</a>
 and <a href="https://doc.rust-lang.org/nomicon/phantom-data.html">here</a>.</p>
-
-<h1 id='thats-all-i-can-think-of' class='section-header'><a href='#thats-all-i-can-think-of'>That&#39;s All I Can Think Of!</a></h1>
+<h1 id="thats-all-i-can-think-of" class="section-header"><a href="#thats-all-i-can-think-of">That’s All I Can Think Of!</a></h1>
 <p>Lemme know if you can think of any others!</p>
 
     </div>

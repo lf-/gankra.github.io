@@ -1,5 +1,10 @@
 % The Pain Of Real Linear Types in Rust
 
+<header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">May 8, 2017</p>
+</header>
+
 For whatever reason "linear" types in Rust came up at work today, at which point I made my usual assertion that they'd be a nightmare to implement, because they don't compose well. I tried to explain it off the top of my head, but I figured it's best for me to just write it out.
 
 

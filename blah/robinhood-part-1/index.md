@@ -1,6 +1,11 @@
-% Building a HashMap in Rust - Part 1: What's a HashMap?
+% A HashMap in Rust: What's a HashMap?
 
-## Aria Beingessner
+<header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">January 15, 2015 -- Rust Nightly 1.0.0</p>
+</header>
+
+> This article is really old! Rust has since moved on to SwissTable (hashbrown), which I describe [in this article](../hashbrown-tldr/). That said, this article is still useful because it mostly discusses issues fundamental to any HashMap design. (Also, this was supposed to be "Part 1 of 2", but part 2 never happened!)
 
 This is the fourth entry in a series on implementing collections in the Rust programming language. The full list of entries can be found [here][index].
 
@@ -184,7 +189,7 @@ Next time we'll dig into Rust's standard implementation of a HashMap using exact
 
 See you next time!
 
-[previous]: http://cglab.ca/~abeinges/blah/rust-btree-case/
+[previous]: ../rust-btree-case/
 [web-dos-slides]: http://events.ccc.de/congress/2011/Fahrplan/attachments/2007_28C3_Effective_DoS_on_web_application_platforms.pdf
 [web-dos-vid]: https://www.youtube.com/watch?v=R2Cq3CLI6H8
 [perl-dos-pdf]: http://www.rootsecure.net/content/downloads/pdf/dos_via_algorithmic_complexity_attack.pdf
@@ -195,4 +200,4 @@ See you next time!
 [cuckoo]: http://en.wikipedia.org/wiki/Cuckoo_hashing
 [thesis]: https://cs.uwaterloo.ca/research/tr/1986/CS-86-14.pdf
 [robin-bound]: http://cglab.ca/~morin/publications/hashing/robinhood-siamjc.pdf
-[index]: http://cglab.ca/~abeinges/blah/
+[index]: ../

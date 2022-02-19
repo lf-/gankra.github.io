@@ -1,10 +1,9 @@
 % Why Hashbrown Does A Double-Lookup
 
-<span class="author">Aria Beingessner</span>
-
-<span class="date">March 20th, 2019 -- Rust Nightly 1.35.0</span>
-
-
+<header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">March 20th, 2019 -- Rust Nightly 1.35.0</p>
+</header>
 
 I recently finished a detailed review of [hashbrown](https://github.com/Amanieu/hashbrown), which will likely become the new implementation for rust's std::collections::HashMap. One of the
 most surprising things I found was in the implementation of `insert`, which was essentially:

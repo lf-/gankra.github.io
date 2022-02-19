@@ -1,8 +1,9 @@
 % The Kinds of Implementation-Defined?
 
-<span class="author">Aria Beingessner</span>
-
-<span class="date">November 13th, 2018</span>
+<header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">November 13, 2018</p>
+</header>
 
 This post is intended to try to shake loose a distinction I found myself trying to make.
 
