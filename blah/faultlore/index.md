@@ -33,7 +33,7 @@ Telling me what *should* happen is like telling me that some particular points a
 
 But if you tell me what *shouldn't* happen then suddenly it's like you're describing the outline of that shape to me. Every counter-example and error is another stroke of the boundary. It all becomes simple and clear.
 
-I'm like... an anti-[Constructivist](https://en.wikipedia.org/wiki/Constructivism_(philosophy_of_mathematics). If you just show me an example of something working, I won't trust you for a second. But if you tell me all the ways something *doesn't* work then I'll follow you to the ends of the earth.
+I'm like... an anti-[Constructivist](https://en.wikipedia.org/wiki/Constructivism_(philosophy_of_mathematics)). If you just show me an example of something working, I won't trust you for a second. But if you tell me all the ways something *doesn't* work then I'll follow you to the ends of the earth.
 
 This was very prominent in how I approached theorems and proofs as an academic. Rather than proving things *directly* I always found myself drawn to proving them *by contradiction*, which involves arguing that everything completely breaks if something *isn't* true, so it *must* be true (or the system we are using is completely broken, [which we all generally agree is rude to talk about](https://en.wikipedia.org/wiki/Consistency) (or you're an [Excluded Middle](https://en.wikipedia.org/wiki/Law_of_excluded_middle)/Constructivist pedant)).
 
