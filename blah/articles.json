@@ -2,6 +2,12 @@
     "articles":
     [
         {
+            "path": "faultlore",
+            "toc": false,
+            "title": "Faultlore: Learning Through Errors",
+            "date": "Sun, 27 Feb 2022 18:18:56 +0000"
+        },
+        {
             "path": "deinitialize-me-maybe",
             "toc": true,
             "title": "Destroy All Values: Designing Deinitialization in Programming Languages",

@@ -16,6 +16,13 @@
     </image> 
 
     <item>
+        <title>Faultlore: Learning Through Errors - Faultlore</title>
+        <link>https://gankra.github.io/blah/faultlore</link>
+        <description>Faultlore: Learning Through Errors</description>
+        <pubDate>Sun, 27 Feb 2022 18:18:56 +0000</pubDate>
+    </item>
+
+    <item>
         <title>Destroy All Values: Designing Deinitialization in Programming Languages - Faultlore</title>
         <link>https://gankra.github.io/blah/deinitialize-me-maybe</link>
         <description>Destroy All Values: Designing Deinitialization in Programming Languages</description>
