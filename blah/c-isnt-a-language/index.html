@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>C Isn't A Programming Language Anymore - Faultlore</title></title>
+
+    
+    <link href="../rust.css" rel="stylesheet" type="text/css">
+<link href="../style.css" rel="stylesheet" type="text/css">
+
+<meta name="author" content="Aria Beingessner">
+<meta property="og:image" content="https://gankra.github.io/blah/img/error-base.png">
+<meta property="og:type" content="article">
+
+<meta property="og:title" content="C Isn't A Programming Language Anymore - Faultlore">
+<meta property="og:url" content="https://gankra.github.io/blah/c-isnt-a-language">
+
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    <link href="../header.css" rel="stylesheet" type="text/css">
+
+<header id="title-bar">
+    <div id = "logo">
+        <a id="logo" href="../">
+            <img src="../img/error-glitch.png"/>
+        </a>
+    </div>
+    
+    <h1 id="title">
+        <div id="title-layer1" class="layer">
+            Faultlore
+            <div id="title-layer2" class="layer">
+                Faultlore
+                <div id="title-layer3" class="layer">
+                    Faultlore
+                </div>
+            </div>
+        </div>
+    </h1>
+</header>
+
+<article class="content">
+
+    <h1 class="title">C Isn&#39;t A Programming Language Anymore</h1>
+    <header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">February 27th, 2022</p>
+</header>
+<p>Phantomderp and I have both recently been very aligned on a particular subject: <a href="https://thephd.dev/to-save-c-we-must-save-abi-fixing-c-function-abi">being extremely angry about C ABIs</a> and <a href="https://github.com/rust-lang/rust/issues/54341">trying to fix them</a>. Where we’re not aligned is <em>why</em> we’re mad about them.</p>
+<p>He’s trying to materially improve the conditions of using C itself as a programming language.</p>
+<p>I’m trying to materially improve the conditions of using literally any language other than C.</p>
+<p>Now you might reasonably ask: “what the fuck does your problem have to do with C?”</p>
+<p>It wouldn’t if C was actually a programming language. Unfortunately, it’s not, and it hasn’t been for a long time. This isn’t about the fact that C is actually horribly ill-defined <a href="https://thephd.dev/your-c-compiler-and-standard-library-will-not-help-you">due to a billion implementations</a> or its <a href="https://thephd.dev/intmax_t-hell-c++-c">completely failed</a> <a href="https://gankra.github.io/blah/rust-layouts-and-abis/#the-c-integer-hierarchy">integer hierarchy</a>.</p>
+<p>That stuff sucks, but on its own that wouldn’t be <em>my</em> problem.</p>
+<p><em>My</em> problem is that C was elevated to a role of prestige and power, its reign so absolute and eternal that it has completely distorted the way we speak to each other. Rust and Swift cannot simply speak their native and comfortable tongues – they must instead wrap themselves in a grotesque simulacra of C’s skin and make their flesh undulate in the same ways it does.</p>
+<p>C is the <em>lingua franca</em> of programming. We must all speak C, and therefore C is not just a programming language anymore – it’s a protocol that every general-purpose programming language needs to speak. </p>
+<p>So actually this kinda <em>is</em> about the whole “C is an inscrutable implementation-defined mess” thing. But only insofar as it makes this protocol we all have to use an even bigger nightmare!</p>
+<h1 id="foreign-function-interfaces" class="section-header"><a href="#foreign-function-interfaces">Foreign Function Interfaces</a></h1>
+<p>Ok let’s get technical. You’ve finished designing your new language, Bappyscript, with first class support for Bappy Paws/Hooves/Fins. An amazing language that’s going to completely revolutionize the way that cats, sheep, and sharks program!</p>
+<p>But now you need to actually make it do something useful. You know like, take user input, or write output, or literally anything observable?</p>
+<p>If you want programs written in your language to be good little citizens that work well with the major operating systems, you need to interact with the operating system’s interface. I hear that everything on Linux is “just a file”, so let’s open a file on Linux! </p>
+<p><em>googles</em></p>
+<div class="example-wrap"><pre class="language-C"><code>OPEN(2)
+
+NAME
+       open, openat, creat - open and possibly create a file
+
+SYNOPSIS
+
+       #include &lt;fcntl.h&gt;
+
+       int open(const char *pathname, int flags);
+       int open(const char *pathname, int flags, mode_t mode);
+
+       int creat(const char *pathname, mode_t mode);
+
+       int openat(int dirfd, const char *pathname, int flags);
+       int openat(int dirfd, const char *pathname, int flags, mode_t mode);
+
+       /* Documented separately, in openat2(2): */
+       int openat2(int dirfd, const char *pathname,
+                   const struct open_how *how, size_t size);
+
+   Feature Test Macro Requirements for glibc (see
+   feature_test_macros(7)):
+
+       openat():
+           Since glibc 2.10:
+               _POSIX_C_SOURCE &gt;= 200809L
+           Before glibc 2.10:
+               _ATFILE_SOURCE</code></pre></div>
+<p>Um sorry what? This is Bappyscript, not <em>C</em>. Where’s the Bappyscript interface for Linux?</p>
+<p><em>googles</em></p>
+<p>What do you <em>mean</em> there’s no Bappyscript interface for Linux!? Ok well sure it’s a brand-new language, but you’re going to add one, right? Right…?</p>
+<p>Fuck ok, I guess we have to use what they’ve given us.</p>
+<p>We’re going to need some kind of Interface that lets our language call Functions that are Foreign to it. A Foreign Function Interface… FFI… yeah! I like the sound of that!</p>
+<p>Oh hey there Rust, you have C FFI too? And you too Swift? Even Python?!</p>
+<img src="abi-kiss.png" alt="&quot;What if we kissed 😳 and we were both C&quot; over a page of the AMD64 SysV ABI, detailing how the calling convention is defined in terms of C types." style="max-width: 80%">
+<p>Everyone had to learn to speak C to talk to the major operating systems, and then when it came time to talk to <em>eachother</em> we suddenly all already spoke C so… why not talk to eachother in terms of C too?</p>
+<p>Oops! Now C is the <em>lingua franca</em> of programming.</p>
+<p>Oops! Now C isn’t just a programming language, it’s a <em>protocol</em>.</p>
+<h1 id="what-does-talking-to-c-involve" class="section-header"><a href="#what-does-talking-to-c-involve">What Does Talking To C Involve?</a></h1>
+<p>Ok so apparently basically every language has to learn to talk C. A language that is definitely very well-defined and not a mass hallucination.</p>
+<p>What does “talking” C mean? It means getting descriptions of an interface’s types and functions in the form of a C header and somehow:</p>
+<ul>
+<li>matching the layouts of those types</li>
+<li>doing some stuff with linkers to resolve the function’s symbols as pointers</li>
+<li>calling those functions with the appropriate ABI (like putting args in the right registers)</li>
+</ul>
+<p>Well we’ve got a few problems here:</p>
+<ul>
+<li>You can’t actually write a C parser.</li>
+<li>C doesn’t actually have an ABI. Or even defined type layouts.</li>
+</ul>
+<h1 id="you-cant-actually-parse-a-c-header" class="section-header"><a href="#you-cant-actually-parse-a-c-header">You Can’t Actually Parse A C Header</a></h1>
+<p>Yes, I am genuinely asserting that [parsing C is basically impossible](](https://hal.archives-ouvertes.fr/hal-01633123/document).</p>
+<p>“But wait! There are lots of tools that read in C headers! Like <a href="https://github.com/rust-lang/rust-bindgen/">rust-bindgen</a>!”</p>
+<p>Nope:</p>
+<blockquote>
+<p>bindgen uses libclang to parse C and C++ header files. To modify how bindgen searches for libclang, see the clang-sys documentation. For more details on how bindgen uses libclang, see the bindgen users guide.</p>
+</blockquote>
+<p>Anyone who spends much time trying to parse C(++) headers very quickly says “ah, actually, fuck that” and asks a C(++) compiler to do it. Keep in mind that <em>meaningfully</em> parsing a C header is more than <em>just</em> parsing: you need to resolve #includes, typedefs, and macros too! So now you need to implement all of the platform’s header resolution logic <em>and</em> somehow figure out what things are DEFINED in the environment you care about! Yikes!</p>
+<p>Like let’s take the really extreme example of Swift. It has basically everything going for it in terms of C interop and resources:</p>
+<p>It’s a language developed by Apple to effectively replace Objective-C as the primary language for defining and using system APIs on its own platforms. In doing so, it has (imo) <a href="https://gankra.github.io/blah/swift-abi/">taken the notion of ABI-stability and design further than anyone else</a>.</p>
+<p>It’s also one of the most hardcore FFI-supporting languages I’ve ever seen! It can natively import (Objective-)C(++) headers and will produce a nice and native Swift interface with types getting automagically “bridged” to their Swift equivalents at the boundary (often transparently due to the types having identical ABIs)!</p>
+<p>Swift was also developed by many of the same people at Apple who built and maintain Clang and LLVM. Straight-up world-leading experts in C and its spawn. One of those people is Doug Gregor, let’s see what his opinion on C FFI is: </p>
+<img src="doug-tweet" alt="A tweet from Doug Gregor: All of this is the reason that Swift uses Clang internally to handle the (C)++ ABI. That way, we’re not chasing every new ABI-impacting attribute Clang adds." style="max-width: 100%">
+<p>Ah, well fuck. Not even Swift has the stomach for this stuff.</p>
+<p>(See also Jordan Rose’s and John McCall’s <a href="https://llvm.org/devmtg/2014-10/Slides/Skip%20the%20FFI.pdf">llvm presentation on why Swift went with this approach</a>)</p>
+<p>So what do you do if you Absolutely Positively do not want to have a C compiler parsing and resolving headers at compile time?</p>
+<p>You hand-translate those bad boys! <code>int64_t</code>? Write <code>i64</code>. <code>long</code>? Write… uhhhh… oh no.</p>
+<p>What’s a long?</p>
+<h1 id="c-doesnt-actually-have-an-abi" class="section-header"><a href="#c-doesnt-actually-have-an-abi">C Doesn’t Actually Have An ABI</a></h1>
+<p>Ok well no big surprise here: the integer types in C that were designed to be wobbly-sized for “portability” are in fact wobbly-sized! Like ok we can punt on <a href="https://en.cppreference.com/w/cpp/types/climits">CHAR_BIT</a> being weird, but that still doesn’t help us know the size and align of <code>long</code>!</p>
+<p>“But wait! There are standardized calling conventions and ABIs for each platform!”</p>
+<p>There are! And they usually define the layouts of key primitives in C! (And some of them don’t just define the calling conventions in terms of C types! <em>side-eyes AMD64 SysV</em>)</p>
+<p>Ok but here’s a nasty problem: the architecture doesn’t define the ABI. No not the OS either. We’ve gotta go all in on a specific <em>target triple</em> like “x86_64-pc-windows-gnu” (not to be mistaken with “x86_64-pc-windows-msvc”). </p>
+<p>Ok how many of those could there be?</p>
+<div class="example-wrap"><pre class="language-text"><code>&gt; rustc --print target-list
+
+aarch64-apple-darwin
+aarch64-apple-ios
+aarch64-apple-ios-macabi
+aarch64-apple-ios-sim
+aarch64-apple-tvos
+...</code></pre></div>
+<p>Wow ok that’s a lo-</p>
+<div class="example-wrap"><pre class="language-text"><code>...
+armv7-unknown-linux-musleabi
+armv7-unknown-linux-musleabihf
+armv7-unknown-linux-uclibceabihf
+...</code></pre></div>
+<p>Please sto-</p>
+<div class="example-wrap"><pre class="language-text"><code>...
+x86_64-uwp-windows-gnu
+x86_64-uwp-windows-msvc
+x86_64-wrs-vxworks
+
+&gt;_</code></pre></div>
+<p>176 triples. I was originally going to include them all for the visual gag/impact but it’s literally too many for even that.</p>
+<p>That’s too many fucking ABIs.</p>
+<p>And we haven’t even gotten into all the different calling conventions like stdcall vs fastcall or aapcs vs aapcs-vfp!</p>
+<p>Well at least all of these ABIs and calling conventions and what not are definitely available in a nice machine-readable format that everyone can use: PDFs full of human prose.</p>
+<p>Ok well at least the major C compilers agree on the ABIs for a particular target triple! Like ok sure there’s weird jank C compilers but clang and gcc–</p>
+<div class="example-wrap"><pre class="language-text"><code>&gt; abi-checker --tests ui128 --pairs clang_calls_gcc gcc_calls_clang
+
+...
+
+Test ui128::c::clang_calls_gcc::i128_val_in_0_perturbed_small        passed
+Test ui128::c::clang_calls_gcc::i128_val_in_1_perturbed_small        passed
+Test ui128::c::clang_calls_gcc::i128_val_in_2_perturbed_small        passed
+Test ui128::c::clang_calls_gcc::i128_val_in_3_perturbed_small        passed
+Test ui128::c::clang_calls_gcc::i128_val_in_0_perturbed_big          failed!
+test 57 arg3 field 0 mismatch
+caller: [30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 3A, 3B, 3C, 3D, 3E, 3F]
+callee: [38, 39, 3A, 3B, 3C, 3D, 3E, 3F, 40, 41, 42, 43, 44, 45, 46, 47]
+Test ui128::c::clang_calls_gcc::i128_val_in_1_perturbed_big          failed!
+test 58 arg3 field 0 mismatch
+caller: [30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 3A, 3B, 3C, 3D, 3E, 3F]
+callee: [38, 39, 3A, 3B, 3C, 3D, 3E, 3F, 40, 41, 42, 43, 44, 45, 46, 47]
+
+...
+
+392 passed, 60 failed, 0 completely failed, 8 skipped</code></pre></div>
+<p>That’s my <a href="https://github.com/Gankra/abi-checker">FFI abi-checker</a> running on x64 Ubuntu 20.04. A pretty dang major and well-behaved platform! All it’s testing here is some very boring situations where some integer arguments get passed by-value between two static libs compiled by clang and gcc… and it fails!</p>
+<p>Yeah!</p>
+<p>clang and gcc can’t even agree on the ABI of <code>__int128</code> on x64 linux. That type <em>is</em> a gcc extension but it’s also explicitly defined and specified by the AMD64 SysV ABI in one of those nice human-readable PDFs!</p>
+<p>I wrote this dang thing to check for <a href="https://github.com/rust-lang/rust/issues/54341">mistakes in <em>rustc</em></a>, I didn’t expect to find inconsistencies between the two major C compilers on one of the most important and well-trodden ABIs!</p>
+<p>ABIS ARE LIES</p>
+<h1 id="trying-to-tame-c" class="section-header"><a href="#trying-to-tame-c">Trying To Tame C</a></h1>
+<p>So to summarize:</p>
+<ul>
+<li>
+<p>Actually <em>semantically</em> parsing a C header is a horrible nightmare that can only really be done by “the” C compiler for that platform</p>
+</li>
+<li>
+<p>Even if you get the C compiler to tell you the types and and how to make sense of the annotations that <em>still</em> doesn’t actually tell you the size/align/convention for everything.</p>
+</li>
+</ul>
+<p>How in the fucking fuck do you interoperate with that? As I see it, you’ve got two options to try to cope. </p>
+<p>Your first option is to completely surrender and soulbond your language with C, which can be any of:</p>
+<ul>
+<li>Write your compiler/runtime in C(++) so it speaks C natively anyway</li>
+<li>Have your “codegen” just emit C(++) so the user needs a C compiler anyway</li>
+<li>Build your compiler ontop of an established major C compiler (gcc or clang)</li>
+</ul>
+<p>But even these only take you so far, because unless your language is <em>literally</em> exposing <code>unsigned long long</code> you’re going to inherit C’s big portability mess.</p>
+<p>This brings us to the second option: Lie, Cheat, And Steal.</p>
+<p>If it’s all gonna be a dumpster fire anyway, you may as well just start hand-translating the type and interface definitions into your language. That’s basically what we do in Rust all day every day! Like yeah people use rust-bindgen and friends to automate some of this stuff, but a lot of the time the definitions get checked in or hand-tweaked because life is too short to try to get someone’s weird bespoke C buildsystem working portably.</p>
+<p>Hey Rust, what’s <a href="https://docs.rs/libc/0.2.120/libc/type.intmax_t.html">intmax_t on x64 linux</a>?</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub</span> <span class="kw">type</span> <span class="ident">intmax_t</span> <span class="op">=</span> <span class="ident">i64</span>;</code></pre></div>
+<p>Cool! End of story!</p>
+<p>Hey Nim, what’s <a href="https://nim-lang.org/docs/system.html#clonglong">long long on x64 linux</a>?</p>
+<div class="example-wrap"><pre class="language-text"><code>clonglong {.importc: &quot;long long&quot;, nodecl.} = int64</code></pre></div>
+<p>Cool! End of story!</p>
+<p>A lot of code has completely given up on keeping C in the loop and has started hardcoding the definitions of core types. After all, they’re clearly just part of the platform’s ABI! What are they going to do, change the size of intmax_t!? That’s obviously an ABI-breaking change!</p>
+<p>Oh yeah what was that thing phantomderp <a href="https://thephd.dev/to-save-c-we-must-save-abi-fixing-c-function-abi">was working on again</a>?</p>
+<blockquote>
+<p>We talked about how <code>intmax_t</code> can’t be changed because some binary, somewhere, would lose its mind and use the wrong calling convention / return convention if we changed from e.g. <code>long long</code> (64-bit integer) to <code>__int128_t</code> (128-bit integer). But is there a way that - if the code opted into it or something - we could upgrade the function calls for newer applications while leaving the older applications intact? Let’s craft some code that test the idea that Transparent Aliases can help with ABI.</p>
+</blockquote>
+<p>Fuuuuuuuucccccccckkkkkkkkkk Fuck Fuck Fuck Fuck FUUUUUCK</p>
+<p>So like, yeah their article is really good and working on some very real and very important problems but… how would programming languages even deal with this change? How would you specify which version of intmax_t you interoperate with? If some C header you have refers to intmax_t, which definition is it using?</p>
+<p>It literally hurts my head to think about this. Maybe you could have a new target triple to reflect this change? Is there a precedent for a target triple intentionally internally diverging on the definition of a basic libc type like this?</p>
+<p>I need to research this more but I Am Sadness.</p>
+
+    </article>
+
+<footer id="footer">
+
+</footer>
+
+</body>
+</html>
