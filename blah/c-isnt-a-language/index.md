@@ -2,7 +2,7 @@
 
 <header>
     <p class="author">Aria Beingessner</p>
-    <p class="date">February 27th, 2022</p>
+    <p class="date">March 16th, 2022</p>
 </header>
 
 Phantomderp and I have both recently been very aligned on a particular subject: [being extremely angry about C ABIs](https://thephd.dev/to-save-c-we-must-save-abi-fixing-c-function-abi) and [trying to fix them](https://github.com/rust-lang/rust/issues/54341). Where we're not aligned is *why* we're mad about them.
@@ -240,27 +240,23 @@ ABIS ARE LIES
 
 # Trying To Tame C
 
-So to summarize:
+So actually *semantically* parsing a C header is a horrible nightmare that can only really be done by "the" C compiler for that platform, and even if you get the C compiler to tell you the types and and how to make sense of the annotations that *still* doesn't actually tell you the size/align/convention for everything.
 
-* Actually *semantically* parsing a C header is a horrible nightmare that can only really be done by "the" C compiler for that platform
-
-* Even if you get the C compiler to tell you the types and and how to make sense of the annotations that *still* doesn't actually tell you the size/align/convention for everything.
-
-How in the fucking fuck do you interoperate with that? As I see it, you've got two options to try to cope. 
+How do you interoperate with that mess?
 
 Your first option is to completely surrender and soulbond your language with C, which can be any of:
 
-* Write your compiler/runtime in C(++) so it speaks C natively anyway
-* Have your "codegen" just emit C(++) so the user needs a C compiler anyway
-* Build your compiler ontop of an established major C compiler (gcc or clang)
+* Write your compiler/runtime in C(++) so it speaks C natively anyway.
+* Have your "codegen" just emit C(++) so the user needs a C compiler anyway.
+* Build your compiler on top of an established major C compiler (gcc or clang).
 
 But even these only take you so far, because unless your language is *literally* exposing `unsigned long long` you're going to inherit C's big portability mess.
 
 This brings us to the second option: Lie, Cheat, And Steal.
 
-If it's all gonna be a dumpster fire anyway, you may as well just start hand-translating the type and interface definitions into your language. That's basically what we do in Rust all day every day! Like yeah people use rust-bindgen and friends to automate some of this stuff, but a lot of the time the definitions get checked in or hand-tweaked because life is too short to try to get someone's weird bespoke C buildsystem working portably.
+If it's all gonna be a dumpster fire anyway, you may as well just start hand-translating the type and interface definitions into your language. That's basically what we do in Rust all day every day! Like yeah people use rust-bindgen and friends to automate some of this stuff, but a lot of the time the definitions get checked in or hand-tweaked because life is too short to try to get someone's weird bespoke C build system working portably.
 
-Hey Rust, what's [intmax_t on x64 linux](https://docs.rs/libc/0.2.120/libc/type.intmax_t.html)?
+Hey Rust, what's [`intmax_t` on x64 linux](https://docs.rs/libc/0.2.120/libc/type.intmax_t.html)?
 
 ```rust
 pub type intmax_t = i64;
@@ -268,7 +264,7 @@ pub type intmax_t = i64;
 
 Cool! End of story!
 
-Hey Nim, what's [long long on x64 linux](https://nim-lang.org/docs/system.html#clonglong)?
+Hey Nim, what's [`long long` on x64 linux](https://nim-lang.org/docs/system.html#clonglong)?
 
 ```text
 clonglong {.importc: "long long", nodecl.} = int64
@@ -276,7 +272,7 @@ clonglong {.importc: "long long", nodecl.} = int64
 
 Cool! End of story!
 
-A lot of code has completely given up on keeping C in the loop and has started hardcoding the definitions of core types. After all, they're clearly just part of the platform's ABI! What are they going to do, change the size of intmax_t!? That's obviously an ABI-breaking change!
+A lot of code has completely given up on keeping C in the loop and has started hardcoding the definitions of core types. After all, they're clearly just part of the platform's ABI! What are they going to do, change the size of `intmax_t`!? That's obviously an ABI-breaking change!
 
 Oh yeah what was that thing phantomderp [was working on again](https://thephd.dev/to-save-c-we-must-save-abi-fixing-c-function-abi)?
 
@@ -347,7 +343,7 @@ Common forward-compatible tricks include:
 
 
 
-## Case Study: MINIDUMP_HANDLE_DATA_STREAM
+## Case Study: MINIDUMP_HANDLE_DATA
 
 Microsoft is genuinely a master of this forward-compatability fuckery, to the extent that they even keep stuff they really care about layout-compatible *between architectures*. An example I've recently been working with is [MINIDUMP_HANDLE_DATA_STREAM](https://docs.microsoft.com/en-us/windows/win32/api/minidumpapiset/ns-minidumpapiset-minidump_handle_data_stream) in `Minidumpapiset.h`.
 
@@ -411,6 +407,13 @@ The actual details of these structs isn't terribly interesting other than:
 
 This thing is an absolutely indestructible forward-compat *behemoth*. Hell, because they're so careful with padding it even has the same layout between 32-bit and 64-bit! (Which is actually really important because you want a minidump processor on one architecture to be able to handle minidumps from *every* architecture.)
 
+Well, at least it's really robust if you play along with its game and actually manipulate things by-reference and use the size fields.
+
+But hey, at least it's very clear that there's a game to play! At *some* point you do just have to say "you're using this wrong". Well ok no Microsoft probably wouldn't say that, they'd just [do something horrible instead](https://devblogs.microsoft.com/oldnewthing/20040115-00/?p=41043).
+
+
+
+
 
 
 ## Case Study: jmp_buf
@@ -419,9 +422,9 @@ I'm not terribly familiar with this situation, but while looking into historical
 
 As it turns out, glibc *has* broken the ABI of types before, at least on s390. Based on the description of this article it was *chaos*.
 
-Specifically they changed the layout of the save-state type used by setjmp/longjmp. Now, they weren't *complete* fools. They understood this was an ABI-breaking change, so they did the responsible symbol versioning thing.
+Specifically they changed the layout of the save-state type used by setjmp/longjmp, `jmp_buf`. Now, they weren't *complete* fools. They understood this was an ABI-breaking change, so they did the responsible symbol versioning thing.
 
-But jmp_buf wasn't an opaque type. Other things were storing instances of this type *inline*. Like oh you know, Perl's runtime. Needless to say this *relatively obscure* type had wormed itself into many binaries and the ultimate conclusion was that everything in Debian needed to be recompiled!
+But `jmp_buf` wasn't an opaque type. Other things were storing instances of this type *inline*. Like oh you know, Perl's runtime. Needless to say this *relatively obscure* type had wormed itself into many binaries and the ultimate conclusion was that everything in Debian needed to be recompiled!
 
 Ouch!
 
@@ -435,9 +438,12 @@ Double Ouch!
 
 
 
+
+
+
 # Can You Really Change intmax_t?
 
-As far as I'm concerned, not really. It's just like jmp_buf -- it's not an opaque type, and that means it's inlined into a ton of random structs, assumed to have a specific representation by tons of other languages and compilers, and probably part of tons of public interfaces that aren't under the control of libc, linux, or even the distro maintainers.
+As far as I'm concerned, not really. It's just like `jmp_buf` -- it's not an opaque type, and that means it's inlined into a ton of random structs, assumed to have a specific representation by tons of other languages and compilers, and probably part of tons of public interfaces that aren't under the control of libc, linux, or even the distro maintainers.
 
 Sure, libc can properly do symbol versioning tricks to make *its* APIs work with the new definition, but changing the size of a really basic datatype like `intmax_t` is begging for chaos in the larger ecosystem for a platform.
 
@@ -450,4 +456,6 @@ Again I hope I'm wrong but... sometimes you make a mistake so bad that you just 
 But it's not, it's a protocol. A bad protocol certainly, but the protocol we have to use nonetheless!
 
 Sorry C, you conquered the world, maybe you don't get to have nice things anymore.
+
+You don't see England trying to improve itself, do you?
 

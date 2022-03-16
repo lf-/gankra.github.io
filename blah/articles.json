@@ -2,6 +2,12 @@
     "articles":
     [
         {
+            "path": "c-isnt-a-language",
+            "toc": false,
+            "title": "C Isn't A Programming Language Anymore",
+            "date": "Wed, 16 Mar 2022 21:24:08 +0000"
+        },
+        {
             "path": "faultlore",
             "toc": false,
             "title": "Faultlore: Learning Through Errors",
