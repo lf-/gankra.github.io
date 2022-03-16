@@ -34,9 +34,7 @@ So actually this kinda *is* about the whole "C is an inscrutable implementation-
 
 Ok let's get technical. You've finished designing your new language, Bappyscript, with first class support for Bappy Paws/Hooves/Fins. An amazing language that's going to completely revolutionize the way that cats, sheep, and sharks program!
 
-But now you need to actually make it do something useful. You know like, take user input, or write output, or literally anything observable?
-
-If you want programs written in your language to be good little citizens that work well with the major operating systems, you need to interact with the operating system's interface. I hear that everything on Linux is "just a file", so let's open a file on Linux! 
+But now you need to actually make it do something useful. You know like, take user input, or write output, or literally anything observable? If you want programs written in your language to be good little citizens that work well with the major operating systems, you need to interact with the operating system's interface. I hear that everything on Linux is "just a file", so let's open a file on Linux!
 
 *googles*
 
@@ -115,7 +113,7 @@ Well we've got a few problems here:
 
 # You Can't Actually Parse A C Header
 
-Yes, I am genuinely asserting that [parsing C is basically impossible](](https://hal.archives-ouvertes.fr/hal-01633123/document).
+Yes, I am genuinely asserting that [parsing C is basically impossible](https://hal.archives-ouvertes.fr/hal-01633123/document).
 
 "But wait! There are lots of tools that read in C headers! Like [rust-bindgen](https://github.com/rust-lang/rust-bindgen/)!"
 
@@ -286,8 +284,170 @@ Oh yeah what was that thing phantomderp [was working on again](https://thephd.de
 
 Fuuuuuuuucccccccckkkkkkkkkk Fuck Fuck Fuck Fuck FUUUUUCK
 
-So like, yeah their article is really good and working on some very real and very important problems but... how would programming languages even deal with this change? How would you specify which version of intmax_t you interoperate with? If some C header you have refers to intmax_t, which definition is it using?
+So like, yeah their article is really good and working on some very real and very important problems but... how would programming languages even deal with this change? How would you specify which version of `intmax_t` you interoperate with? If some C header you have refers to `intmax_t`, which definition is it using?
 
-It literally hurts my head to think about this. Maybe you could have a new target triple to reflect this change? Is there a precedent for a target triple intentionally internally diverging on the definition of a basic libc type like this?
+The primary mechanism we have for talking about platforms with different ABIs are target triples. You know what's one target triple? `x86_64-unknown-linux-gnu`. You know what that covers? Basically every major desktop/server linux distro from *the last 20 years*. Right now you can ostensibly compile for that target and get a binary that "just works" on all those platforms. I do not believe this would be the case if some programs were compiled believing `intmax_t` was larger than `int64_t`.
 
-I need to research this more but I Am Sadness.
+Would any platform that tries to make this change become a new target triple? `x86_64-unknown-linux-gnu2`? Would that even be enough if anything compiled against `x86_64-unknown-linux-gnu` was allowed to run on it?
+
+
+
+
+# Changing Signatures Without Breaking ABIs
+
+"So what, does C never get to improve anymore?"
+
+No! But also, Yes! Because they shipped bad designs.
+
+Making ABI-compatible changes is, honestly, a bit of an art form. Part of that art is *preparedness*. Specifically it's much easier to make changes that don't break ABI if you're *prepared* for them.
+
+As phantomderp's article notes, things like glibc (the `g` is the `gnu` in `x86_64-unknown-linux-gnu`) have long understood this and use mechanisms like symbol versioning to update signatures and APIs while keeping the old versions around for anyone compiled against older versions of itself.
+
+So if you have `int32_t my_rad_symbol(int32_t)`, you tell the compiler to export this as `my_rad_symbol_v1`, and anyone who compiles against your headers will *write* `my_rad_symbol` in their code but *link* against `my_rad_symbol_v1`.
+
+Then when you decide Actually It Should Use `int64_t` then you can make `int64_t my_rad_symbol(int64_t)` as `my_rad_symbol_v2` *but keep around the old definition* as `my_rad_symbol_v1`. Anyone who compiles against newer versions of your header will happily use the v2 symbol, while anyone compiled against the older version will continue to use v1!
+
+Except you still have a compatibility hazard: anyone who compiles against your new header can't link against the old version of your library! The v1 version of your library simply *doesn't* have the v2 symbol! So if you want the Hot New Features you need to accept incompatibility with older outdated systems.
+
+This isn't a deal breaker though, it just makes platform vendors *sad* that no one gets to use the thing they spent so much time working on right away. You have to ship a shiny new feature and then sit on your hands for several years while everyone waits for it to be common/mature enough that people are willing to depend on it and break support for older platforms (or are willing to implement dynamic checking and fallback for it).
+
+If you get really serious about letting people upgrade right away, then you're talking about *forward* compatability. This lets older versions of things somehow work with newer features that they have no conception of.
+
+
+
+
+# Changing Types Without Breaking ABIs
+
+Ok so we can change the signature of a function, what else can we change? Can we change type layouts?
+
+Yes! But also, No! It depends on how you expose the type.
+
+One of the genuinely fantastic features of C is that it lets you distinguish between a type which has a known layout and one that doesn't. If you *only* forward-declare a type in a C header, then any user code that interacts with that type isn't "allowed" to know the layout of that type and has to handle it opaquely behind a pointer at all times.
+
+So you can make an API like `MyRadType* make_val()` and `use_val(MyRadType*)` and then do the same symbol versioning trick to expose `make_val_v1` and `use_val_v1` symbols, and any time you want to change that layout you bump the version on everything that interacts with that type. Similarly you keep around `MyRadTypeV1`, `MyRadTypeV2` and some typedefs to make sure people use the "right" one.
+
+Nice, we can change type layouts between versions! ...Right? Well, mostly.
+
+If multiple things build on top of your library and then start talking to eachother in terms of your opaque types, bad things can start to happen:
+
+* lib1: makes an API that takes `MyRadType*` and calls `use_val` with it
+* lib2: calls `make_val` and passed the result to lib1
+
+If lib1 and lib2 are *ever* compiled against different versions of your library, then `make_val_v1` can get fed into `use_val_v2`! Yikes! You have two options for dealing with this:
+
+1. Say that this is forbidden, chastise anyone who does it anyway, be sad.
+2. Design `MyRadType` in a *forward-compatible* way so that mixing is fine.
+
+Common forward-compatible tricks include:
+
+* Reserving unused fields for future versions' use.
+* Having a common prefix to all version of MyRadType that lets you "check" what version you're working with.
+* Having self-size fields so older versions can "skip over" the new parts
+
+
+
+
+## Case Study: MINIDUMP_HANDLE_DATA_STREAM
+
+Microsoft is genuinely a master of this forward-compatability fuckery, to the extent that they even keep stuff they really care about layout-compatible *between architectures*. An example I've recently been working with is [MINIDUMP_HANDLE_DATA_STREAM](https://docs.microsoft.com/en-us/windows/win32/api/minidumpapiset/ns-minidumpapiset-minidump_handle_data_stream) in `Minidumpapiset.h`.
+
+This API describes a versioned list of values. The list starts with this type:
+
+```C
+typedef struct _MINIDUMP_HANDLE_DATA_STREAM {
+    ULONG32 SizeOfHeader;
+    ULONG32 SizeOfDescriptor;
+    ULONG32 NumberOfDescriptors;
+    ULONG32 Reserved;
+} MINIDUMP_HANDLE_DATA_STREAM, *PMINIDUMP_HANDLE_DATA_STREAM;
+```
+
+where:
+
+* `SizeOfHeader` is the size of MINIDUMP_HANDLE_DATA_STREAM itself. If they ever need to add more fields to the end, that's fine, because older versions can use this value to detect the "version" of the header and also skip over any fields they don't know about.
+
+* `SizeOfDescriptor` is the size of each element in the array. Once again this lets you know what "version" of the element you have and skip over any fields you don't know about.
+
+* `NumberOfDescriptors` is array length
+
+* `Reserved` is some extra memory they decided to reserve in the header *anyway* (Minidumpapiset.h is extremely meticulous about never having padding anywhere because padding bytes have unspecified values and it's a serialized binary file format. I expect they added this field to make the struct have a size that's a multiple of 8 so that there wouldn't be any question about whether the elements of the array needed padding after the header. Wow that's taking compatibility serious!)
+
+And indeed, Microsoft actually had a reason to use this versioning scheme, and defines two versions of the array element:
+
+```C
+typedef struct _MINIDUMP_HANDLE_DESCRIPTOR {
+    ULONG64 Handle;
+    RVA TypeNameRva;
+    RVA ObjectNameRva;
+    ULONG32 Attributes;
+    ULONG32 GrantedAccess;
+    ULONG32 HandleCount;
+    ULONG32 PointerCount;
+} MINIDUMP_HANDLE_DESCRIPTOR, *PMINIDUMP_HANDLE_DESCRIPTOR;
+
+typedef struct _MINIDUMP_HANDLE_DESCRIPTOR_2 {
+    ULONG64 Handle;
+    RVA TypeNameRva;
+    RVA ObjectNameRva;
+    ULONG32 Attributes;
+    ULONG32 GrantedAccess;
+    ULONG32 HandleCount;
+    ULONG32 PointerCount;
+    RVA ObjectInfoRva;
+    ULONG32 Reserved0;
+} MINIDUMP_HANDLE_DESCRIPTOR_2, *PMINIDUMP_HANDLE_DESCRIPTOR_2;
+
+// The latest MINIDUMP_HANDLE_DESCRIPTOR definition.
+typedef MINIDUMP_HANDLE_DESCRIPTOR_2 MINIDUMP_HANDLE_DESCRIPTOR_N;
+typedef MINIDUMP_HANDLE_DESCRIPTOR_N *PMINIDUMP_HANDLE_DESCRIPTOR_N;
+
+```
+
+The actual details of these structs isn't terribly interesting other than:
+
+* They only changed it by adding fields to the end
+* Have a typedef for "the latest one"
+* Reserved some Maybe Padding again (RVA is a ULONG32)
+
+This thing is an absolutely indestructible forward-compat *behemoth*. Hell, because they're so careful with padding it even has the same layout between 32-bit and 64-bit! (Which is actually really important because you want a minidump processor on one architecture to be able to handle minidumps from *every* architecture.)
+
+
+
+## Case Study: jmp_buf
+
+I'm not terribly familiar with this situation, but while looking into historical glibc breaks I came across this great article in lwn: [The glibc s390 ABI break](https://lwn.net/Articles/605607/). I'll be assuming it's accurate.
+
+As it turns out, glibc *has* broken the ABI of types before, at least on s390. Based on the description of this article it was *chaos*.
+
+Specifically they changed the layout of the save-state type used by setjmp/longjmp. Now, they weren't *complete* fools. They understood this was an ABI-breaking change, so they did the responsible symbol versioning thing.
+
+But jmp_buf wasn't an opaque type. Other things were storing instances of this type *inline*. Like oh you know, Perl's runtime. Needless to say this *relatively obscure* type had wormed itself into many binaries and the ultimate conclusion was that everything in Debian needed to be recompiled!
+
+Ouch!
+
+The article even discusses the possibility of version-bumping libc to cope with this:
+
+> The SO name bump in a mixed-ABI environment like debian results in two libc's being loaded and competing for effectively the same namespace of symbols with resolution (and therefore selection of the ABI) being determined by ELF interposition and scope rules. It's a nightmare. It's possible a worse solution than just telling everyone to rebuild and get on with their lives.
+
+Double Ouch!
+
+(The article is full of lots more great details, I highly recommend it.)
+
+
+
+# Can You Really Change intmax_t?
+
+As far as I'm concerned, not really. It's just like jmp_buf -- it's not an opaque type, and that means it's inlined into a ton of random structs, assumed to have a specific representation by tons of other languages and compilers, and probably part of tons of public interfaces that aren't under the control of libc, linux, or even the distro maintainers.
+
+Sure, libc can properly do symbol versioning tricks to make *its* APIs work with the new definition, but changing the size of a really basic datatype like `intmax_t` is begging for chaos in the larger ecosystem for a platform.
+
+I'm happy to be proven wrong, but as far as I can tell making this change would necessitate a new target triple *and* to not allow any binary/library built for the old ABI to run on this new triple. You can certainly do that work, but I don't envy any distro which does.
+
+And even *then* you have the x64 int problem: it's such a fundamental type, and has been that size for *so long*, that countless applications may have weird undetectable assumptions about it. This is why int is 32-bit on x64 even though it was "supposed" to be 64-bit: int was 32-bit for *so long* that it was completely hopeless to update software to the new size even though it was a whole new architecture and target triple!
+
+Again I hope I'm wrong but... sometimes you make a mistake so bad that you just *don't* get to undo it. If C was a self-contained programming language? Sure, go for it.
+
+But it's not, it's a protocol. A bad protocol certainly, but the protocol we have to use nonetheless!
+
+Sorry C, you conquered the world, maybe you don't get to have nice things anymore.
+
