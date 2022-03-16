@@ -133,7 +133,7 @@ It's also one of the most hardcore FFI-supporting languages I've ever seen! It c
 
 Swift was also developed by many of the same people at Apple who built and maintain Clang and LLVM. Straight-up world-leading experts in C and its spawn. One of those people is Doug Gregor, let's see what his opinion on C FFI is: 
 
-<img src="doug-tweet" alt="A tweet from Doug Gregor: All of this is the reason that Swift uses Clang internally to handle the (C)++ ABI. That way, we’re not chasing every new ABI-impacting attribute Clang adds." style="max-width: 100%">
+<img src="doug-tweet.png" alt="A tweet from Doug Gregor: All of this is the reason that Swift uses Clang internally to handle the (C)++ ABI. That way, we’re not chasing every new ABI-impacting attribute Clang adds." style="max-width: 100%">
 
 Ah, well fuck. Not even Swift has the stomach for this stuff.
 

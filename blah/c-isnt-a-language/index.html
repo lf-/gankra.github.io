@@ -133,7 +133,7 @@ SYNOPSIS
 <p>It’s a language developed by Apple to effectively replace Objective-C as the primary language for defining and using system APIs on its own platforms. In doing so, it has (imo) <a href="https://gankra.github.io/blah/swift-abi/">taken the notion of ABI-stability and design further than anyone else</a>.</p>
 <p>It’s also one of the most hardcore FFI-supporting languages I’ve ever seen! It can natively import (Objective-)C(++) headers and will produce a nice and native Swift interface with types getting automagically “bridged” to their Swift equivalents at the boundary (often transparently due to the types having identical ABIs)!</p>
 <p>Swift was also developed by many of the same people at Apple who built and maintain Clang and LLVM. Straight-up world-leading experts in C and its spawn. One of those people is Doug Gregor, let’s see what his opinion on C FFI is: </p>
-<img src="doug-tweet" alt="A tweet from Doug Gregor: All of this is the reason that Swift uses Clang internally to handle the (C)++ ABI. That way, we’re not chasing every new ABI-impacting attribute Clang adds." style="max-width: 100%">
+<img src="doug-tweet.png" alt="A tweet from Doug Gregor: All of this is the reason that Swift uses Clang internally to handle the (C)++ ABI. That way, we’re not chasing every new ABI-impacting attribute Clang adds." style="max-width: 100%">
 <p>Ah, well fuck. Not even Swift has the stomach for this stuff.</p>
 <p>(See also Jordan Rose’s and John McCall’s <a href="https://llvm.org/devmtg/2014-10/Slides/Skip%20the%20FFI.pdf">llvm presentation on why Swift went with this approach</a>)</p>
 <p>So what do you do if you Absolutely Positively do not want to have a C compiler parsing and resolving headers at compile time?</p>
