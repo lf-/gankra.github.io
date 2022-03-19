@@ -1,0 +1,587 @@
+% Rust's Unsafe Pointer Types Need An Overhaul
+
+<header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">March 19th, 2022</p>
+</header>
+
+I think about unsafe pointers in Rust a lot.
+
+I literally wrote the book on [unsafe Rust](
+https://doc.rust-lang.org/nightly/nomicon/). And the book on [pointers in Rust](https://rust-unofficial.github.io/too-many-lists/). And [redesigned the Rust's pointer APIs](https://github.com/rust-lang/rfcs/blob/master/text/1966-unsafe-pointer-reform.md). And designed the standard library's [abstraction for unsafe heap-allocated buffers](https://github.com/rust-lang/rust/pull/26955). And maintain [the alternative Vec layout](https://github.com/Gankra/thin-vec/).
+
+I think about unsafe pointers in Rust *a lot*, and I absolutely hate them.
+
+Don't get me wrong, I think all of the above work has made them *better* but they are still deeply flawed. Actually they've gotten a lot *worse*. Not because the APIs have changed, but because when I was working on this stuff we had too *naive* of an understanding of how pointers should work. Others have done a lot of great work to expand this understanding, and now the flaws are all the more glaring.
+
+This article is broken up into 3 parts: conceptual background, problems with the current design, and proposed solutions.
+
+
+
+
+# Background
+
+This section can be skipped entirely if you know everything about computers.
+
+
+
+## Aliasing
+
+[Aliasing](https://rust-unofficial.github.io/too-many-lists/fifth-stacked-borrows.html) is a [very important concept](https://doc.rust-lang.org/nightly/nomicon/aliasing.html) in compilers and language semantics. At a high-level, it is the study of the *observability* of modifications to memory. We call it *aliasing* because the problem is very easy until you can refer to a piece of memory in more than one way. Pointers are just nicknames for memory.
+
+The primary function of alias analysis is as a model for when the compiler can semantically cache memory accesses. This can either mean assuming a value in memory hasn't been modified *or* assuming a write to memory isn't necessary. This is exceptionally important because *essentially all program state is semantically in memory*. It is literally impossible for a general purpose programming language that does *anything* on the behalf of the programmer to allow arbitrary reads and writes to memory.
+
+As a hopefully extremely obvious example that we can all agree on, the compiler should be able to assume that the following program will pass `1` to `println!`:
+
+```rust
+let mut x = 0;
+let mut y = 1;
+
+// Wouldn't it be fucked up if this could modify y?
+x = 2;
+
+println!("{y}");
+```
+
+When we talk about alias analysis we usually jump immediately to pointers because that's the hard part but like, the fact that this has deterministic behaviour is part of your aliasing model! Variables are semantically unaliased until you actually take a reference to them!
+
+This is actually a foundational assumption for putting things in registers, because putting something in a register is caching it. If a compiler can't decide it's ok to put values in general purpose registers or spill them to the stack, it's an assembler *at best*. We would like to build languages that are higher-level than an assembler!
+
+This is all well and good until we introduce pointers and have to start answering harder questions. For instance, in the following function, can we assume that `input` and `output` refer to different regions of memory?
+
+```rust
+fn compute(input: &u32, output: &mut u32) {
+    if *input > 10 {
+        *output = 1;
+    }
+    if *input > 5 {
+        *output *= 2;
+    }
+}
+```
+
+If we can, then the compiler is free to rewrite it as follows:
+
+```rust
+fn compute(input: &u32, output: &mut u32) {
+    let cached_input = *input; // keep `*input` in a register
+    if cached_input > 10 {
+        // If the input is greater than 10, the previous code would set
+        // the output to 1 and then double it, resulting in an output
+        // of 2 (because `>10` implies `>5`).
+        //
+        // We avoid the double assignment and just set it directly to 2.
+        *output = 2;
+    } else if cached_input > 5 {
+        *output *= 2;
+    }
+}
+```
+
+If they *do* point to the same memory, then the write `*output = 1` and the read `*input > 5` would *alias*. When we perform (potentially) aliasing accesses, the compiler has to conservatively load and store from memory as much as the source code implies.
+
+Now it's often clumsy to talk about *accesses* aliasing, so we usually talk about *pointers* aliasing as a shorthand. So one would reasonably say that `input` and `output` are aliased. The reason that the *actual* model is in terms of *accesses* and not *pointers* is because that's the thing that we care about. We don't *actually* care if you pass in two pointers that alias but only use one. Similarly we don't actually care if two pointers alias but are only used for reads -- one read can't observably *effect* the other read (this assumption is why memory mapped hardware has to use `volatile`) 
+
+This is also why Rust has such a distinct schism between "unique mutable" references (`&mut`) and "shared immutable" references (`&`). It's fine to make as many copies as you want of pointers that have readonly access, but if you want to actually mutate some memory it's really important that it isn't aliased!
+
+(You may notice that this is a simplified model full of lies, if you would like less lies, read my extremely detailed [discussion of Stacked Borrows](https://rust-unofficial.github.io/too-many-lists/fifth-stacked-borrows.html).)
+
+Now with all that said, I will use the following shorthands: 
+
+* memory is **anonymous** if the programmer cannot refer to it by name or pointer.
+* memory is **unaliased** if there is currently only one way to refer to it.
+
+Anonymous values are in some sense "completely under the control of the compiler" and can therefore be freely assumed to be unaliased and trusted/modified by the compiler. Unaliased memory cannot be "randomly" modified by something seemingly "unrelated" (we'll get to what that means in the next section).
+
+Languages can have *stricter* or *weaker* aliasing models. A stricter model allows the compiler to do more optimizations but puts heavier restrictions on what the programmer is allowed to do within the confines of the language. Here are some common rules, in vaguely increasing strictness:
+
+* Callee-saved values pushed to the stack are anonymous (return pointer, frame pointer).
+* "Scratch" values the compiler spills to the stack are anonymous.
+* A newly declared variable is unaliased until a reference is taken to it.
+* The memory returned by `malloc` is unaliased.
+* Fields of a struct do not alias eachother (bitfields are made of sadness).
+* Padding bytes are vaguely anonymous (messy because of memcpy/memset/unions/punning).
+* Immutable variables are functionally unaliased in that they can never change values.
+* In Rust, `&mut` is unaliased ([Stacked Borrows](https://plv.mpi-sws.org/rustbelt/stacked-borrows/)).
+* In C(++), `T*` and `U*` cannot alias if `T!=U` and neither is `char` ([Strict Aliasing](https://blog.regehr.org/archives/1307)).
+
+(I cannot emphasize enough how shorthanded all of this is, the devil is extremely in the details and formally specifying these things in this subject of untold numbers of PhD theses. I am not trying to write a PhD thesis right now. Unless you literally work on a C/C++ Standard Committee or are named Ralf Jung I will not be accepting your Umm Actually's on these definitions and terms.)
+
+
+
+
+## Alias Analysis and Pointer Provenance
+
+Ok so all of that aliasing stuff is all well and good, but as soon as you take a pointer to something, or copy a pointer, or offset a pointer... that all goes out the window, right? Like you have to assume anything can be aliased by anything else?
+
+No! Aliasing rules are some of the most foundational parts of the language's semantics and optimizations. If you run afoul of the language's aliasing rules you have Undefined Behaviour and the miscompilations can be extremely brutal!
+
+But yes, once you start faffing around with pointers things get *a lot harder* for the compiler, memory model, and programmer. To make aliasing a useful notion once pointers start getting thrown around, memory models very quickly find the need to define two concepts:
+
+* Allocations
+* Pointer Provenance
+
+*Allocations* abstractly describe things like individual variables and the heap allocations. A freshly created allocation (variable decl, malloc) is always brought into the world unaliased and therefore acts like a *sandbox* with One True Name -- there is no way to access the memory in the sandbox *except* through the One True Name (that isn't Undefined Behaviour).
+
+Pointer Provenance describes the way "permission to access an allocation's sandbox" can be delegated from the One True Name by deriving a new pointer from it or something derived from it. The process of tracking this "chain of custody" from the One True Name to all of its derived pointers is *Pointer Provenance*.
+
+From a formal memory model perspective, all accesses to an allocation must have *provenance* tracking back to that allocation. If pointer provenance isn't satisfied, then that means the programmer broke out of the sandbox or pulled a pointer from the aether that happened to point into some random sandbox. Either way, everything is chaos and nothing makes sense anymore if that's allowed.
+
+From a compiler optimization perspective, tracking provenance allows the compiler to prove that two accesses don't alias. If it ever loses track of provenance (i.e. if a pointer is passed to an opaque function) then it just conservatively assumes they *do* alias. But if the compiler *never*loses track of all the derived pointers to an allocation, it can have perfect aliasing information and do Some Good Codegen.
+
+This is the fundamental trick compilers apply to all basically impossible problems: have a simple  analysis that can answer your query with "YES", "NO", or "MAYBE" and then convert "MAYBE" to "YES" or "NO" based on whichever one is safer. Do these two accesses MAYBE alias? Then YES they alias. Problem Solved.
+
+But once you get low-level enough the compiler needs you to help it out and actually follow some dang rules. This is why the llvm [GetElementPointer (GEP)](https://llvm.org/docs/GetElementPtr.html) instruction which computes a pointer offset, is almost always emitted by compilers with the `inbounds` keyword. The `inbounds` keyword is basically "I promise this offset won't break the pointer out of its allocation sandbox and completely trash aliasing and provenance". Which like, yeah all of your pointer offsets should follow that rule!
+
+Let's go up a level and look at Rust: any time you do `(*ptr).my_field` the compiler will emit `GEP inbounds`. Have you ever wondered why the documentation for [ptr::offset](https://doc.rust-lang.org/std/primitive.pointer.html#method.offset) and friends is so weird and complicated? Because they lower to `GEP inbounds` and need to follow its rules! [ptr::wrapping_offset](https://doc.rust-lang.org/std/primitive.pointer.html#method.wrapping_offset) is just `GEP` without the `inbounds`. And even `wrapping_offset` isn't *actually* allowed to break provenance:
+
+> Compared to `offset`, this method basically delays the requirement of staying within the same allocated object: `offset` is immediate Undefined Behavior when crossing object boundaries; `wrapping_offset` produces a pointer but still leads to Undefined Behavior if a pointer is dereferenced when it is out-of-bounds of the object it is attached to
+
+
+
+## CHERI
+
+Mea culpa, I spent years calling [CHERI](https://www.cl.cam.ac.uk/research/security/ctsrd/cheri/) completely unshippable vaporware! I was pretty confident, but I'll eat my hat because [ARM Morello actually built and shipped a full CHERI-based CPU](https://www.arm.com/architecture/cpu/morello). Congratulations to everyone who worked on it!
+
+So what is CHERI? I'm not going to get into the nitty-gritty details but roughly speaking it's a 128-bit architecture. Well actually it's 129-bit. Well actually it's 64-bit. *Sorry what?*
+
+Ok so the whole Idea with CHERI is that it actually reifies and implements the "sandboxing" model from the previous section. Every pointer is tagged with extra metadata that the hardware maintains and validates. If you ever break out of your sandbox the hardware will catch it and the OS will presumably kill your process.
+
+I don't know the full details of the encoding or metadata, but the part we care about is that each pointer contains a compressed *slice* (range of memory) that it is allowed to point into as well as the *actual* address that it points to. The slice is that pointer's sandbox, and all pointers derived from it inherit that sandbox (or less). Whenever you access some memory, the hardware just checks that the pointer is still inside its sandbox.
+
+This metadata isn't cheap: pointers in CHERI are 128-bits wide, but the effective address space is still at most 64-bit (I don't know the exact upper bound, all that matters is that addresses *fit* in 64-bit). Now 128-bit is *really* bloated, so in C(++) CHERI actually gets help from our old nemesis [The Wobbly C Interger Hierarchy](https://gankra.github.io/blah/rust-layouts-and-abis/#the-c-integer-hierarchy).
+
+C makes a distinction between intptr_t ("a pointer-sized integer") and ptrdiff_t/size_t ("offset-sized integers"). Under CHERI, intptr_t is 128-bit and ptrdiff_t/size_t are 64-bit. It can do this because the address space is still only 64-bit, so anything that refers to offsets or sizes can still be 64-bit.
+
+Ok so you might have two burning questions at this point: how on earth can this possible work if I can just scribble over a pointer and corrupt its metadata, and why did you say it's actually 129-bit. As it turns out, those are the same question!
+
+I find the best way to conceptualize this is to think of it like [ECC (Error Correction Code) RAM](https://en.wikipedia.org/wiki/ECC_memory). In ECC RAM, each RAM stick actually has more physically memory than it claims, because it's transparently using that extra memory to correct or detect random bitflips. So there's all this extra memory *somewhere* but as far as a compiler or programmer are concerned, the memory looks perfectly normal and doesn't have any weird extra bits.
+
+CHERI does the same thing, but the extra 129th bit the hardware is hiding from you is a "metadata is valid" bit. You see, to properly manipulate pointers in CHERI you need to access the memory/registers containing a pointer with specific instructions for that task. If you try to manipulate them some other way (say by memcopying random bytes over it), the hardware will disable the "metadata is valid" bit. Then if you try to use the pointer *as* a pointer, the hardware will see your metadata can't be trusted and fault/kill your process.
+
+It's friggin' neato!
+
+(A lot of the issues we'll see with integrating Rust with CHERI will actually look a lot like issues with *segmented architectures*, but I have never used those so I would just be vaguely gesturing at them and handwaving. Just keep in mind that whenever I refer to CHERI, a similar argument *also* probably applies to segmenting. So if you care about segmented architectures, you might care about CHERI too!)
+
+
+
+
+
+
+# Problems
+
+Now let's see how Rust's current unsafe pointer APIs cause problems for all the background we've seen above.
+
+
+
+
+
+## Integer-To-Pointer Casts Are The Devil
+
+Rust currently says this code is neato and fine:
+
+```rust
+// Masking off a tag someone packed into the LSB of a pointer:
+let mut addr = my_ptr as usize;
+addr = addr & !0x1; 
+let new_ptr = addr as *mut T;
+*new_ptr += 10;
+```
+
+This is some pretty bog-standard code for messing with tagged pointers, what's wrong with that?
+
+Think about the background we just discussed. Think about Pointer Provenance. Think about CHERI.
+
+🙀 aAAaAAaaaAAaAAAAAA 🙀
+
+For this to *possibly* work with Pointer Provenance and Alias Analysis, that stuff must pervasively infect all integers on the assumption that they *might* be pointers. This is a huge pain in the neck for people who are trying to actually [formally define Rust's memory model](https://plv.mpi-sws.org/rustbelt/stacked-borrows/), and for people who are [trying to build sanitizers for Rust that catch UB](https://github.com/rust-lang/miri). (And I assure you it's just as much a headache for all the LLVM and C(++) people too).
+
+For this to *possibly* work with CHERI we need to make usize 128-bit (even though the address space is 64-bit) and always manipulate it with "pointer instructions" on the assumption that it *might* be a pointer in the vein of intptr_t. Yes folks have tried running Rust under CHERI and [that's exactly what they had to do](
+https://nw0.github.io/cheri-rust.pdf). It was, Not Good.
+
+Unfortunately for CHERI, Rust actually *defines* `usize` to be the same size as a pointer, even though its primary role is to be an offset/size. This is a *very* reasonable assumption for mainstream platforms, but it runs afoul of CHERI (and segmented architectures)!
+
+If you *don't* make usize 128-bit and just try to make it the 64-bit "address" portion, then `usize as *mut T` is a completely incoherent operation. Promoting an integer to a pointer (or what CHERI calls *a capability*) requires adding metadata to it. What metadata? What range is this random address possibly valid for? There is literally no way to answer that question!
+
+Now you might be thinking "ok but pointer tagging is a super fundamental thing, are you saying we can't do that anymore?". Nope! You can totally still do tagging tricks, but you need to be a bit more careful about it. This is why CHERI actually [introduces a special operation](https://www.cl.cam.ac.uk/techreports/UCAM-CL-TR-947.pdf#page=28) `void* cheri_address_set(void* capability, vaddr_t address)` which takes a valid pointer and an address, and creates a new pointer with the same metadata and that address. That will be useful to remember!
+
+Hey! That operation *also* looks really useful for provenance, doesn't it? By associating out int-to-ptr operation with an existing pointer we are *reestablishing* the provenance chain of custody! The new pointer is derived from the old one, and compilers and memory-models can be happy! HMMMM...
+
+
+
+
+
+## References Make Really Strong Assertions
+
+In the grand old days of Rust 1.0, we were pretty optimistic about how fast-and-loose we could be with raw pointers. Well, ok we were actually pretty rigorous about pointers by most people's standards. We largely enforced GEP inbounds semantics, alignment, [carved out how to work with ZSTs](https://doc.rust-lang.org/nightly/nomicon/vec/vec-zsts.html), [enforce that allocations can't be larger than isize::MAX](https://doc.rust-lang.org/nightly/nomicon/vec/vec-alloc.html), etc.
+
+But what we played really fast and loose on was *aliasing* and *validity*. In Ye Olde conception of Rust, references were kinda just *conveniences*. Like yes they asserted many things, but not in a *compiler optimization* kinda way. Just in a "this API guarantees this" kinda way. We all vaguely knew we *wanted* the optimization-y stuff but no one had spent the energy to work that out.
+
+These days, between [unsafe-code-guidelines](https://github.com/rust-lang/unsafe-code-guidelines), [miri](https://github.com/rust-lang/miri) and [stacked borrows](https://plv.mpi-sws.org/rustbelt/stacked-borrows/), a lot of us have now put a lot of thought into this. Miri is especially useful because it lets us "kick the tires" on actual code and check if the semantics we're interested in are actually obeyed by real unsafe Rust code.
+
+They Weren't! This is why [the unsafe queue](
+https://rust-unofficial.github.io/too-many-lists/fifth.html) in Learn Rust With Entirely Too Many Linked Lists abruptly comes to a halt for a 4000 word delve into miri and stacked borrows! Even something as boring as a linked queue in Ye Olde Rust had confusing and busted semantics.
+
+(For real read that chapter if you want to understand stacked borrows, I'm not rehashing it here.)
+
+The fundamental issue is that under our modern understanding of Rust, even *creating* a reference is making an extremely strong validity assertion and has side-effects on the "borrow stack" which in turn changes which references are considered to invalidate or not. For a reference to `T` this potentially includes:
+
+* The reference is aligned
+* The reference is non-null
+* The pointed-to-memory is allocated and has at least `size_of::<T>()` bytes.
+* If T has [invalid values](https://doc.rust-lang.org/nomicon/what-unsafe-does.html), the pointed-to-memory does not contain one.
+
+The upshot of all of this is that *generally* you should avoid mixing references and unsafe pointers. Unsafe code should generally provide a safe referency-interface at its API boundary, and then internally drop the references and try to stay in unsafe pointer land. This way you minimize the strong assertions you make about your sketchy low-level data structures' memory.
+
+Ok, simple enough, right?
+
+
+
+
+
+## Offsets And Places Are A Mess
+
+So you're trying to be responsible and stay in unsafe pointer land and it's time to offset a pointer. That's easy, we have ptr::offset/add/sub for that! Let's just offset to this struct's field... uh... wait what's that field's offset?
+
+Oh Rust just, doesn't tell me that huh? Well maybe you can do something like
+
+```rust ,ignore
+&mut (*ptr).field
+```
+
+Oh no wait that made a reference. Yes even if you immediately cast it to a raw pointer. How the heck do you take an address without creating a reference? Also is it actually fine for me to use a reference to initialize uninit memory? Sort of, sometimes.
+
+This is a big confusing mess. For a long time we tried to have some kind of "5-second rule" thing where if you converted the reference to a raw pointer "fast enough" then it's OK but that was pretty clearly untenable for a formal model. So folks came up with [a proper RFC for raw addresses](https://github.com/rust-lang/rfcs/blob/master/text/2582-raw-reference-mir-operator.md) and for a long time we've had a hacky [addr_of macro](https://doc.rust-lang.org/stable/std/ptr/macro.addr_of.html) that lets you do this:
+
+```rust ,ignore
+addr_of!((*ptr).field)
+```
+
+...yeah I hate it too.
+
+And even that didn't put the nail in the coffin. There was recently [a post by a very experienced rust developer](https://lucumr.pocoo.org/2022/1/30/unsafe-rust/) that basically amounted to confused frustration at the current state of affairs with doing this stuff with [uninitialized memory](https://doc.rust-lang.org/nomicon/unchecked-uninit.html). Meanwhile the *actual* thing proposed in the RFC [has seemingly been stalled out for years](https://github.com/rust-lang/rust/issues/64490) because the Experts on this stuff are themselves [confused by the corner-cases of addr_of](https://github.com/rust-lang/unsafe-code-guidelines/issues/319).
+
+And to make it even worse, addr_of also makes it really hard to do a thing people *still* want which is static [offsetof](https://en.cppreference.com/w/cpp/types/offsetof).
+
+It is my assertion that a lot of this boils down to two facts:
+
+* Dereferencing Pointers Is Fake Nonsense
+* [Places](https://doc.rust-lang.org/reference/expressions.html#place-expressions-and-value-expressions) Are Extremely Confusing Magic (Rust's term for lvalues)
+
+Like if we think about what "dereferencing" a pointer is... it's actually nothing? Like dereferencing a pointer doesn't actually *do* a thing. It puts you in "place expression" mode and lets you specify an offset to subfields/indices of the pointee, and then what *actually* happens is only specified at the end. e.g.
+
+```rust ,ignore
+(*ptr).field1.field2[idx3].field4;      // this is a load from memory
+(*ptr).field1.field2[idx3].field4 = 5;  // this is a store to memory
+&(*ptr).field1.field2[idx3].field4      // this is an offset (unless any of those fields were refs!)
+```
+
+This is certainly *familiar* syntax but it's genuinely also kind of magical in the exact same way autoderef is in Rust. That is to say, it makes a kind of sense and honestly you just don't need to think about the fact that it's happening *in safe Rust code* because you know the compiler has your back and will help out if anything goes wrong. But in unsafe Rust code? This stuff is way too fuzzy. I literally can't tell if the indexing is into a slice or an inline array, or if any of those `.`s is dereferencing stuff implicitly.
+
+As I said before, when you're doing unsafe pointer stuff you want to *stay* in that mode. That is currently *impossible* with this place-expression design, because as soon as you deref you're kinda in a weird twilight between safe and unsafe!
+
+
+
+
+
+
+
+
+# Solutions
+
+Alright and now here is where I start going off the rails and proposing wild overhauls to Rust with almost no regard for "parsing".
+
+
+
+## Distinguish Pointers And Addresses
+
+The connection between `usize` and pointers needs to be completely overhauled, and I would take a chainsaw to it (using proper [editions and deprecation periods](https://doc.rust-lang.org/edition-guide/editions/index.html)).
+
+Here's the high level look at our tasteful chainsawing:
+
+* Define a distinction between a *pointer* and an *address*
+* Redefine usizes as address-sized, which is <= pointer-sized (and usually ==)
+* Define `ptr.addr() -> usize` and `ptr.with_addr(usize) -> ptr` methods
+* Deprecate `usize as ptr` and `ptr as usize`
+
+
+
+### Redefining usize
+
+First off, those definitions. A pointer is still a pointer as we know it, but we now acknowledge that it points into a specific *address space*. A pointer also contains an *address* which is conceptually an offset into this address space. (For all major architectures *and* CHERI there is only one address space as far as I'm concerned, but it's potentially worth opening the door for properly talking about pointers in segmented architectures here.)
+
+A usize is large enough to contain all addresses for all address spaces on that platform. For major architectures, that means a `usize` is still pointer-sized. For CHERI, that means `usize` can (and should) be a `u64` and is equivalent to CHERI's `vaddr_t`. (Again hopefully this generic definition is useful for segmenting but I'm not going to pretend I know that.)
+
+As a result, someone writing *maximally portable* Rust must now replace their assumptions:
+
+`size_of::<usize>() == size_of::<*mut u8>()`
+
+is now:
+
+`size_of::<usize>() <= size_of::<*mut u8>()`
+
+There should probably be a `cfg(target_address_size_is_pointer_size)` or something to allow people to specify software is incompatible with *weird* platforms where the strict equality doesn't hold.
+
+
+
+
+### Replacing Pointer-Integer Casts
+
+Next off, replacing casts with methods. The following new methods would be added:
+
+```rust
+// Same for *const T, just writing it once:
+impl<T: ?Sized> *mut T {
+    /// Gets the "address" portion of the pointer.
+    ///
+    /// On most platforms this is a no-op, as the pointer is just an address,
+    /// and is equivalent to the deprecated `ptr as usize` cast.
+    ///
+    /// On more complicated platforms like CHERI and segmented architectures,
+    /// this may remove some important metadata. See [`with_addr`][] for
+    /// details on this distinction and why it's important.
+    fn addr(self) -> usize;
+
+    /// Creates a new pointer that's a copy of this one with the given address.
+    ///
+    /// This replaces the deprecated `usize as ptr` cast, which had fundamentally
+    /// broken semantics because it couldn't restore *segment* and *provenance*.
+    ///
+    /// A pointer semantically has 3 pieces of information associated with it:
+    ///
+    /// * Segment: The address-space it is part of.
+    /// * Provenance: An allocation (slice) that it is allowed to access.
+    /// * Address: The actual address it points at.
+    ///
+    /// The compiler and hardware need to properly understand all 3 of these
+    /// values at all times to properly execute your code.
+    ///
+    /// Segment and Provenance are implicitly defined by *how* a pointer is
+    /// constructed and generally propagates verbatim to all derived pointers.
+    /// It is therefore *impossible* to simply convert an address into a pointer,
+    /// because there is no way to know what its segment and provenance should be.
+    ///
+    /// By introducing a "representative" pointer into the process we can
+    /// properly construct a new pointer with *its* segment and provenance,
+    /// just as any other derived pointer would.
+    ///
+    /// # Example
+    ///
+    /// Here is an example of how to properly use this API to mess around
+    /// with tagged pointers. Specifically here we have a tag in the lowest bit.
+    ///
+    /// ```rust,ignore
+    /// let my_tagged_ptr: *mut T = ...;
+    ///
+    /// // Get the address and do whatever bit tricks we like
+    /// let addr = my_tagged_ptr.addr();
+    /// let has_tag = (addr & 0x1) != 0;
+    /// let real_addr = addr & !0x1;
+    ///
+    /// // Reconstitute a pointer with the new address and use it
+    /// let my_untagged_ptr = my_tagged_ptr.with_addr(real_addr);
+    /// *my_untagged_ptr = ...;
+    /// ```
+    fn with_addr(addr: usize) -> Self;
+}
+```
+
+Deprecating the casts may seem extreme, but as far as I'm concerned this is the exact same situation as [when we deprecated mem::uninitialized](https://gankra.github.io/blah/initialize-me-maybe/). The design of these casts is fundamentally broken under both Pointer Provenance and CHERI. Everyone needs to use a better design that actually has a coherent meaning.
+
+Now *technically* you could keep `ptr as usize` but I think it's better to replace both for several reasons:
+
+* Getting a deprecation warning for both sides of the cast raises a big red flag to *everyone* doing anything even vaguely dubious with a usize that they have some thinking to do.
+* You can't hang documentation off of casts. As I hope this post demonstrates, int-ptr stuff is extremely subtle and hairy, and deserves a lot of detailed documentation!
+* `ptr as usize` is horribly clunky in practice so destroying it is honestly a mercy. 
+* Straight-up symmetry/aesthetics. It's weird to only have one!
+
+As the documentation notes, the new with_addr method serves several roles:
+
+* It lets us reconstitute what segment the address goes to (hopefully)
+* It lets us reconstitute *provenance* for the purposes of memory models / alias analysis
+* It lets us reconstitute *metadata* for the purposes of CHERI (but this is just a reification of provenance)
+
+...that it! It just fixes the issue. That's all you need to fix provenance and CHERI! (And maybe also support segmenting.)
+
+(In reality there might need to be some more special APIs added to satisfy the existing Jank uses of ptr-int conversions, but that really needs to be shaken out on crates.io and with the community.)
+
+Unclear detail: is get_addr/with_addr also necessary/useful for [ARMv8.3 Pointer Authentication](https://www.qualcomm.com/media/documents/files/whitepaper-pointer-authentication-on-armv8-3.pdf)? This is a technology that Apple ships and involves some pointers getting signed/obfuscated to make it a bit harder to do memory-safety exploits. I haven't looked into it enough to know what level of abstraction this "leaks" into. I just know about it because it shows up in minidumps and we have to [hackily try to strip it out](https://github.com/rust-minidump/rust-minidump/blob/7eed71e4075e0a81696ccc307d6ac68920de5db5/minidump-processor/src/stackwalker/arm64.rs#L252).
+
+
+
+
+
+## Fixing Places and Offsets
+
+Ok here's a two-part combo of syntactic niceties to make it a lot easier to work with unsafe pointers.
+
+
+### Path Offset Syntax
+
+Hey Did You Know Rust [Never Actually](https://github.com/rust-lang/reference/pull/1149) Removed Tilde (\~) From [The Syntax](https://doc.rust-lang.org/nightly/reference/tokens.html#punctuation)?
+
+Did you also know that `~` was one of the things that originally drew me to messing around with Rust back in like 2014, and that I was very sad to learn that it was already being removed?
+
+Well today I get my justice. Today I return `~` to its position of glory that is *deserved*.
+
+I am almost *certain* that I'm going to run afoul of parser ambiguities somewhere here but hey this isn't a real RFC and I get to make the rules. Maybe it works fine. Maybe it can be fixed in an edition. Let's find out!
+
+Here is my grand vision that will solve all of Rust's woes around "staying in unsafe pointer mode" and just generally dealing with offsets: If you write `~` instead of `.` it always does a raw pointer offset.
+
+That's it. Ok that's not just it but that's basically the whole idea. Let's start with some examples:
+
+
+```rust ,ignore
+// Some non-POD type with some fields
+struct MyType {
+    field1: bool,
+    field2: Vec,
+    field3: [u32; 4],
+}
+
+// Using ~ syntax on a raw pointer to cleanly initialize MaybeUninit
+let init = unsafe {
+    let mut uninit = MaybeUninit::<MyType>::uninit();
+    let ptr = uninit.as_mut_ptr();
+
+    ptr~field1.write(true);
+    ptr~field2.write(vec![]);
+    ptr~field3~[0].write(7);
+    ptr~field3~[1].write(2);
+    ptr~field3~[2].write(12);
+    ptr~field3~[3].write(88);
+
+    uninit.assume_init();
+};
+
+// Using ~ syntax on a type to compute const offsetof (usize byte offset).
+unsafe {
+    const MY_FIELD_OFFSET: usize = MyType~field1~[2];
+    // Or if you want/need const offsets to be syntactically distinct:
+    // const MY_FIELD_OFFSET: usize = MyType::~field::~[2];
+    let mut uninit = MaybeUninit::<MyType>::uninit();
+    let ptr = uninit.as_mut_ptr() as *mut u8;
+
+    // Now you can use wrapping_add if you're doing something REALLY hacky
+    let field_ptr = ptr.wrapping_add(MY_FIELD_OFFSET) as *mut u32;
+}
+```
+
+Yes `~[idx]` is a bit wonky but it's *clear* and *concise* and that's the most important thing. Note that this is what you would have to do in today's Rust
+
+```rust ,ignore
+let init = unsafe {
+    let mut uninit = MaybeUninit::<MyType>::uninit();
+    let ptr = uninit.as_mut_ptr();
+
+    addr_of!((*ptr).field1).write(true);
+    addr_of!((*ptr).field2).write(vec![]);
+    addr_of!((*ptr).field3[0]).write(7);
+    addr_of!((*ptr).field3[1]).write(2);
+    addr_of!((*ptr).field3[2]).write(12);
+    addr_of!((*ptr).field3[3]).write(88);
+
+    uninit.assume_init();
+};
+```
+
+Or if you're being clever and trying to leverage the fact that POD types can be initialized without `write`:
+
+```rust ,ignore
+let init = unsafe {
+    let mut uninit = MaybeUninit::<MyType>::uninit();
+    let ptr = uninit.as_mut_ptr();
+
+    (*ptr).field1 = true;
+    addr_of!((*ptr).field2).write(vec![]);
+    (*ptr).field3[0] = 7;
+    (*ptr).field3[1] = 2;
+    (*ptr).field3[2] = 12;
+    (*ptr).field3[3] = 88;
+
+    uninit.assume_init();
+};
+```
+
+What I *really* like about the ~ version is that:
+
+* It's all postfix just like we learned is Very Good And Nice with `.await`! Just look at how nasty `addr_of!((*ptr).field2).write(vec![])` is!
+
+* Because you *stay* in raw-pointer mode, it's much less painful to reach for things like the `read` and `write` methods. This makes it just as easy to do more complicated things like `read_volatile` and doesn't encourage you to be "clever" and lean on the fact that things happen to be POD. All `write`s is a very nice kind of *mindlessly right*.
+
+* You never have to worry about accidentally tripping over autoderef or any other thing that is nice for safe code but a huge hazard for unsafe code.
+
+I am less passionate about the const offsetof stuff but it *seems* like it could be made to work and I know people really want that stuff. 
+
+Additional notes:
+
+* It should propagate `*const` vs `*mut`
+* I don't know if it makes sense or is a good idea but maybe you could use `~` on actual references and non-references (int, struct, array, tuple...) and not just raw pointers?
+    * If so, it may be desirable to support `val~self` as a nicer postfix way to write `&mut val as *mut _` but this is messy if you support both references and non-references since that would be potentially ambiguous as to whether you want a raw-pointer-to-ref or just raw-pointer.
+
+
+
+
+
+### Postfix Deref
+
+This is the least well-formed idea in here, but as long as we're cleaning up raw pointers with nice and clean postfix syntax it would be *really* nice if we also had postfix deref. Note that because of the whole "creating a reference does magic assertions" thing you *can't* provide something like a `deref(self) -> &T` method that actually has the same semantics as `*ptr`! Dereferencing raw pointers *must* have first-class syntax.
+
+Consider for instance trying to access some multiply-indirected value.
+
+Today:
+
+```rust
+addr_of!((*(*(*ptr1).field1.ptr2).ptr3).field4).read()
+```
+
+With offset syntax:
+
+```rust
+(*(*ptr1~field1~ptr2)~ptr3)~field4.read()
+```
+
+With offset syntax and reads (remember, we're staying in pointer mode, so `ptr2.read()` is loading `ptr2` from memory, so we can actually keep just using `~` syntax):
+
+```rust
+ptr1~field1~ptr2.read()~ptr3.read()~field4.read()
+```
+
+With postfix deref:
+
+```rust
+// Most obvious syntax, but likely ambiguous in current Rust
+ptr1~field1~ptr2.*~ptr3.*~field4.read()
+
+// Potentially viable alternative
+ptr1~field1~ptr2~*~ptr3~*~field4.read()
+```
+
+(I think I independently came up with this `.*` syntax but I was very happy to learn that Zig [actually has it](https://ziglang.org/documentation/master/#Pointers), and `ptr.* += 1` is valid Zig syntax!)
+
+The ambiguity issue with `.*` in Rust is that `1.` is a valid float literal, so stuff like `1. * 1.` is valid syntax and dangerously close to `1.*.1`. I certainly can imagine nasty ambiguities!
+
+One nice thing about the `~` syntax is that because unary `*` already binds pretty weakly (which is why we need to do `(*ptr).field`), if you only need to do one deref, it's as clean as using normal references:
+
+
+```
+*ptr~field1~field2 = 5;
+```
+
+So actually the more I write this section the less I'm feeling the *need* for postfix deref, but in my heart-of-hearts I still want it.
+
+Oh also you could imagine wanting `.&` and `.&mut` but similar syntax messes probably apply.
+
+
+
+
+
+# That's All!
+
+Jesus that was a lot.
+
+I think about unsafe pointers in Rust a lot.
+
+I wrote this all in one sitting and I really need dinner.
+
+Head empty only pointers.
