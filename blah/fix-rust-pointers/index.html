@@ -302,7 +302,7 @@
     <span class="doccomment">/// let my_untagged_ptr = my_tagged_ptr.with_addr(real_addr);</span>
     <span class="doccomment">/// *my_untagged_ptr = ...;</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">fn</span> <span class="ident">with_addr</span>(<span class="ident">addr</span>: <span class="ident">usize</span>) -&gt; <span class="self">Self</span>;
+    <span class="kw">fn</span> <span class="ident">with_addr</span>(<span class="self">self</span>, <span class="ident">addr</span>: <span class="ident">usize</span>) -&gt; <span class="self">Self</span>;
 }</code></pre></div>
 <p>Deprecating the casts may seem extreme, but as far as I’m concerned this is the exact same situation as <a href="https://gankra.github.io/blah/initialize-me-maybe/">when we deprecated mem::uninitialized</a>. The design of these casts is fundamentally broken under both Pointer Provenance and CHERI. Everyone needs to use a better design that actually has a coherent meaning.</p>
 <p>Now <em>technically</em> you could keep <code>ptr as usize</code> but I think it’s better to replace both for several reasons:</p>

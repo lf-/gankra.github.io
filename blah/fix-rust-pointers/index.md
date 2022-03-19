@@ -382,7 +382,7 @@ impl<T: ?Sized> *mut T {
     /// let my_untagged_ptr = my_tagged_ptr.with_addr(real_addr);
     /// *my_untagged_ptr = ...;
     /// ```
-    fn with_addr(addr: usize) -> Self;
+    fn with_addr(self, addr: usize) -> Self;
 }
 ```
 
