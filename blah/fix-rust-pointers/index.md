@@ -460,9 +460,7 @@ Note that this is *different* from C's `->` in that `ptr->field` is `(*ptr).fiel
 
 
 ```rust
-
 ptr.cast::<u8>().offset(field_offset).cast::<FieldTy>()
-
 ```
 
 `ptr~field~subfield` does not need to appeal to "place expressions" and can always be done (and parsed/implemented) as piecewise application of the binary `~` operator:

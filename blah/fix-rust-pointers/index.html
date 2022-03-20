@@ -352,9 +352,7 @@
 <p>Here is my grand vision that will solve all of Rust’s woes around “staying in unsafe pointer mode” and just generally dealing with offsets: If you write <code>my_ptr~field</code> (in analogy to <code>my_struct.field</code>) it always does a raw pointer offset and doesn’t change the level of indirection (but does change the pointee’s type).</p>
 <p>Note that this is <em>different</em> from C’s <code>-&gt;</code> in that <code>ptr-&gt;field</code> is <code>(*ptr).field</code> and therefore puts in you “place expression” mode. Nested <code>-&gt;</code>’s are actual <em>loads</em> from memory (because you need to get the address to start the next level of offsets from). <code>~</code> will never cause an implicit load/store because it doesn’t change levels of indirection or enter “place expression” mode. It is <em>purely</em> sugar for:</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code>
-<span class="ident">ptr</span>.<span class="ident">cast</span>::<span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>().<span class="ident">offset</span>(<span class="ident">field_offset</span>).<span class="ident">cast</span>::<span class="op">&lt;</span><span class="ident">FieldTy</span><span class="op">&gt;</span>()
-</code></pre></div>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="ident">ptr</span>.<span class="ident">cast</span>::<span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>().<span class="ident">offset</span>(<span class="ident">field_offset</span>).<span class="ident">cast</span>::<span class="op">&lt;</span><span class="ident">FieldTy</span><span class="op">&gt;</span>()</code></pre></div>
 <p><code>ptr~field~subfield</code> does not need to appeal to “place expressions” and can always be done (and parsed/implemented) as piecewise application of the binary <code>~</code> operator:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let</span> <span class="ident">ptr_field</span> <span class="op">=</span> <span class="ident">ptr</span>~<span class="ident">field</span>;
