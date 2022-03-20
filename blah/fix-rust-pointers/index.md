@@ -443,7 +443,7 @@ As the documentation notes, the new with_addr method allows us to reconstitute m
 
 ## Fixing Places and Offsets
 
-Ok here's a two-part combo of syntactic niceties to make it a lot easier to work with unsafe pointers.
+Ok here's a two-part combo of syntactic niceties to make it a lot easier to work with unsafe pointers. I am almost *certain* that I'm going to run afoul of parser ambiguities somewhere here but hey this isn't a real RFC and I get to make the rules. Maybe it works fine. Maybe it can be fixed in an edition. Let's find out!
 
 
 ### Path Offset Syntax
@@ -454,18 +454,25 @@ Did you also know that `~` was one of the things that originally drew me to mess
 
 Well today I get my justice. Today I return `~` to its position of glory that is *deserved*.
 
-I am almost *certain* that I'm going to run afoul of parser ambiguities somewhere here but hey this isn't a real RFC and I get to make the rules. Maybe it works fine. Maybe it can be fixed in an edition. Let's find out!
+Here is my grand vision that will solve all of Rust's woes around "staying in unsafe pointer mode" and just generally dealing with offsets: If you write `my_ptr~field` (in analogy to `my_struct.field`) it always does a raw pointer offset and doesn't change the level of indirection (but does change the pointee's type).
 
-Here is my grand vision that will solve all of Rust's woes around "staying in unsafe pointer mode" and just generally dealing with offsets: If you write `~` instead of `.` it always does a raw pointer offset.
+Note that this is *different* from C's `->` in that `ptr->field` is `(*ptr).field` and therefore puts in you "place expression" mode. Nested `->`'s are actual *loads* from memory (because you need to get the address to start the next level of offsets from). `~` will never cause an implicit load/store because it doesn't change levels of indirection or enter "place expression" mode. It is *purely* sugar for `ptr.offset(field_offset).cast::<FieldTy>()`.
 
-That's it. Ok that's not just it, but that's basically the whole idea. Let's start with some examples:
+`ptr~field~subfield` does not need to appeal to "place expressions" and can always be done (and parsed/implemented) as piecewise application of the binary `~` operator:
+
+```rust
+let ptr_field = ptr~field;
+let ptr_subfield = ptr_field~subfield;
+```
+
+Let's look at some examples:
 
 
 ```rust ,ignore
 // Some non-POD type with some fields
 struct MyType {
     field1: bool,
-    field2: Vec,
+    field2: Vec, // non-POD!!!
     field3: [u32; 4],
 }
 
@@ -485,7 +492,7 @@ let init = unsafe {
 };
 ```
 
-Yes `~[idx]` is a bit wonky but it's *clear* and *concise* and that's the most important thing. Note that this is what you would have to do in today's Rust
+Yes `~[idx]` is a bit wonky but it's *clear* and *concise* and that's the most important thing. Note that this is what you would have to do in today's Rust:
 
 ```rust ,ignore
 let init = unsafe {
@@ -503,7 +510,7 @@ let init = unsafe {
 };
 ```
 
-Or if you're being clever and trying to leverage the fact that POD types can be initialized without `write`:
+Or if you're being clever and trying to leverage the fact that POD types can be initialized without `write` if your place-expression is derived from a raw pointer dereference:
 
 ```rust ,ignore
 let init = unsafe {

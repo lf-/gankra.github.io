@@ -344,19 +344,23 @@
 <p>Unclear detail: is get_addr/with_addr also necessary/useful for <a href="https://www.qualcomm.com/media/documents/files/whitepaper-pointer-authentication-on-armv8-3.pdf">ARMv8.3 Pointer Authentication</a>? This is a technology that <a href="https://github.com/apple/llvm-project/blob/next/clang/docs/PointerAuthentication.rst">Apple ships</a> and involves some pointers getting signed/obfuscated to make it a bit harder to do memory-safety exploits. I haven’t looked into it enough to know what level of abstraction this “leaks” into. I just know about it because it shows up in minidumps and we have to <a href="https://github.com/rust-minidump/rust-minidump/blob/7eed71e4075e0a81696ccc307d6ac68920de5db5/minidump-processor/src/stackwalker/arm64.rs#L252">hackily try to strip it out</a>.</p>
 </blockquote>
 <h2 id="fixing-places-and-offsets" class="section-header"><a href="#fixing-places-and-offsets">3.2 Fixing Places and Offsets</a></h2>
-<p>Ok here’s a two-part combo of syntactic niceties to make it a lot easier to work with unsafe pointers.</p>
+<p>Ok here’s a two-part combo of syntactic niceties to make it a lot easier to work with unsafe pointers. I am almost <em>certain</em> that I’m going to run afoul of parser ambiguities somewhere here but hey this isn’t a real RFC and I get to make the rules. Maybe it works fine. Maybe it can be fixed in an edition. Let’s find out!</p>
 <h3 id="path-offset-syntax" class="section-header"><a href="#path-offset-syntax">3.2.1 Path Offset Syntax</a></h3>
 <p>Hey Did You Know Rust <a href="https://github.com/rust-lang/reference/pull/1149">Never Actually</a> Removed Tilde (<code>~</code>) From <a href="https://doc.rust-lang.org/nightly/reference/tokens.html#punctuation">The Syntax</a>?</p>
 <p>Did you also know that <code>~</code> was one of the things that originally drew me to messing around with Rust back in like 2014, and that I was very sad to learn that it was already being removed?</p>
 <p>Well today I get my justice. Today I return <code>~</code> to its position of glory that is <em>deserved</em>.</p>
-<p>I am almost <em>certain</em> that I’m going to run afoul of parser ambiguities somewhere here but hey this isn’t a real RFC and I get to make the rules. Maybe it works fine. Maybe it can be fixed in an edition. Let’s find out!</p>
-<p>Here is my grand vision that will solve all of Rust’s woes around “staying in unsafe pointer mode” and just generally dealing with offsets: If you write <code>~</code> instead of <code>.</code> it always does a raw pointer offset.</p>
-<p>That’s it. Ok that’s not just it, but that’s basically the whole idea. Let’s start with some examples:</p>
+<p>Here is my grand vision that will solve all of Rust’s woes around “staying in unsafe pointer mode” and just generally dealing with offsets: If you write <code>my_ptr~field</code> (in analogy to <code>my_struct.field</code>) it always does a raw pointer offset and doesn’t change the level of indirection (but does change the pointee’s type).</p>
+<p>Note that this is <em>different</em> from C’s <code>-&gt;</code> in that <code>ptr-&gt;field</code> is <code>(*ptr).field</code> and therefore puts in you “place expression” mode. Nested <code>-&gt;</code>’s are actual <em>loads</em> from memory (because you need to get the address to start the next level of offsets from). <code>~</code> will never cause an implicit load/store because it doesn’t change levels of indirection or enter “place expression” mode. It is <em>purely</em> sugar for <code>ptr.offset(field_offset).cast::&lt;FieldTy&gt;()</code>.</p>
+<p><code>ptr~field~subfield</code> does not need to appeal to “place expressions” and can always be done (and parsed/implemented) as piecewise application of the binary <code>~</code> operator:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let</span> <span class="ident">ptr_field</span> <span class="op">=</span> <span class="ident">ptr</span>~<span class="ident">field</span>;
+<span class="kw">let</span> <span class="ident">ptr_subfield</span> <span class="op">=</span> <span class="ident">ptr_field</span>~<span class="ident">subfield</span>;</code></pre></div>
+<p>Let’s look at some examples:</p>
 
 <div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="comment">// Some non-POD type with some fields</span>
 <span class="kw">struct</span> <span class="ident">MyType</span> {
     <span class="ident">field1</span>: <span class="ident">bool</span>,
-    <span class="ident">field2</span>: <span class="ident">Vec</span>,
+    <span class="ident">field2</span>: <span class="ident">Vec</span>, <span class="comment">// non-POD!!!</span>
     <span class="ident">field3</span>: [<span class="ident">u32</span>; <span class="number">4</span>],
 }
 
@@ -374,7 +378,7 @@
 
     <span class="ident">uninit</span>.<span class="ident">assume_init</span>();
 };</code></pre></div>
-<p>Yes <code>~[idx]</code> is a bit wonky but it’s <em>clear</em> and <em>concise</em> and that’s the most important thing. Note that this is what you would have to do in today’s Rust</p>
+<p>Yes <code>~[idx]</code> is a bit wonky but it’s <em>clear</em> and <em>concise</em> and that’s the most important thing. Note that this is what you would have to do in today’s Rust:</p>
 
 <div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">let</span> <span class="ident">init</span> <span class="op">=</span> <span class="kw">unsafe</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">uninit</span> <span class="op">=</span> <span class="ident">MaybeUninit</span>::<span class="op">&lt;</span><span class="ident">MyType</span><span class="op">&gt;</span><span class="ident">::uninit</span>();
@@ -389,7 +393,7 @@
 
     <span class="ident">uninit</span>.<span class="ident">assume_init</span>();
 };</code></pre></div>
-<p>Or if you’re being clever and trying to leverage the fact that POD types can be initialized without <code>write</code>:</p>
+<p>Or if you’re being clever and trying to leverage the fact that POD types can be initialized without <code>write</code> if your place-expression is derived from a raw pointer dereference:</p>
 
 <div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">let</span> <span class="ident">init</span> <span class="op">=</span> <span class="kw">unsafe</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">uninit</span> <span class="op">=</span> <span class="ident">MaybeUninit</span>::<span class="op">&lt;</span><span class="ident">MyType</span><span class="op">&gt;</span><span class="ident">::uninit</span>();
