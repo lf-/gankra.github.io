@@ -301,9 +301,9 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// By introducing a &quot;representative&quot; pointer into the process we can</span>
     <span class="doccomment">/// properly construct a new pointer with *its* segment and provenance,</span>
-    <span class="doccomment">/// just as any other derived pointer would. This is equivalent to</span>
-    <span class="doccomment">/// `offset`ting the given pointer to that address, so it needs to still</span>
-    <span class="doccomment">/// be legal to perform that operation!</span>
+    <span class="doccomment">/// just as any other derived pointer would. This *should* be equivalent</span>
+    <span class="doccomment">/// to `wrapping_offset`ting the given pointer to the new address. See the</span>
+    <span class="doccomment">/// docs for `wrapping_offset` for the restrictions this applies.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// # Example</span>
     <span class="doccomment">///</span>

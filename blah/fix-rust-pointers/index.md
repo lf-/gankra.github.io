@@ -391,9 +391,9 @@ impl<T: ?Sized> *mut T {
     ///
     /// By introducing a "representative" pointer into the process we can
     /// properly construct a new pointer with *its* segment and provenance,
-    /// just as any other derived pointer would. This is equivalent to
-    /// `offset`ting the given pointer to that address, so it needs to still
-    /// be legal to perform that operation!
+    /// just as any other derived pointer would. This *should* be equivalent
+    /// to `wrapping_offset`ting the given pointer to the new address. See the
+    /// docs for `wrapping_offset` for the restrictions this applies.
     ///
     /// # Example
     ///
