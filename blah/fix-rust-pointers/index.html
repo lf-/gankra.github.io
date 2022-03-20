@@ -120,7 +120,7 @@
     }
 }</code></pre></div>
 <p>If they <em>do</em> point to overlapping memory, then the write <code>*output = 1</code> would affect the result of the read <code>*input &gt; 5</code>, and we say those accesses <em>alias</em>. When we perform (potentially) aliasing accesses, the compiler has to conservatively load and store from memory as much as the source code implies.</p>
-<p>Now it’s often clumsy to talk about <em>accesses</em> aliasing, so we usually talk about <em>pointers</em>aliasing as a shorthand. So one would reasonably say that <code>input</code> and <code>output</code> alias each other. The reason that the <em>actual</em> model is in terms of <em>accesses</em> and not <em>pointers</em> is because that’s the thing that we care about.</p>
+<p>Now it’s often clumsy to talk about <em>accesses</em> aliasing, so we usually talk about <em>pointers</em> aliasing as a shorthand. So one would reasonably say that <code>input</code> and <code>output</code> alias each other. The reason that the <em>actual</em> model is in terms of <em>accesses</em> and not <em>pointers</em> is because that’s the thing that we care about.</p>
 <p>We don’t <em>actually</em> care if you pass in two pointers that “alias” but:</p>
 <ul>
 <li>Only one of them is ever used (no second observer)</li>

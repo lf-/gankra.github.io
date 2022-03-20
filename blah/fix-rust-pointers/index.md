@@ -82,7 +82,7 @@ fn compute(input: &u32, output: &mut u32) {
 
 If they *do* point to overlapping memory, then the write `*output = 1` would affect the result of the read `*input > 5`, and we say those accesses *alias*. When we perform (potentially) aliasing accesses, the compiler has to conservatively load and store from memory as much as the source code implies.
 
-Now it's often clumsy to talk about *accesses* aliasing, so we usually talk about *pointers*aliasing as a shorthand. So one would reasonably say that `input` and `output` alias each other. The reason that the *actual* model is in terms of *accesses* and not *pointers* is because that's the thing that we care about.
+Now it's often clumsy to talk about *accesses* aliasing, so we usually talk about *pointers* aliasing as a shorthand. So one would reasonably say that `input` and `output` alias each other. The reason that the *actual* model is in terms of *accesses* and not *pointers* is because that's the thing that we care about.
 
 We don't *actually* care if you pass in two pointers that "alias" but:
 
