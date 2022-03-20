@@ -341,7 +341,7 @@ is now:
 
 There should probably be a `cfg(target_address_size_is_pointer_size)` or something to allow people to specify software is incompatible with *weird* platforms where the strict equality doesn't hold.
 
-I don't think Rust needs to define a moral equivalent to `intptr_t`, if the new casting APIs work out as well as I hope -- `*mut ()` is already `intptr_t` for most valid purposes. As far as I'm aware the `intptr_t` shenanigans that CHERI does are less "definitely good and desirable" and more "awful hacks to get old code working". That said, people keep vaguely mentioning memory-mapped hardware as a place where this might be important, but that is outside my domain of expertese (and clearly needs special segment/provenance/capability handling *anyway*).
+I don't think Rust needs to define a moral equivalent to `intptr_t`, if the new casting APIs work out as well as I hope -- `*mut ()` is already `intptr_t` for most valid purposes. As far as I'm aware the `intptr_t` shenanigans that CHERI does are less "definitely good and desirable" and more "awful hacks to get old code working". That said, people keep vaguely mentioning memory-mapped hardware as a place where this might be important, but that is outside my domain of expertise (and clearly needs special segment/provenance/capability handling *anyway*).
 
 
 
@@ -435,7 +435,7 @@ As the documentation notes, the new with_addr method allows us to reconstitute m
 
 (In reality there might need to be some more special APIs added to satisfy the existing Jank uses of ptr-int conversions, but that really needs to be shaken out on crates.io and with the community.)
 
-> Unclear detail: is get_addr/with_addr also necessary/useful for [ARMv8.3 Pointer Authentication](https://www.qualcomm.com/media/documents/files/whitepaper-pointer-authentication-on-armv8-3.pdf)? This is a technology that Apple ships and involves some pointers getting signed/obfuscated to make it a bit harder to do memory-safety exploits. I haven't looked into it enough to know what level of abstraction this "leaks" into. I just know about it because it shows up in minidumps and we have to [hackily try to strip it out](https://github.com/rust-minidump/rust-minidump/blob/7eed71e4075e0a81696ccc307d6ac68920de5db5/minidump-processor/src/stackwalker/arm64.rs#L252).
+> Unclear detail: is get_addr/with_addr also necessary/useful for [ARMv8.3 Pointer Authentication](https://www.qualcomm.com/media/documents/files/whitepaper-pointer-authentication-on-armv8-3.pdf)? This is a technology that [Apple ships](https://github.com/apple/llvm-project/blob/next/clang/docs/PointerAuthentication.rst) and involves some pointers getting signed/obfuscated to make it a bit harder to do memory-safety exploits. I haven't looked into it enough to know what level of abstraction this "leaks" into. I just know about it because it shows up in minidumps and we have to [hackily try to strip it out](https://github.com/rust-minidump/rust-minidump/blob/7eed71e4075e0a81696ccc307d6ac68920de5db5/minidump-processor/src/stackwalker/arm64.rs#L252).
 
 
 
