@@ -456,7 +456,14 @@ Well today I get my justice. Today I return `~` to its position of glory that is
 
 Here is my grand vision that will solve all of Rust's woes around "staying in unsafe pointer mode" and just generally dealing with offsets: If you write `my_ptr~field` (in analogy to `my_struct.field`) it always does a raw pointer offset and doesn't change the level of indirection (but does change the pointee's type).
 
-Note that this is *different* from C's `->` in that `ptr->field` is `(*ptr).field` and therefore puts in you "place expression" mode. Nested `->`'s are actual *loads* from memory (because you need to get the address to start the next level of offsets from). `~` will never cause an implicit load/store because it doesn't change levels of indirection or enter "place expression" mode. It is *purely* sugar for `ptr.offset(field_offset).cast::<FieldTy>()`.
+Note that this is *different* from C's `->` in that `ptr->field` is `(*ptr).field` and therefore puts in you "place expression" mode. Nested `->`'s are actual *loads* from memory (because you need to get the address to start the next level of offsets from). `~` will never cause an implicit load/store because it doesn't change levels of indirection or enter "place expression" mode. It is *purely* sugar for:
+
+
+```rust
+
+ptr.cast::<u8>().offset(field_offset).cast::<FieldTy>()
+
+```
 
 `ptr~field~subfield` does not need to appeal to "place expressions" and can always be done (and parsed/implemented) as piecewise application of the binary `~` operator:
 
