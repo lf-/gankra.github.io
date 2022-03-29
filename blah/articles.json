@@ -2,6 +2,12 @@
     "articles":
     [
         {
+            "path": "dsts-are-polymorphic-generics",
+            "toc": false,
+            "title": "DSTs Are Just Polymorphically Compiled Generics",
+            "date": "Tue, 30 Mar 2022 22:13:17 +0000"
+        },
+        {
             "path": "fix-rust-pointers",
             "toc": true,
             "title": "Rust's Unsafe Pointer Types Need An Overhaul",
