@@ -188,9 +188,9 @@ And that's it! That's what it would *mean* for Rust to loosen its restrictions a
 
 Attentive readers may have noticed that I am placing "inner" Metadata before "outer" Metadata. This is purely me being aesthetically obsessed with the idea of `&my_dst.field` being a *prefix* of `&my_dst`, avoiding the need to shuffle around the metadata at all, which is easiest to see for the case of indexing into `&[[[u8]]]`.
 
-In reality, Metadata would probably be more nested and structured than I'm showing, to make it comprehensible to library code that wants to dig in and do DST Wizard Magic, creating its own DST pointers from the raw metadata and a pointer.
+In reality, Metadata would probably be more nested and structured than I'm showing. This would make it comprehensible to library code that wants to dig into the Metadata repr and do [DST Wizard Magic](https://doc.rust-lang.org/core/primitive.pointer.html#method.to_raw_parts).
 
-So something like our final super complex case of might have a structure like this:
+So something like our final super complex case might have a structure like this:
 
 ```rust
 // let super_complex: &(dyn Trait, u32, [dyn Trait], bool) = ...;
@@ -218,7 +218,7 @@ DST {
 }
 ```
 
-Which is *still* a sugarring over the even *deeper* reality of all the types being nice little generic composable pieces:
+Which is *still* a sugarring over the even *deeper* reality of all the types being nice little generic composable pieces like this:
 
 ```rust
 struct DST<P, M: Metadata> {
@@ -235,3 +235,5 @@ struct SliceMetadata<T: Metadata> {
 ```
 
 But these details are Above My Pay Grade, and this is all just a sketch of the *concept*.
+
+(Disclaimer: I have not been keeping up with the latest work with Metadata and DSTs, but my understanding is that this is at very least conceptually compatible with that work. I'm mostly going off of eddyb's notes and my own memories here.)

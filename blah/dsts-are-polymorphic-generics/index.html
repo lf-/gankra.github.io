@@ -161,8 +161,8 @@
 <span class="ident">repr</span>:     (<span class="kw-2">&amp;</span><span class="ident">void</span>, (<span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">usize</span>)),</code></pre></div>
 <p>And that’s it! That’s what it would <em>mean</em> for Rust to loosen its restrictions and enter The World Of VLDSTM: An extra Metadata for each new generic, and having to dynamically compute the offsets of arbitrary fields using the Metadata, instead of just relying on the Trailing rule to handle anything more complex than array stride.</p>
 <p>Attentive readers may have noticed that I am placing “inner” Metadata before “outer” Metadata. This is purely me being aesthetically obsessed with the idea of <code>&amp;my_dst.field</code> being a <em>prefix</em> of <code>&amp;my_dst</code>, avoiding the need to shuffle around the metadata at all, which is easiest to see for the case of indexing into <code>&amp;[[[u8]]]</code>.</p>
-<p>In reality, Metadata would probably be more nested and structured than I’m showing, to make it comprehensible to library code that wants to dig in and do DST Wizard Magic, creating its own DST pointers from the raw metadata and a pointer.</p>
-<p>So something like our final super complex case of might have a structure like this:</p>
+<p>In reality, Metadata would probably be more nested and structured than I’m showing. This would make it comprehensible to library code that wants to dig into the Metadata repr and do <a href="https://doc.rust-lang.org/core/primitive.pointer.html#method.to_raw_parts">DST Wizard Magic</a>.</p>
+<p>So something like our final super complex case might have a structure like this:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// let super_complex: &amp;(dyn Trait, u32, [dyn Trait], bool) = ...;</span>
 
@@ -184,7 +184,7 @@
     <span class="ident">pointer</span>: <span class="kw-2">&amp;</span>(<span class="kw-2">*</span><span class="ident">super_complex</span>.<span class="ident">pointer</span>).<span class="number">0</span>,
     <span class="ident">metadata</span>: <span class="ident">super_complex</span>.<span class="ident">metadata</span>.<span class="number">0</span>.<span class="ident">clone</span>(),
 }</code></pre></div>
-<p>Which is <em>still</em> a sugarring over the even <em>deeper</em> reality of all the types being nice little generic composable pieces:</p>
+<p>Which is <em>still</em> a sugarring over the even <em>deeper</em> reality of all the types being nice little generic composable pieces like this:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct</span> <span class="ident">DST</span><span class="op">&lt;</span><span class="ident">P</span>, <span class="ident">M</span>: <span class="ident">Metadata</span><span class="op">&gt;</span> {
     <span class="ident">pointer</span>: <span class="ident">P</span>,
@@ -198,6 +198,7 @@
 
 ...</code></pre></div>
 <p>But these details are Above My Pay Grade, and this is all just a sketch of the <em>concept</em>.</p>
+<p>(Disclaimer: I have not been keeping up with the latest work with Metadata and DSTs, but my understanding is that this is at very least conceptually compatible with that work. I’m mostly going off of eddyb’s notes and my own memories here.)</p>
 
     </article>
 
