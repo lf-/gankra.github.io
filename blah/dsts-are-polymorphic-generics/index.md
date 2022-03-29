@@ -9,7 +9,9 @@
 
 Rust has a feature called DSTs ("dynamically-sized types"), which allows you to have a pointer to some data with a size that's unknown at compile time. This is basically used everywhere with "slices" (`&mut [T]`, `&str`) and a critical component of "Trait Objects" (`Box<dyn MyTrait>`).
 
-A DST pointer is "wide" because it must hold both the normal pointer you expect *and* some dynamic *Metadata* that makes it possible to handle the DST. There are currently 3 kinds of metadata:
+A DST pointer is "wide" because it must hold both the normal pointer you expect *and* some dynamic *Metadata* that makes it possible to handle the DST. As a result, DST pointers are actually a struct in disguise, which we will shorthand as `(&void, Metadata)`.
+
+There are currently 3 kinds of Metadata:
 
 * [Thin](https://doc.rust-lang.org/core/ptr/traitalias.Thin.html) = (), no Metadata needed.
 * A slice's length = `usize`
@@ -45,7 +47,7 @@ Currently, all DSTs must follow these rules:
 
 * **Indirection**: A DST must be "completed" by being put behind a pointer (`&`, `*mut`, `Box`, ...)
 * **Solitary**: A pointer can only point to one Fundamental DST (only one Metadata)
-* **Trailing**: The Fundamental DST must be "trailing" (field offsets cannot depend on Metadata)
+* **Trailing**: The Fundamental DST must come "last" (field offsets cannot depend on Metadata)
 
 This post isn't touching the first condition, sorry by-value DST lovers. We will however be exploring what it means to loosen the other conditions.
 
@@ -140,33 +142,49 @@ It's just polymorphic generics! DSTs are just polymorphic generics! Although we 
 &[impl Trait; impl const usize]
 ```
 
-But that's "just" sugar for the first version.
+But that's "just" sugar for the first version. With our DSTs desugarred to generics, all of our answers become relatively simple.
 
-With our DSTs desugarred to generics, all of our answers become pretty simple:
+Everything is generics, so nesting just makes all copies the same:
 
-```rust ,ignore
-// Everything is generics, so nesting just makes all copies the same:
-
-syntax:     &[dyn Trait],
-interpret:  (&[T; N], (N = usize, T = &VTable)),
-stripped:   (&void, (usize, &VTable)),
+```rust
+syntax:   &[dyn Trait],
+meaning:  (&[T; N], (T: &VTable, N: usize)),
+repr:     (&void, (&VTable, usize)),
 ```
 
-```rust ,ignore
-// The problematic case of non-trailing is just a special case of nesting:
+The problematic case of non-trailing is just a special case of nesting:
 
-syntax:     &[dyn Trait; 8],
-interpret:  (&[T, 8], (T = &VTable)),
-stripped:   (&void, (&Vtable)),
+```rust
+syntax:   &[dyn Trait; 8],
+meaning:  (&[T, 8], (T: &VTable)),
+repr:     (&void, (&Vtable)),
 ```
 
+Neighbouring is just having a fresh type variable for each Fundamental DST:
 
-```rust ,ignore
-// Neighbouring is just having a fresh type variable for each Fundamental DST:
-
-syntax:     &(dyn Trait, [u8], u32, dyn Trait),
-interpret:  (&(T, [u8; N], u32, U), (T = &VTable, N = usize, U = &VTable)),
-stripped:   (&void, (&VTable, usize, &VTable)),
+```rust
+syntax:   &(dyn Trait, dyn Trait),
+meaning:  (&(T, U), (T: &VTable, U: &VTable)),
+repr:     (&void, (&VTable, &VTable)),
 ```
 
-And that's it! That's what it would *mean* for Rust to loosen its restrictions and enter The World Of VLDSTM: An extra Metadata for each new generic, and having to dynamically compute the offsets of arbitrary fields using the Metadata, instead of just relying on the Trailing Rule to handle anything more complex than array stride.
+Nested slices are just nested arrays (and therefore must be "rectangular"):
+
+```rust
+syntax:   &[[[u8]]],
+meaning:  (&[[[u8; A]; B]; C], (A: usize, B: usize, C: usize)),
+repr:     (&void, (usize, usize, usize)),
+```
+
+And then you can just Go Wild And Compose It All with arbitrary structures:
+
+```rust
+syntax:   &(dyn Trait, u32, [dyn Trait], bool),
+meaning:  (&(T, u32, [U; N], bool), (T: &VTable, U: &VTable, N: usize)),
+repr:     (&void, (&VTable, &VTable, usize)),
+```
+
+And that's it! That's what it would *mean* for Rust to loosen its restrictions and enter The World Of VLDSTM: An extra Metadata for each new generic, and having to dynamically compute the offsets of arbitrary fields using the Metadata, instead of just relying on the Trailing rule to handle anything more complex than array stride.
+
+(Attentive readers may have noticed that I am placing "inner" Metadata before "outer" Metadata. I expect this would be the case because an actual algorithm to implement this would want to be recursive, starting at the fundamental DSTs and working its way up. Having Metadata in this order also makes it more likely for a `&my_dst.field` to be a *prefix* of `&my_dst` avoiding the need to shuffle around the metadata. This is easiest to see for the case of indexing into `&[[[u8]]]`.)
+

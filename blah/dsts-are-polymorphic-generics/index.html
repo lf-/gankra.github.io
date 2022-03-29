@@ -59,7 +59,8 @@
 <p>This post was written on behalf of eddyb, to help them express a design detail of Rust that they understand to be fundamentally true, but isn’t properly described/documented anywhere. Hope it helps!</p>
 </blockquote>
 <p>Rust has a feature called DSTs (“dynamically-sized types”), which allows you to have a pointer to some data with a size that’s unknown at compile time. This is basically used everywhere with “slices” (<code>&amp;mut [T]</code>, <code>&amp;str</code>) and a critical component of “Trait Objects” (<code>Box&lt;dyn MyTrait&gt;</code>).</p>
-<p>A DST pointer is “wide” because it must hold both the normal pointer you expect <em>and</em> some dynamic <em>Metadata</em> that makes it possible to handle the DST. There are currently 3 kinds of metadata:</p>
+<p>A DST pointer is “wide” because it must hold both the normal pointer you expect <em>and</em> some dynamic <em>Metadata</em> that makes it possible to handle the DST. As a result, DST pointers are actually a struct in disguise, which we will shorthand as <code>(&amp;void, Metadata)</code>.</p>
+<p>There are currently 3 kinds of Metadata:</p>
 <ul>
 <li><a href="https://doc.rust-lang.org/core/ptr/traitalias.Thin.html">Thin</a> = (), no Metadata needed.</li>
 <li>A slice’s length = <code>usize</code></li>
@@ -84,7 +85,7 @@
 <ul>
 <li><strong>Indirection</strong>: A DST must be “completed” by being put behind a pointer (<code>&amp;</code>, <code>*mut</code>, <code>Box</code>, …)</li>
 <li><strong>Solitary</strong>: A pointer can only point to one Fundamental DST (only one Metadata)</li>
-<li><strong>Trailing</strong>: The Fundamental DST must be “trailing” (field offsets cannot depend on Metadata)</li>
+<li><strong>Trailing</strong>: The Fundamental DST must come “last” (field offsets cannot depend on Metadata)</li>
 </ul>
 <p>This post isn’t touching the first condition, sorry by-value DST lovers. We will however be exploring what it means to loosen the other conditions.</p>
 <p>The Trailing rule largely exists for simplicity, and can seemingly “simply” be removed with sufficient work on the compiler to support it, except for one case: <em>generics</em>. Generics let us name a type and repeat it multiple times in a struct. The simplest example of this is arrays: <code>&amp;[dyn MyTrait; 8]</code> takes “one” DST and turns it into “eight”. What does this mean? Does this require more Metadata?</p>
@@ -132,27 +133,34 @@
 <p>It’s just polymorphic generics! DSTs are just polymorphic generics! Although we aren’t “allowed” to name a type variable, so it’s <em>actually</em> more like:</p>
 
 <div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw-2">&amp;</span>[<span class="kw">impl</span> <span class="ident">Trait</span>; <span class="kw">impl</span> <span class="kw">const</span> <span class="ident">usize</span>]</code></pre></div>
-<p>But that’s “just” sugar for the first version.</p>
-<p>With our DSTs desugarred to generics, all of our answers become pretty simple:</p>
+<p>But that’s “just” sugar for the first version. With our DSTs desugarred to generics, all of our answers become relatively simple.</p>
+<p>Everything is generics, so nesting just makes all copies the same:</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="comment">// Everything is generics, so nesting just makes all copies the same:</span>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="ident">syntax</span>:   <span class="kw-2">&amp;</span>[<span class="ident">dyn</span> <span class="ident">Trait</span>],
+<span class="ident">meaning</span>:  (<span class="kw-2">&amp;</span>[<span class="ident">T</span>; <span class="ident">N</span>], (<span class="ident">T</span>: <span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">N</span>: <span class="ident">usize</span>)),
+<span class="ident">repr</span>:     (<span class="kw-2">&amp;</span><span class="ident">void</span>, (<span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">usize</span>)),</code></pre></div>
+<p>The problematic case of non-trailing is just a special case of nesting:</p>
 
-<span class="ident">syntax</span>:     <span class="kw-2">&amp;</span>[<span class="ident">dyn</span> <span class="ident">Trait</span>],
-<span class="ident">interpret</span>:  (<span class="kw-2">&amp;</span>[<span class="ident">T</span>; <span class="ident">N</span>], (<span class="ident">N</span> <span class="op">=</span> <span class="ident">usize</span>, <span class="ident">T</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">VTable</span>)),
-<span class="ident">stripped</span>:   (<span class="kw-2">&amp;</span><span class="ident">void</span>, (<span class="ident">usize</span>, <span class="kw-2">&amp;</span><span class="ident">VTable</span>)),</code></pre></div>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="ident">syntax</span>:   <span class="kw-2">&amp;</span>[<span class="ident">dyn</span> <span class="ident">Trait</span>; <span class="number">8</span>],
+<span class="ident">meaning</span>:  (<span class="kw-2">&amp;</span>[<span class="ident">T</span>, <span class="number">8</span>], (<span class="ident">T</span>: <span class="kw-2">&amp;</span><span class="ident">VTable</span>)),
+<span class="ident">repr</span>:     (<span class="kw-2">&amp;</span><span class="ident">void</span>, (<span class="kw-2">&amp;</span><span class="ident">Vtable</span>)),</code></pre></div>
+<p>Neighbouring is just having a fresh type variable for each Fundamental DST:</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="comment">// The problematic case of non-trailing is just a special case of nesting:</span>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="ident">syntax</span>:   <span class="kw-2">&amp;</span>(<span class="ident">dyn</span> <span class="ident">Trait</span>, <span class="ident">dyn</span> <span class="ident">Trait</span>),
+<span class="ident">meaning</span>:  (<span class="kw-2">&amp;</span>(<span class="ident">T</span>, <span class="ident">U</span>), (<span class="ident">T</span>: <span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">U</span>: <span class="kw-2">&amp;</span><span class="ident">VTable</span>)),
+<span class="ident">repr</span>:     (<span class="kw-2">&amp;</span><span class="ident">void</span>, (<span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="kw-2">&amp;</span><span class="ident">VTable</span>)),</code></pre></div>
+<p>Nested slices are just nested arrays (and therefore must be “rectangular”):</p>
 
-<span class="ident">syntax</span>:     <span class="kw-2">&amp;</span>[<span class="ident">dyn</span> <span class="ident">Trait</span>; <span class="number">8</span>],
-<span class="ident">interpret</span>:  (<span class="kw-2">&amp;</span>[<span class="ident">T</span>, <span class="number">8</span>], (<span class="ident">T</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">VTable</span>)),
-<span class="ident">stripped</span>:   (<span class="kw-2">&amp;</span><span class="ident">void</span>, (<span class="kw-2">&amp;</span><span class="ident">Vtable</span>)),</code></pre></div>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="ident">syntax</span>:   <span class="kw-2">&amp;</span>[[[<span class="ident">u8</span>]]],
+<span class="ident">meaning</span>:  (<span class="kw-2">&amp;</span>[[[<span class="ident">u8</span>; <span class="ident">A</span>]; <span class="ident">B</span>]; <span class="ident">C</span>], (<span class="ident">A</span>: <span class="ident">usize</span>, <span class="ident">B</span>: <span class="ident">usize</span>, <span class="ident">C</span>: <span class="ident">usize</span>)),
+<span class="ident">repr</span>:     (<span class="kw-2">&amp;</span><span class="ident">void</span>, (<span class="ident">usize</span>, <span class="ident">usize</span>, <span class="ident">usize</span>)),</code></pre></div>
+<p>And then you can just Go Wild And Compose It All with arbitrary structures:</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="comment">// Neighbouring is just having a fresh type variable for each Fundamental DST:</span>
-
-<span class="ident">syntax</span>:     <span class="kw-2">&amp;</span>(<span class="ident">dyn</span> <span class="ident">Trait</span>, [<span class="ident">u8</span>], <span class="ident">u32</span>, <span class="ident">dyn</span> <span class="ident">Trait</span>),
-<span class="ident">interpret</span>:  (<span class="kw-2">&amp;</span>(<span class="ident">T</span>, [<span class="ident">u8</span>; <span class="ident">N</span>], <span class="ident">u32</span>, <span class="ident">U</span>), (<span class="ident">T</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">N</span> <span class="op">=</span> <span class="ident">usize</span>, <span class="ident">U</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">VTable</span>)),
-<span class="ident">stripped</span>:   (<span class="kw-2">&amp;</span><span class="ident">void</span>, (<span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">usize</span>, <span class="kw-2">&amp;</span><span class="ident">VTable</span>)),</code></pre></div>
-<p>And that’s it! That’s what it would <em>mean</em> for Rust to loosen its restrictions and enter The World Of VLDSTM: An extra Metadata for each new generic, and having to dynamically compute the offsets of arbitrary fields using the Metadata, instead of just relying on the Trailing Rule to handle anything more complex than array stride.</p>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="ident">syntax</span>:   <span class="kw-2">&amp;</span>(<span class="ident">dyn</span> <span class="ident">Trait</span>, <span class="ident">u32</span>, [<span class="ident">dyn</span> <span class="ident">Trait</span>], <span class="ident">bool</span>),
+<span class="ident">meaning</span>:  (<span class="kw-2">&amp;</span>(<span class="ident">T</span>, <span class="ident">u32</span>, [<span class="ident">U</span>; <span class="ident">N</span>], <span class="ident">bool</span>), (<span class="ident">T</span>: <span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">U</span>: <span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">N</span>: <span class="ident">usize</span>)),
+<span class="ident">repr</span>:     (<span class="kw-2">&amp;</span><span class="ident">void</span>, (<span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">usize</span>)),</code></pre></div>
+<p>And that’s it! That’s what it would <em>mean</em> for Rust to loosen its restrictions and enter The World Of VLDSTM: An extra Metadata for each new generic, and having to dynamically compute the offsets of arbitrary fields using the Metadata, instead of just relying on the Trailing rule to handle anything more complex than array stride.</p>
+<p>(Attentive readers may have noticed that I am placing “inner” Metadata before “outer” Metadata. I expect this would be the case because an actual algorithm to implement this would want to be recursive, starting at the fundamental DSTs and working its way up. Having Metadata in this order also makes it more likely for a <code>&amp;my_dst.field</code> to be a <em>prefix</em> of <code>&amp;my_dst</code> avoiding the need to shuffle around the metadata. This is easiest to see for the case of indexing into <code>&amp;[[[u8]]]</code>.)</p>
 
     </article>
 
