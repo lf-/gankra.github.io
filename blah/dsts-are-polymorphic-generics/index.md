@@ -186,5 +186,5 @@ repr:     (&void, (&VTable, &VTable, usize)),
 
 And that's it! That's what it would *mean* for Rust to loosen its restrictions and enter The World Of VLDSTM: An extra Metadata for each new generic, and having to dynamically compute the offsets of arbitrary fields using the Metadata, instead of just relying on the Trailing rule to handle anything more complex than array stride.
 
-(Attentive readers may have noticed that I am placing "inner" Metadata before "outer" Metadata. I expect this would be the case because an actual algorithm to implement this would want to be recursive, starting at the Fundamental DSTs and working its way up. Having Metadata in this order also makes it more likely for a `&my_dst.field` to be a *prefix* of `&my_dst` avoiding the need to shuffle around the metadata. This is easiest to see for the case of indexing into `&[[[u8]]]`.)
+(Attentive readers may have noticed that I am placing "inner" Metadata before "outer" Metadata. I expect this would be the case because an actual algorithm to implement this would want to be recursive, starting at the Fundamental DSTs and working its way up. Having Metadata in this order also makes it more likely for `&my_dst.field` to be a *prefix* of `&my_dst`, avoiding the need to shuffle around the metadata. This is easiest to see for the case of indexing into `&[[[u8]]]`.)
 
