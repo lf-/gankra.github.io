@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>DSTs Are Just Polymorphically Compiled Generics - Faultlore</title></title>
+
+    
+    <link href="../rust.css" rel="stylesheet" type="text/css">
+<link href="../style.css" rel="stylesheet" type="text/css">
+
+<meta name="author" content="Aria Beingessner">
+<meta property="og:image" content="https://gankra.github.io/blah/img/error-base.png">
+<meta property="og:type" content="article">
+
+<meta property="og:title" content="DSTs Are Just Polymorphically Compiled Generics - Faultlore">
+<meta property="og:url" content="https://gankra.github.io/blah/dsts-are-polymorphic-generics">
+
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    <link href="../header.css" rel="stylesheet" type="text/css">
+
+<header id="title-bar">
+    <div id = "logo">
+        <a id="logo" href="../">
+            <img src="../img/error-glitch.png"/>
+        </a>
+    </div>
+    
+    <h1 id="title">
+        <div id="title-layer1" class="layer">
+            Faultlore
+            <div id="title-layer2" class="layer">
+                Faultlore
+                <div id="title-layer3" class="layer">
+                    Faultlore
+                </div>
+            </div>
+        </div>
+    </h1>
+</header>
+
+<article class="content">
+
+    <h1 class="title">DSTs Are Just Polymorphically Compiled Generics</h1>
+    <header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">March 30th, 2022</p>
+</header>
+<blockquote>
+<p>This post was written on behalf of eddyb, to help them express a design detail of Rust that they understand to be fundamentally true, but isn’t properly described/documented anywhere. Hope it helps!</p>
+</blockquote>
+<p>Rust has a feature called DSTs (“dynamically-sized types”), which allow you to have a pointer to some data with a size that’s unknown at compile time. This is basically used everywhere with <em>slices</em> (<code>&amp;mut [T]</code>, <code>&amp;str</code>) and a critical component of “Trait Objects” (<code>Box&lt;dyn MyTrait&gt;</code>).</p>
+<p>A DST pointer is “wide” because it must hold both the normal pointer you expect <em>and</em> some dynamic <em>Metadata</em> that makes it possible to handle the DST. There are currently 3 kinds of metadata:</p>
+<ul>
+<li><a href="https://doc.rust-lang.org/core/ptr/traitalias.Thin.html">Thin</a> = (), no Metadata needed.</li>
+<li>A slice’s length = <code>usize</code></li>
+<li>A trait object’s vtable pointer = <code>&amp;'static VTable</code></li>
+</ul>
+<p>The two non-trivial Metadatas come from the two Fundamental DSTs that are built into the language itself: <code>[T]</code> and <code>dyn Trait</code> (<a href="https://rust-lang.github.io/rfcs/1861-extern-types.html"><code>extern type</code></a> is <a href="https://doc.rust-lang.org/core/ptr/traitalias.Thin.html">Thin</a>). Users of Rust can create new DSTs in one of two ways:</p>
+<ul>
+<li>Newtyping a DST and transmuting</li>
+<li>Creating a generic type and <a href="https://doc.rust-lang.org/reference/type-coercions.html#unsized-coercions">Unsizing It</a>.</li>
+</ul>
+<p>For an example of the former, we can look at <code>str</code> which is just <code>struct str([u8])</code> and is constructed by creating a proper slice pointer and transmuting it (<code>&amp;[u8]</code> =&gt; <code>&amp;str</code>).</p>
+<p>For an example of the latter, you could define something like:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct</span> <span class="ident">MyGeneric</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
+    <span class="ident">some_field</span>: <span class="ident">bool</span>,
+    <span class="ident">data</span>: <span class="ident">T</span>,
+}</code></pre></div>
+<p>And <a href="https://doc.rust-lang.org/reference/type-coercions.html#unsized-coercions">Unsize</a> <code>&amp;MyGeneric&lt;[T; N]&gt;</code> to <code>&amp;MyGeneric&lt;[T]&gt;</code>. </p>
+<p>In either case, we have introduced some level of “distance” from the Fundamental DST by introducing extra structs that wrap them. These wrapping structs are forced to become DSTs but <em>crucially</em> the Metadata is unchanged: Rust still only stores the Metadata for the Fundamental DST and can figure everything else out from there.</p>
+<h1 id="very-large-dynamically-sized-type-metadata-vldstm" class="section-header"><a href="#very-large-dynamically-sized-type-metadata-vldstm">Very Large Dynamically Sized Type Metadata (VLDSTM)</a></h1>
+<p>Currently, all DSTs must follow these rules:</p>
+<ul>
+<li><strong>Indirection</strong>: A DST must be “completed” by being put behing a pointer (<code>&amp;</code>, <code>*mut</code>, <code>Box</code>, …)</li>
+<li><strong>Solitary</strong>: A pointer can only point to one Fundamental DST (only one Metadata)</li>
+<li><strong>Trailing</strong>: The Fundamental DST must always be “trailing” (field offsets cannot depend on the Metadata)</li>
+</ul>
+<p>This post isn’t touching the first condition, sorry by-value DST lovers. We will however be exploring what it means to loosen the other conditions.</p>
+<p>The Trailing rules largely exists for simplicity, and can seemingly “simply” be removed with sufficient work on the compiler to support it, except for one case: <em>generics</em>. Generics let us name a type and repeat it multiple times in a struct. The simplest example of this is arrays: <code>&amp;[dyn MyTrait; 8]</code> takes “one” DST and turns it into “eight”. What does this mean? Does this require more Metadata?</p>
+<p>This brings us to the Solitary rule. There are two ways to break the Solitary condition: by having multiple Fundamental DSTs that are <em>neighbouring</em> or <em>nesting</em>.</p>
+<p>A type like <code>(dyn MyTrait1, dyn MyTrait2)</code> has <em>neighbouring</em> Fundamental DSTs.</p>
+<p>A type like <code>[dyn Trait]</code> has <em>nested</em> Fundamental DSTs.</p>
+<p>In either case, we clearly need <em>multiple</em> Metadata, making our pointer wider and wider. We’re talking <em>SIMD</em> levels of wide. Actually no we’re talking <em>Itanium</em> levels of wide with VLDSTM pointers (Very Large Dynamically Sized Type Metadata)!</p>
+<p>But how many Metadatas do these types actually contain? Well when looking at a type like <code>&amp;[&amp;dyn Trait]</code> we have <em>arbitrarily many</em> Metadata, because each nested <code>&amp;dyn Trait</code> can be a <em>different</em> implementor of Trait. Does that mean <code>&amp;[dyn Trait]</code> must be Infinitely Wide? As it turns out, no! The reason there are arbitrarily many Metadata is because there are arbitrarily many <em>pointers</em>. Each pointer gets its own independent Metadata. With a type like <code>&amp;[dyn Trait]</code> there is only one pointer, so <em>everyone must share</em>.</p>
+<h1 id="polymorphic-compilation-of-generics" class="section-header"><a href="#polymorphic-compilation-of-generics">Polymorphic Compilation Of Generics</a></h1>
+<p>To understand this, let’s think about a simple generic function:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">fn</span> <span class="ident">my_generic</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Clone</span><span class="op">&gt;</span>(<span class="ident">val</span>: <span class="ident">T</span>) {
+    <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="ident">val</span>.<span class="ident">clone</span>();
+    <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">val</span>.<span class="ident">clone</span>();
+}</code></pre></div>
+<p>This code can handle <em>any</em> type T that implements Clone – but hold on, we’re passing it around by value! Doesn’t the Indirection rule tell use that Rust thinks it’s “impossible” to do this? Indeed, it does, and that’s why Rust cheats: it <em>monomorphizes</em> the generics away, which is just a fancy way of saying that whenever you call this function, Rust generates a copy-pasted with all T’s replaced with the actual type you’re using. So if you pass it a u32, rust will just make:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">fn</span> <span class="ident">my_generic_u32</span>(<span class="ident">val</span>: <span class="ident">u32</span>) {
+    <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="ident">val</span>.<span class="ident">clone</span>();
+    <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">val</span>.<span class="ident">clone</span>();
+}</code></pre></div>
+<p>Which of course Rust can happily deal with. Rust applies the exact same strategy for generic <em>types</em> too – it’s copy-pasting all the way down. This is a very Simple But Effective approach but it has one downside: you can’t have a generic function pointer!</p>
+<p>Rust will happily let you turn <code>my_generic_u32</code> into <code>fn(u32) -&gt; ()</code>, but won’t let you make <code>my_generic</code> into <code>fn&lt;T: Clone&gt;(T) -&gt; ()</code>. All monomorphization is handled <em>statically</em> (at compile time) and creates a <em>new</em> function pointer for each type substitution. Even if we got around the whole “multiple function pointers” thing with a vtable, it still wouldn’t be good enough because a function pointer is a <em>dynamic</em> (runtime) construct, and so the compiler <em>can’t</em> predict all the monomorphizations. Languages like Java solve this problem by just making all types Indirected all the time.</p>
+<p>And that’s why languages like Rust with inline layouts can’t have polymorphic generics.</p>
+<p>Oh I didn’t see you there Swift! Isn’t this problem annoying for us inline-layout languages? Sorry what? <a href="https://gankra.github.io/blah/swift-abi/#polymorphic-generics">You have polymorphic generics</a>??? HOW??? I <em>JUST</em> finished explaining that’s impossible!</p>
+<p>Swift <em>does</em> need to Indirect polymorphic stack variables with boxing, but once you get past the stack “roots” all the actual value have the same layouts they would have with monomorphization! Swift accomplishes this with something it calls <em>Value Witness Tables</em>. Value Witness Tables are just vtables full of information about the type: size, align, stride (spicy size), it’s clone impl, it’s move impl, etc.</p>
+<p>Whenever you have a generic function like</p>
+<div class="example-wrap"><pre class="language-swift"><code>func SwiftyGeneric&lt;T, U, V&gt;(arg1: T, arg2: U)</code></pre></div>
+<p>And you ask Swift to turn that into a function pointer, what it <em>generates</em> is something like this:</p>
+<div class="example-wrap"><pre class="language-swift"><code>func SwiftyGeneric&lt;T, U, V&gt;(
+    arg1: Pointer&lt;T&gt;, 
+    arg2: Pointer&lt;U&gt;, 
+    witness_T: ValueWitnessTable, 
+    witness_U: ValueWitnessTable,
+    witness_V: ValueWitnessTable
+)</code></pre></div>
+<p>Now inside the <em>body</em> of SwiftyGeneric, any time we need to handle an instance of our generic types, we can just ask the Value Witness Table whatever we need to know, and we can even <em>forward</em> it to other generic code. Make an <code>Array&lt;T&gt;</code> inside SwiftGeneric? No problem, just hand it <code>witness_T</code> and it can use <code>witness_T.size/align/stride</code> to figure out how much memory to allocate and all the offsets!</p>
+<p>I’m making it sound simple but I cannot emphasize how much work this is to actually do. In particular, the fact that there can be generic types instantiated inside your generic function pointer means <em>you need to be able to generate Value Witness Tables at runtime</em>. Rust <em>tried</em> to have polymorphic generics in the early pre-1.0 days, and they quite reasonably <em>gave up</em> because it was too much work. For real Swift, great fucking working for getting all of this to work!</p>
+<h1 id="metadata-are-value-witnesses" class="section-header"><a href="#metadata-are-value-witnesses">Metadata Are Value Witnesses</a></h1>
+<p>Huh, I went off on a bit of a tangent there, huh? No of course not! Read the title of this section! <em>Metadata are just Value Witnesses</em>. The Metadata for <code>dyn Trait</code> is <em>literally</em> just a Value Witness Table with <code>Trait</code>’s methods stapled to the end! Slices don’t need to go so hardcore, so we just need a Value Witness Length (usize).</p>
+<p>But crucially, these polymorphic generics are <em>WAY</em> tamer than full-on polymorphic function pointers. The whole “generating Value Witness Tables at runtime” goes completely away and you can indeed generate all your Metadata (Value Witnesses) ahead of time, which is… A Lot More Tractable!</p>
+<p>Now with that established, we can return to our hairy questions about Multiple Metadata. What <em>does</em> <code>&amp;[dyn Trait]</code> <em>mean</em>? It means this:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw-2">&amp;</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Trait</span>, <span class="kw">const</span> <span class="ident">N</span>: <span class="ident">usize</span><span class="op">&gt;</span>[<span class="ident">T</span>; <span class="ident">N</span>]</code></pre></div>
+<p>It’s just polymorphic generics! DSTs are just polymorphic generics! Although we aren’t “allowed” to name a type variable, so it’s <em>actually</em> more like:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw-2">&amp;</span>[<span class="kw">impl</span> <span class="ident">Trait</span>; <span class="kw">impl</span> <span class="kw">const</span> <span class="ident">usize</span>]</code></pre></div>
+<p>But that’s “just” sugar for the first version.</p>
+<p>With our DSTs desugarred to generics, all of our answers become pretty simple:</p>
+
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="comment">// Everything is generics, so nesting just makes all copies the same:</span>
+
+<span class="ident">syntax</span>:     <span class="kw-2">&amp;</span>[<span class="ident">dyn</span> <span class="ident">Trait</span>],
+<span class="ident">interpret</span>:  (<span class="kw-2">&amp;</span>[<span class="ident">T</span>; <span class="ident">N</span>], (<span class="ident">N</span> <span class="op">=</span> <span class="ident">usize</span>, <span class="ident">T</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">VTable</span>)),
+<span class="ident">stripped</span>:   (<span class="kw-2">&amp;</span><span class="ident">void</span>, (<span class="ident">usize</span>, <span class="kw-2">&amp;</span><span class="ident">VTable</span>)),</code></pre></div>
+
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="comment">// The problematic case of non-trailing is just a special case of nesting:</span>
+
+<span class="ident">syntax</span>:     <span class="kw-2">&amp;</span>[<span class="ident">dyn</span> <span class="ident">Trait</span>; <span class="number">8</span>],
+<span class="ident">interpret</span>:  (<span class="kw-2">&amp;</span>[<span class="ident">T</span>, <span class="number">8</span>], (<span class="ident">T</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">VTable</span>)),
+<span class="ident">stripped</span>:   (<span class="kw-2">&amp;</span><span class="ident">void</span>, (<span class="kw-2">&amp;</span><span class="ident">Vtable</span>)),</code></pre></div>
+
+<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="comment">// Neighbouring is just having a fresh type variable for each Fundamental DST:</span>
+
+<span class="ident">syntax</span>:     <span class="kw-2">&amp;</span>(<span class="ident">dyn</span> <span class="ident">Trait</span>, [<span class="ident">u8</span>], <span class="ident">u32</span>, <span class="ident">dyn</span> <span class="ident">Trait</span>),
+<span class="ident">interpret</span>:  (<span class="kw-2">&amp;</span>(<span class="ident">T</span>, [<span class="ident">u8</span>; <span class="ident">N</span>], <span class="ident">u32</span>, <span class="ident">U</span>), (<span class="ident">T</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">N</span> <span class="op">=</span> <span class="ident">usize</span>, <span class="ident">U</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">VTable</span>)),
+<span class="ident">stripped</span>:   (<span class="kw-2">&amp;</span><span class="ident">void</span>, (<span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">usize</span>, <span class="kw-2">&amp;</span><span class="ident">VTable</span>)),</code></pre></div>
+<p>And that’s it! That’s what it would <em>mean</em> for Rust to loosen its restrictions and enter The World Of VLDSTM: An extra Metadata for each new generic, and having to dynamically compute the offsets of arbitrary fields using the Metadata, instead of just relying on the Trailing Rule to handle anything more complex than array stride.</p>
+
+    </article>
+
+<footer id="footer">
+
+</footer>
+
+</body>
+</html>
