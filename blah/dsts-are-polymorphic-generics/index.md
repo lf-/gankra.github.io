@@ -72,7 +72,7 @@ But how many Metadatas do these types actually contain? Well when looking at a t
 To understand this, let's think about a simple generic function:
 
 
-```rust ,ignore
+```rust
 fn my_generic<T: Clone>(val: T) {
     let a = val.clone();
     let b = val.clone();
@@ -81,7 +81,7 @@ fn my_generic<T: Clone>(val: T) {
 
 This code can handle *any* type T that implements Clone -- but hold on, we're passing it around by value! Doesn't the Indirection rule tell use that Rust thinks it's "impossible" to do this? Indeed, it does, and that's why Rust cheats: it *monomorphizes* the generics away, which is just a fancy way of saying that whenever you call this function, Rust generates a copy-pasted version with all T's replaced with the actual type you're using. So if you pass it a u32, rust will just make:
 
-```rust ,ignore
+```rust
 fn my_generic_u32(val: u32) {
     let a = val.clone();
     let b = val.clone();
@@ -132,13 +132,13 @@ Crucially, these polymorphic generics are *WAY* tamer than full-on polymorphic f
 
 Now with that established, we can return to our hairy questions about Multiple Metadata. What *does* `&[dyn Trait]` *mean*? It means this:
 
-```rust ,ignore
+```rust
 &<T: Trait, const N: usize>[T; N]
 ```
 
 It's just polymorphic generics! DSTs are just polymorphic generics! Although we aren't "allowed" to name a type variable, so it's *actually* more like:
 
-```rust ,ignore
+```rust
 &[impl Trait; impl const usize]
 ```
 
@@ -186,5 +186,52 @@ repr:     (&void, (&VTable, &VTable, usize)),
 
 And that's it! That's what it would *mean* for Rust to loosen its restrictions and enter The World Of VLDSTM: An extra Metadata for each new generic, and having to dynamically compute the offsets of arbitrary fields using the Metadata, instead of just relying on the Trailing rule to handle anything more complex than array stride.
 
-(Attentive readers may have noticed that I am placing "inner" Metadata before "outer" Metadata. I expect this would be the case because an actual algorithm to implement this would want to be recursive, starting at the Fundamental DSTs and working its way up. Having Metadata in this order also makes it more likely for `&my_dst.field` to be a *prefix* of `&my_dst`, avoiding the need to shuffle around the metadata. This is easiest to see for the case of indexing into `&[[[u8]]]`.)
+Attentive readers may have noticed that I am placing "inner" Metadata before "outer" Metadata. This is purely me being aesthetically obsessed with the idea of `&my_dst.field` being a *prefix* of `&my_dst`, avoiding the need to shuffle around the metadata at all, which is easiest to see for the case of indexing into `&[[[u8]]]`.
 
+In reality, Metadata would probably be more nested and structured than I'm showing, to make it comprehensible to library code that wants to dig in and do DST Wizard Magic, creating its own DST pointers from the raw metadata and a pointer.
+
+So something like our final super complex case of might have a structure like this:
+
+```rust
+// let super_complex: &(dyn Trait, u32, [dyn Trait], bool) = ...;
+
+DST {
+    pointer: &void,
+    metadata: Aggregate(
+        0: TraitObject(&VTable), 
+        1: Slice {
+            len: usize, 
+            elem: TraitObject(&VTable),
+        },
+    ),
+}
+```
+
+And the expression `&super_complex.0` might actually be something like this expression:
+
+```rust
+// &super_complex.0
+
+DST {
+    pointer: &(*super_complex.pointer).0,
+    metadata: super_complex.metadata.0.clone(),
+}
+```
+
+Which is *still* a sugarring over the even *deeper* reality of all the types being nice little generic composable pieces:
+
+```rust
+struct DST<P, M: Metadata> {
+    pointer: P,
+    metadata: M,
+}
+
+struct SliceMetadata<T: Metadata> {
+    len: usize,
+    elem: T,
+}
+
+...
+```
+
+But these details are Above My Pay Grade, and this is all just a sketch of the *concept*.

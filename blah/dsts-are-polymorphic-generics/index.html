@@ -97,13 +97,13 @@
 <h1 id="polymorphic-compilation-of-generics" class="section-header"><a href="#polymorphic-compilation-of-generics">Polymorphic Compilation Of Generics</a></h1>
 <p>To understand this, let’s think about a simple generic function:</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">fn</span> <span class="ident">my_generic</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Clone</span><span class="op">&gt;</span>(<span class="ident">val</span>: <span class="ident">T</span>) {
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">my_generic</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Clone</span><span class="op">&gt;</span>(<span class="ident">val</span>: <span class="ident">T</span>) {
     <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="ident">val</span>.<span class="ident">clone</span>();
     <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">val</span>.<span class="ident">clone</span>();
 }</code></pre></div>
 <p>This code can handle <em>any</em> type T that implements Clone – but hold on, we’re passing it around by value! Doesn’t the Indirection rule tell use that Rust thinks it’s “impossible” to do this? Indeed, it does, and that’s why Rust cheats: it <em>monomorphizes</em> the generics away, which is just a fancy way of saying that whenever you call this function, Rust generates a copy-pasted version with all T’s replaced with the actual type you’re using. So if you pass it a u32, rust will just make:</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">fn</span> <span class="ident">my_generic_u32</span>(<span class="ident">val</span>: <span class="ident">u32</span>) {
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">my_generic_u32</span>(<span class="ident">val</span>: <span class="ident">u32</span>) {
     <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="ident">val</span>.<span class="ident">clone</span>();
     <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">val</span>.<span class="ident">clone</span>();
 }</code></pre></div>
@@ -129,10 +129,10 @@
 <p>Crucially, these polymorphic generics are <em>WAY</em> tamer than full-on polymorphic function pointers. The whole “generating Value Witness Tables at runtime” thing goes completely away and you can indeed generate all your Metadata (Value Witnesses) ahead of time, which is… A Lot More Tractable!</p>
 <p>Now with that established, we can return to our hairy questions about Multiple Metadata. What <em>does</em> <code>&amp;[dyn Trait]</code> <em>mean</em>? It means this:</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw-2">&amp;</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Trait</span>, <span class="kw">const</span> <span class="ident">N</span>: <span class="ident">usize</span><span class="op">&gt;</span>[<span class="ident">T</span>; <span class="ident">N</span>]</code></pre></div>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw-2">&amp;</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Trait</span>, <span class="kw">const</span> <span class="ident">N</span>: <span class="ident">usize</span><span class="op">&gt;</span>[<span class="ident">T</span>; <span class="ident">N</span>]</code></pre></div>
 <p>It’s just polymorphic generics! DSTs are just polymorphic generics! Although we aren’t “allowed” to name a type variable, so it’s <em>actually</em> more like:</p>
 
-<div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw-2">&amp;</span>[<span class="kw">impl</span> <span class="ident">Trait</span>; <span class="kw">impl</span> <span class="kw">const</span> <span class="ident">usize</span>]</code></pre></div>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw-2">&amp;</span>[<span class="kw">impl</span> <span class="ident">Trait</span>; <span class="kw">impl</span> <span class="kw">const</span> <span class="ident">usize</span>]</code></pre></div>
 <p>But that’s “just” sugar for the first version. With our DSTs desugarred to generics, all of our answers become relatively simple.</p>
 <p>Everything is generics, so nesting just makes all copies the same:</p>
 
@@ -160,7 +160,44 @@
 <span class="ident">meaning</span>:  (<span class="kw-2">&amp;</span>(<span class="ident">T</span>, <span class="ident">u32</span>, [<span class="ident">U</span>; <span class="ident">N</span>], <span class="ident">bool</span>), (<span class="ident">T</span>: <span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">U</span>: <span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">N</span>: <span class="ident">usize</span>)),
 <span class="ident">repr</span>:     (<span class="kw-2">&amp;</span><span class="ident">void</span>, (<span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="kw-2">&amp;</span><span class="ident">VTable</span>, <span class="ident">usize</span>)),</code></pre></div>
 <p>And that’s it! That’s what it would <em>mean</em> for Rust to loosen its restrictions and enter The World Of VLDSTM: An extra Metadata for each new generic, and having to dynamically compute the offsets of arbitrary fields using the Metadata, instead of just relying on the Trailing rule to handle anything more complex than array stride.</p>
-<p>(Attentive readers may have noticed that I am placing “inner” Metadata before “outer” Metadata. I expect this would be the case because an actual algorithm to implement this would want to be recursive, starting at the Fundamental DSTs and working its way up. Having Metadata in this order also makes it more likely for <code>&amp;my_dst.field</code> to be a <em>prefix</em> of <code>&amp;my_dst</code>, avoiding the need to shuffle around the metadata. This is easiest to see for the case of indexing into <code>&amp;[[[u8]]]</code>.)</p>
+<p>Attentive readers may have noticed that I am placing “inner” Metadata before “outer” Metadata. This is purely me being aesthetically obsessed with the idea of <code>&amp;my_dst.field</code> being a <em>prefix</em> of <code>&amp;my_dst</code>, avoiding the need to shuffle around the metadata at all, which is easiest to see for the case of indexing into <code>&amp;[[[u8]]]</code>.</p>
+<p>In reality, Metadata would probably be more nested and structured than I’m showing, to make it comprehensible to library code that wants to dig in and do DST Wizard Magic, creating its own DST pointers from the raw metadata and a pointer.</p>
+<p>So something like our final super complex case of might have a structure like this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// let super_complex: &amp;(dyn Trait, u32, [dyn Trait], bool) = ...;</span>
+
+<span class="ident">DST</span> {
+    <span class="ident">pointer</span>: <span class="kw-2">&amp;</span><span class="ident">void</span>,
+    <span class="ident">metadata</span>: <span class="ident">Aggregate</span>(
+        <span class="number">0</span>: <span class="ident">TraitObject</span>(<span class="kw-2">&amp;</span><span class="ident">VTable</span>), 
+        <span class="number">1</span>: <span class="ident">Slice</span> {
+            <span class="ident">len</span>: <span class="ident">usize</span>, 
+            <span class="ident">elem</span>: <span class="ident">TraitObject</span>(<span class="kw-2">&amp;</span><span class="ident">VTable</span>),
+        },
+    ),
+}</code></pre></div>
+<p>And the expression <code>&amp;super_complex.0</code> might actually be something like this expression:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// &amp;super_complex.0</span>
+
+<span class="ident">DST</span> {
+    <span class="ident">pointer</span>: <span class="kw-2">&amp;</span>(<span class="kw-2">*</span><span class="ident">super_complex</span>.<span class="ident">pointer</span>).<span class="number">0</span>,
+    <span class="ident">metadata</span>: <span class="ident">super_complex</span>.<span class="ident">metadata</span>.<span class="number">0</span>.<span class="ident">clone</span>(),
+}</code></pre></div>
+<p>Which is <em>still</em> a sugarring over the even <em>deeper</em> reality of all the types being nice little generic composable pieces:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct</span> <span class="ident">DST</span><span class="op">&lt;</span><span class="ident">P</span>, <span class="ident">M</span>: <span class="ident">Metadata</span><span class="op">&gt;</span> {
+    <span class="ident">pointer</span>: <span class="ident">P</span>,
+    <span class="ident">metadata</span>: <span class="ident">M</span>,
+}
+
+<span class="kw">struct</span> <span class="ident">SliceMetadata</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Metadata</span><span class="op">&gt;</span> {
+    <span class="ident">len</span>: <span class="ident">usize</span>,
+    <span class="ident">elem</span>: <span class="ident">T</span>,
+}
+
+...</code></pre></div>
+<p>But these details are Above My Pay Grade, and this is all just a sketch of the <em>concept</em>.</p>
 
     </article>
 
