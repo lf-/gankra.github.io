@@ -118,7 +118,7 @@ func SwiftyGeneric<T, U, V>(
 
 Now inside the *body* of SwiftyGeneric, any time we need to handle an instance of our generic types, we can just ask the Value Witness Table whatever we need to know, and we can even *forward* it to other generic code. Need to make an `Array<T>` inside SwiftyGeneric? No problem, just hand the Array's code your `witness_T` and it can use `witness_T.size/align/stride` to figure out how much memory to allocate and all the offsets!
 
-I'm making it sound simple but I cannot emphasize enough how much work this is to actually do. In particular, the fact that there can be generic types instantiated inside your generic function pointer means *you need to be able to generate Value Witness Tables at runtime* (and because Swift has stuff around unique class ids, there needs to be a global type-keyed registry of these things 🙀). Rust *tried* to have polymorphic generics in the early pre-1.0 days, and they quite reasonably *gave up* because it was too much work. For real Swift, great fucking working for getting all of this to work!
+I'm making it sound simple but I cannot emphasize enough how much work this is to actually do. In particular, the fact that there can be generic types instantiated inside your generic function pointer means *you need to be able to generate Value Witness Tables at runtime* 🙀. Rust *tried* to have polymorphic generics in the early pre-1.0 days, and they quite reasonably *gave up* because it was too much work. For real Swift, great fucking working for getting all of this to work!
 
 
 
