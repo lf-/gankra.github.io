@@ -69,7 +69,7 @@
 <p>Here is a sketch of what the tower looks like under my proposal:</p>
 <ol>
 <li>The “Clean” Memory Model: a painfully strict and simple model that you can teach and check.</li>
-<li>The “Real” Memory Model: similar to strict provenance, but messier to allow for Useful Crimes.</li>
+<li>The “Real” Memory Model: similar to the “Clean” one, but messier to allow for Useful Crimes.</li>
 <li>The Compiler’s Semantics: whatever random primitives compilers expose, and optimizations they do.</li>
 </ol>
 <p>In some sense the bottom of the tower is the one that “matters” because that’s the thing that (mis)compiles your code, but it’s also a shifting target, and <a href="https://gankra.github.io/blah/initialize-me-maybe/">trying to expose its semantics leads to sadness</a>. Unfortunately, this is also basically true of “real” memory models. <a href="http://www.open-std.org/jtc1/sc22/wg14/www/docs/n2676.pdf">We’re still trying to figure out what on earth C’s memory model is</a>, and every language infamously defers to “the C11 memory model” on hard questions. So as an educator, I eventually have to bottom out on sending you a shrug-emoji if you keep asking for what the <em>real</em> rules are. No one <em>really</em> knows!</p>

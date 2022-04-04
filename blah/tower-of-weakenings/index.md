@@ -23,7 +23,7 @@ Just to have it upfront, I will start with what The Tower Of Weakenings *is*, an
 Here is a sketch of what the tower looks like under my proposal:
 
 1. The "Clean" Memory Model: a painfully strict and simple model that you can teach and check.
-2. The "Real" Memory Model: similar to strict provenance, but messier to allow for Useful Crimes.
+2. The "Real" Memory Model: similar to the "Clean" one, but messier to allow for Useful Crimes.
 3. The Compiler's Semantics: whatever random primitives compilers expose, and optimizations they do.
 
 In some sense the bottom of the tower is the one that "matters" because that's the thing that (mis)compiles your code, but it's also a shifting target, and [trying to expose its semantics leads to sadness](https://gankra.github.io/blah/initialize-me-maybe/). Unfortunately, this is also basically true of "real" memory models. [We're still trying to figure out what on earth C's memory model is](http://www.open-std.org/jtc1/sc22/wg14/www/docs/n2676.pdf), and every language infamously defers to "the C11 memory model" on hard questions. So as an educator, I eventually have to bottom out on sending you a shrug-emoji if you keep asking for what the *real* rules are. No one *really* knows!
