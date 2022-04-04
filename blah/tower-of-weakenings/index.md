@@ -38,7 +38,7 @@ There is always a Tower of Weakenings, and we're all messing with it, so why not
 
 # Memory Models Are Being Asked To Do Too Much
 
-Ok yes get your jokes out about solving all problems with another layer of abstraction, but this is *painfully* needed. No offense to all the people doing great work on memory models, but as far as I'm concerned they've been given an impossible task. There are simply too many competing concerns and stakeholders to produce a *truly* satisfying design for all of them. Here are some of the many stakeholders:
+Ok yes get your jokes out about solving all problems with another layer of abstraction, but this is *painfully* needed. And really, what I'm doing here isn't *adding* a layer but cleaving a bloated and messy layer into two much more manageable parts. No offense to all the people doing great work on memory models, but as far as I'm concerned they've been given an impossible task. There are simply too many competing concerns and stakeholders to produce a *truly* satisfying design for all of them. Here are some of the many stakeholders:
 
 * Millions of lines of ancient code that is doing whatever because we can't explain the rules
 * Random programmers who barely read the docs and are just doing The Idiomatic Thing
