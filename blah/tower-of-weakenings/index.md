@@ -2,7 +2,7 @@
 
 <header>
     <p class="author">Aria Beingessner</p>
-    <p class="date">April 4th, 2022</p>
+    <p class="date">April 5th, 2022</p>
 </header>
 
 
@@ -10,7 +10,11 @@ In my [previous article](https://gankra.github.io/blah/fix-rust-pointers/) I loo
 
 I knew talk was cheap and that no one would *actually* implement them, but I still wanted to get the ideas out there, especially for syntax changes! But wait, the solution to the fundamental issues didn't have any syntax. Actually it was essentially adding 2 completely trivial functions to the standard library.
 
-So [I just did it](https://doc.rust-lang.org/nightly/std/ptr/index.html#strict-provenance), because I could. And [I ported most of Rust's codebase to it](https://github.com/rust-lang/rust/pull/95241) to prove that it actually works. And I made [a stable polyfill](https://docs.rs/sptr/latest/sptr/index.html) so that everyone could use it right away. And then Ralf Jung went off and added a [mode to miri to check it](https://github.com/rust-lang/miri/pull/2045)! **(HEY USE ALL OF THIS!)**
+So [I just did it](https://doc.rust-lang.org/nightly/std/ptr/index.html#strict-provenance), because I could. And [I ported most of Rust's codebase to it](https://github.com/rust-lang/rust/pull/95241) to prove that it actually works. And I made [a stable polyfill](https://docs.rs/sptr/latest/sptr/index.html) so that everyone could use it right away. 
+
+Shoutouts to others: Ralf Jung went added a [mode to miri to check it](https://github.com/rust-lang/miri/pull/2045)! eddyb and niluxv both chipped in on some potential future [rustc lints](https://github.com/rust-lang/rust/pull/95599) to check for certain casts! Jubilee helped a *ton* with shepherding the review and cleaning up my PR into a shippable form! Y'all rock!
+
+**(USE ALL THIS GREAT STUFF!!!)**
 
 The actual *feature* was basically trivial. I made more work for myself by insisting on porting rust's codebase to the APIs, but that was just to Prove My Point. The *real* work was just endless discussions to convince stakeholders, and writing [an absolute metric fuckton of documentation](https://doc.rust-lang.org/nightly/std/ptr/index.html#strict-provenance) on "the model".
 
@@ -83,7 +87,7 @@ As far as I am concerned, The Tower of Weakenings is horrifyingly effective. Lik
 
 
 
-# Ok But What The Hell Is Strict Provenance
+# Ok But What The Heck Is Strict Provenance?
 
 You're really not gonna go read any of [all](https://doc.rust-lang.org/nightly/std/ptr/index.html#strict-provenance) the [docs](https://github.com/rust-lang/rust/issues/95228) I [wrote](https://github.com/rust-lang/rust/issues/95228#issuecomment-1075881238) about [it](https://gankra.github.io/blah/fix-rust-pointers/#replacing-pointer-integer-casts) are [you](https://twitter.com/Gankra_/status/1509335249871900678)? Ok it's fine. It's fine. I write the docs. I will write more here.
 
@@ -91,29 +95,29 @@ Here is the 6 step summary of what the model is.
 
 1. Use [this library](https://docs.rs/sptr/latest/sptr/index.html).
 
-2. Stop using `ptr as usize` and `usize as ptr` -- use `ptr.addr()` and `ptr.with_addr(addr)`.
+2. Stop using `ptr as usize` and `usize as ptr` -- use [ptr.addr()](https://docs.rs/sptr/0.3.1/sptr/trait.Strict.html#tymethod.addr) and [ptr.with_addr(addr)](https://docs.rs/sptr/0.3.1/sptr/trait.Strict.html#tymethod.with_addr).
 
 3. Test your code with "cargo [miri](https://github.com/rust-lang/miri) test -Zstrict-provenance"
 
 4. Report any nasty problems you run into [on the tracking issue](https://github.com/rust-lang/rust/issues/95228), or [Zulip](https://rust-lang.zulipchat.com/#narrow/stream/136281-t-lang.2Fwg-unsafe-code-guidelines), or contact your local congressman.
 
-5. Insist that your evil code is special and good, use `ptr.expose_addr()` and `ptr::from_exposed_addr(addr)` instead to at least document this assertion and help us identify Fun Things.
+5. Then go ahead and ignore the previous 3 steps and insist that your evil code is special and good. Then use [ptr.expose_addr()](https://docs.rs/sptr/0.3.1/sptr/trait.Strict.html#tymethod.expose_addr) and [ptr::from_exposed_addr(addr)](https://docs.rs/sptr/0.3.1/sptr/fn.from_exposed_addr.html) instead to at least document this assertion and help us identify Fun Things.
 
-6. Actually just ignore all of this because you're busy and tired and have so much dogshit unsafe code you "own" (same, I hate it [here](https://crates.io/crates/linked-hash-map/0.5.4)!). Incrementally update your code to the new more clear system whenever you're poking in there, or just let someone else file a PR because you're blowing up miri for their project that depends on you. Rest safe in the knowledge that Strict Provenance Is All Lies and that the language is exactly the same as it was yesterday, and will remain the same tomorrow too.
+6. Then go ahead and just ignore *that* previous step, because you're busy and tired and have too much garbage unsafe code you technically "own" (same, I hate it [here](https://crates.io/crates/linked-hash-map/0.5.4)!). Maybe update your code to the new more clear system whenever you're poking in there, or just let someone else file a PR because you're blowing up miri for their project. Rest safe in the knowledge that Strict Provenance Is All Lies and that the language is exactly the same as it was yesterday, and will remain the same tomorrow too.
 
-Yes that sure didn't explain anything at all. That was actually "what do I do", which is actually the important thing. Did you follow all 6 steps? Ok great, here's an actual explanation:
+Yes that sure didn't explain anything at all. That was actually "What Should I Do?", which is actually the important thing. Did you follow all 6 steps? Ok great, here's an actual explanation:
 
 -----
 
-If you cast an integer to a pointer, that's ok, it's fun to play pretend, but that pointer is *invalid*. That means reading/writing through that pointer or using [offset](https://doc.rust-lang.org/std/primitive.pointer.html#method.offset) on it is Undefined Behaviour. ([wrapping_offset](https://doc.rust-lang.org/std/primitive.pointer.html#method.wrapping_offset) is fine, and the usual [ZSTs](https://doc.rust-lang.org/nomicon/exotic-sizes.html#zero-sized-types-zsts) Get To Lie rules apply.)
+Under Strict Provenance (which is all playing pretend), if you cast an integer to a pointer, that's ok, it's fun to play pretend, but that pointer is *invalid*. That means reading/writing through that pointer or using [offset](https://doc.rust-lang.org/std/primitive.pointer.html#method.offset) on it is Undefined Behaviour. ([wrapping_offset](https://doc.rust-lang.org/std/primitive.pointer.html#method.wrapping_offset) is fine, and the usual [ZSTs](https://doc.rust-lang.org/nomicon/exotic-sizes.html#zero-sized-types-zsts) Get To Lie rules apply.)
 
-If you're doing FFI, just make sure that the API is "right" from Rust's perspective. This may involve tweaking [extern decls that lie](https://github.com/rust-lang/rust/issues/95496) about pointers. 
+If you're doing FFI, just make sure that the API is "right" from Rust's perspective. This may involve tweaking [extern decls that lie about pointers](https://github.com/rust-lang/rust/issues/95496). 
 
-If you're doing MMIO stuff, you're basically outside the memory model already but [we're working on figuring it out](https://twitter.com/Gankra_/status/1509343864775131141).
+If you're doing MMIO stuff, you're basically outside the memory model already but [we're working on having a nicer story for you too](https://twitter.com/Gankra_/status/1509343864775131141), but this is too far outside my domain of expertise to help with.
 
-The golden rule is that the union of `int | ptr` is `ptr`, not `int`. ABIs generally all agree that pointers and pointer-sized-integers should have identical ABIs, because this punning is super common... unless your on an m68k, which thinks [you're a sinner either way](https://trofi.github.io/posts/191-ghc-on-m68k.html) (at least for return values). God nothing can be simple, can it?
+The golden rule is that the union of `int | ptr` is `ptr`, not `int`. ABIs generally all agree that pointers and pointer-sized-integers should have identical ABIs, because this punning is super common... unless your on an m68k, which thinks [you're a sinner either way](https://trofi.github.io/posts/191-ghc-on-m68k.html) (for return values). God, nothing can be simple, can it?
 
-Yes even [do this for AtomicUsize and AtomicPtr](https://github.com/rust-lang/rust/issues/95492).
+Please also [do this for AtomicUsize and AtomicPtr](https://github.com/rust-lang/rust/issues/95492).
 
 That's it. Just say things that are pointers are pointers.
 
@@ -190,13 +194,13 @@ This whole mess is why Strict Provenance is such a nice simplification to a memo
 
 But of course, Strict Provenance is "a lie", so you still can get lucky, so what's the point? The point is that if everyone agrees to just *pretend* that you're not allowed to do ptr-to-int casts, then having our sanitizers default to the strict semantics *is actually useful and effective*! Programmers that opt into this game also don't have to worry about "are we doing PNVI-ae-udi" or something else, because... it doesn't matter! Tower Of Weakenings Baby! Allowing any kind of int-to-ptr shenanigans is *definitely* weaker than forbidding them completely!
 
-But ok we have all this code that does pointer crimes, this is useless! It would be, if we didn't have the glorious ~~hack~~ innovation of with_addr! This is the part of strict provenance that makes everything "work":
+But ok we have all this code that does pointer crimes, this is useless! It would be, if we didn't have the glorious ~~hack~~ innovation of [with_addr](https://docs.rs/sptr/0.3.1/sptr/trait.Strict.html#tymethod.with_addr)! This is the part of strict provenance that makes everything "work":
 
 ```
 fn with_addr(self, addr: usize) -> Self
 ```
 
-This is basically the exact same thing as `usize as ptr` *BUT* instead of being a unary operation, it's binary. You need to bring along a pointer with the provenance you *think* your new pointer should have, and then we use it to properly "rebuild" the pointer, unambiguously re-establishing the provenance chain of custody, hooray! Toss in some conveniences like `map_addr` and you've got yourself an actually tolerable system for still doing tagged pointer crimes while staying in the confines of Strict Provenance:
+This is basically the exact same thing as `usize as ptr` *BUT* instead of being a unary operation, it's binary. You need to bring along a pointer with the provenance you *think* your new pointer should have, and then we use it to properly "rebuild" the pointer, unambiguously re-establishing the provenance chain of custody, hooray! Toss in some conveniences like [map_addr](https://docs.rs/sptr/0.3.1/sptr/trait.Strict.html#tymethod.map_addr) and you've got yourself an actually tolerable system for still doing tagged pointer crimes while staying in the confines of Strict Provenance:
 
 ```rust
 unsafe {
@@ -227,7 +231,7 @@ Hooray!
 
 Oh also strict provenance is basically actually implemented in hardware by [CHERI](https://www.cl.cam.ac.uk/research/security/ctsrd/cheri/), so uh, doing this *also* just makes your code portable to CHERI. (Which also means the CHERI people are willing to help make this experiment work, thank you CHERI people you have been very helpful!!!)
 
-Strict provenance does a lot of things for a lot of people. It's Kind Of A Big Deal, IMO.
+Strict Provenance does a lot of weird little things for a lot of people, but going into all the weird side-benefits would take forever and I want to just focus this post on memory-models. TL;DR It's Kind Of A Big Deal, For Many Reasons.
 
 
 
@@ -239,9 +243,9 @@ Since the MVP shipped, [we've made a couple changes](https://github.com/Gankra/s
 
 Ralf decided it would be best to make it more explicit as to whether you're actually playing this game or not. In [his PR](https://github.com/rust-lang/rust/pull/95588) he added APIs that explicitly use the "expose" terminology and some vague gesturing to the same kind of thing the C proposal is doing -- which is basically all we would have been able to tell you before strict provenance too. The new APIs are:
 
-* `fn expose_addr(self) -> usize`
-* `ptr::from_exposed_addr(usize) -> *const T`
-* `ptr::from_exposed_addr_mut(usize) -> *mut T`
+* fn [expose_addr](https://docs.rs/sptr/0.3.1/sptr/trait.Strict.html#tymethod.expose_addr)(self) -> usize
+* ptr::[from_exposed_addr](https://docs.rs/sptr/0.3.1/sptr/fn.from_exposed_addr.html)(usize) -> \*const T
+* ptr::[from_exposed_addr_mut](https://docs.rs/sptr/0.3.1/sptr/fn.from_exposed_addr_mut.html)(usize) -> \*mut T
 
 And these are 100% semantically identical to `ptr as usize` and `usize as ptr`, while also actually telling us that you understand this is a thing and you are relying on. The other change he made (which I was dubious of at first) was to mark `addr()` as *actually* not exposing the address. Which is to say that `ptr::from_exposed_addr(my_ptr.addr())` doesn't "work". This *technically* makes it more dangerous to use `addr`, but it's still a safe function for the usual reasons of "it's only a problem if you actually try to deref/offset the resulting pointer".
 
