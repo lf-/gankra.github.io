@@ -22,6 +22,10 @@ Shockingly, the core ideas in my article essentially held true all the way throu
 
 *Really* late into the process I stumbled across an extremely powerful way of framing Strict Provenance: **The Tower Of Weakenings**. I hastily added it [to the FAQ](https://github.com/rust-lang/rust/issues/95228#issuecomment-1075881238) right before announcing the feature, but now that I have some more room to breathe, I want to really give it a chance to shine on its own.
 
+
+
+# The Tower of Weakenings
+
 Just to have it upfront, I will start with what The Tower Of Weakenings *is*, and then go back to the motivation and ideas behind it. The Tower Of Weakenings is simply the idea that having One True Memory Model is a frustrating and futile endeavour that leaves no one satisfied. Instead, we should have a *tower* of Memory Models, with the ones at the top being "what users should think about and try to write their code against". As you descend the tower, the memory models become increasingly complex or vague but *critically* always more permissive than the ones above it. At the bottom of the tower is "whatever the compiler actually does" (and arguably "whatever the hardware actually does" if you care about that).
 
 Here is a sketch of what the tower looks like under my proposal:
