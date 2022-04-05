@@ -26,7 +26,7 @@ Shockingly, the core ideas in my article essentially held true all the way throu
 
 # The Tower of Weakenings
 
-Just to have it upfront, I will start with what The Tower Of Weakenings *is*, and then go back to the motivation and ideas behind it. The Tower Of Weakenings is simply the idea that having One True Memory Model is a frustrating and futile endeavour that leaves no one satisfied. Instead, we should have a *tower* of Memory Models, with the ones at the top being "what users should think about and try to write their code against". As you descend the tower, the memory models become increasingly complex or vague but *critically* always more permissive than the ones above it. At the bottom of the tower is "whatever the compiler actually does" (and arguably "whatever the hardware actually does" if you care about that).
+Just to have it upfront, I will start with what The Tower Of Weakenings *is*, and then go back to the motivation and ideas behind it. The Tower Of Weakenings is simply the idea that having One True Memory Model is a frustrating and futile endeavour that leaves no one satisfied. Instead, we should have a *tower* of Memory Models, with the ones at the top being "what users should think about and try to write their code against". As you descend the tower, the memory models become increasingly complex or vague but *critically* always more permissive than the ones above it. At the bottom of the tower is "whatever the compiler actually does" (and arguably "whatever the hardware actually does" in the basement, if you care about that).
 
 Here is a sketch of what the tower looks like under my proposal:
 
@@ -38,7 +38,7 @@ In some sense the bottom of the tower is the one that "matters" because that's t
 
 Even relatively rigorous things like CompCert are just [doing their best](https://arxiv.org/pdf/2201.10280.pdf). We're all just doing our best. I started becoming acutely aware of this around 2015 when I [tried to document Rust's semantics](https://doc.rust-lang.org/nightly/nomicon/) and had to leave [the section on aliasing](https://doc.rust-lang.org/nightly/nomicon/aliasing.html) as a big 🤷‍♀️. Since then I have been slowly working my way through the stages of grief, and The Tower Of Weakenings is *Acceptance*. 
 
-Memory Models are messy, and that's ok, because I will give you a simpler model. It will be teachable. It will be simple to reason about. It will be machine-checkable by sanitizers like [miri](https://github.com/rust-lang/miri). It will be overly strict, and that's ok, because if you want you can always take a step down the tower of abstractions and follow its rules instead. You will just have to deal with the reality of everything getting fuzzier, and the fact that you don't get as nice tools for catching your mistakes. 
+Memory Models are messy, and that's ok, because I will give you a simpler model. It will be teachable. It will be simple to reason about. It will be machine-checkable by sanitizers like [miri](https://github.com/rust-lang/miri). It will be overly strict, and that's ok, because if you want you can always take a step down the Tower Of Weakenings and follow the lower level's rules instead. You will just have to deal with the reality of everything getting fuzzier, and the fact that you don't get as nice tools for catching your mistakes. 
 
 There is always a Tower of Weakenings, and we're all messing with it, so why not just be honest about it and use it to our advantage? Like, once you get to the level of things like The Linux Kernel you start [finding](https://github.com/torvalds/linux/blob/3123109284176b1532874591f7c81f3837bbdc17/arch/x86/include/asm/qspinlock.h) [things](https://github.com/torvalds/linux/blob/3123109284176b1532874591f7c81f3837bbdc17/include/asm-generic/qspinlock_types.h) that are blatantly breaking the [rules of friggin' *Intel CPUs*](https://twitter.com/at_tcsc/status/1501712444451741696), because hey it turns out there's a sub-basement of the Tower of Weakenings that's just "look this works on every CPU I can find, and why would this possibly break, and also I'm Linux so if your CPU doesn't run me *you're* the asshole, so you *can't* break it now".
 
@@ -48,14 +48,14 @@ There is always a Tower of Weakenings, and we're all messing with it, so why not
 
 Ok yes get your jokes out about solving all problems with another layer of abstraction, but this is *painfully* needed. And really, what I'm doing here isn't *adding* a layer but cleaving a bloated and messy layer into two much more manageable parts. No offense to all the people doing great work on memory models, but as far as I'm concerned they've been given an impossible task. There are simply too many competing concerns and stakeholders to produce a *truly* satisfying design for all of them. Here are some of the many stakeholders:
 
-* Millions of lines of ancient code that is doing whatever because we can't explain the rules
+* Millions of lines of ancient code that are doing whatever because we can't explain the rules
 * Random programmers who barely read the docs and are just doing The Idiomatic Thing
 * Hardcore performance junkies who insist the fucked up thing they made should be legal
 * Hardcore safety junkies who insist they should be able to validate the correctness of their code
 * Compiler developers who want to know what optimizations they can or can't do 
-* Libarary developers who want to know what interfaces/idioms to design around
+* Library developers who want to know what interfaces/idioms to design around
 * Tooling developers who want to build sanitizers that reliably detect UB when it happens
-* Teachers who want to help everyone else understand this PhD thesis you just dumped on their desk.
+* Teachers who want to help everyone else understand the PhD thesis on their desk.
 * Memory model people who just want this all to be coherent and formalized and validated
 
 And all of these people are working *together* so they all agree that whatever the other person claims they need to do their job should definitely be allowed, because they want to all mutually benefit. And definitely make sure not to break all that code or even make it run slower! kthxbai!
@@ -101,7 +101,7 @@ Here is the 6 step summary of what the model is.
 
 2. Stop using `ptr as usize` and `usize as ptr` -- use [ptr.addr()](https://docs.rs/sptr/0.3.1/sptr/trait.Strict.html#tymethod.addr) and [ptr.with_addr(addr)](https://docs.rs/sptr/0.3.1/sptr/trait.Strict.html#tymethod.with_addr).
 
-3. Test your code with "cargo [miri](https://github.com/rust-lang/miri) test -Zstrict-provenance"
+3. Test your code with "MIRIFLAGS='-Zmiri-strict-provenance' cargo [miri](https://github.com/rust-lang/miri) test"
 
 4. Report any nasty problems you run into [on the tracking issue](https://github.com/rust-lang/rust/issues/95228), or [Zulip](https://rust-lang.zulipchat.com/#narrow/stream/136281-t-lang.2Fwg-unsafe-code-guidelines), or contact your local congressman.
 
@@ -135,7 +135,7 @@ Without proper memory models formalizing things like "what is a pointer", compil
 
 These situations are especially nasty because you can't obviously just point at one optimization and say "oh it's that one, that one is bad". How do you decide which seemingly-innocent optimization is a problem? This is what a memory model is for. 
 
-You define an "Abstract Machine" that your language is "emulating" the semantics of, and then optimizations which change the observable behaviour of "the abstract machine" are "bad". This is basically the same situation as a SNES emulator glitching out and flipping Mario upside-down. You generally want your emulator to faithfully reproduce the game! 
+You define an "Abstract Machine" that your language is "emulating" the semantics of, and then optimizations which change the observable behaviour of "the Abstract Machine" are "bad". This is basically the same situation as a SNES emulator glitching out and flipping Mario upside-down. You generally want your emulator to faithfully reproduce the game! 
 
 Conversely, having a memory model also defines the scope of what programmers are allowed to expect to work, and the compiler doesn't have to care about somehow trying to faithfully reproduce things that don't work on the Abstract Machine. Returning to SNES emulators, this is like refusing to support romhacks that do things that wouldn't work on the actual hardware, because you have no idea what on earth that even means. Harsh, but fair!
 
@@ -175,7 +175,7 @@ Ah ok, but the C folks seem to have cracked this one. If you hop on over to this
 * If you hit an exposed allocation, congrats! You get provenance to it.
 * If you hit *two* exposed allocations (because of one-past-the-end), be sad and tell the programmer to "just be consistent" and only access one of them.
 
-This makes a lot of sense! Basically it's saying if you cast a pointer to an integer, the compiler has to throw up its hands in disgust and just accept than any integer gets to be cast into a pointer into that allocation. That's... pretty tame? Assuming you don't need to allow other operations to expose.
+This makes a lot of sense! Basically it's saying if you cast a pointer to an integer, the compiler has to throw up its hands in disgust and just accept that any integer gets to be cast into a pointer into that allocation. That's... pretty tame? Assuming you don't need to allow other operations to expose.
 
 But also... it lets you write this:
 
