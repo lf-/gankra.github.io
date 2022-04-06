@@ -196,7 +196,7 @@ On the flip side, if you say "screw that", your sanitizer will constantly set of
 
 This whole mess is why Strict Provenance is such a nice simplification to a memory model: it just puts it foot down and says No Absolutely Not You Do Not Get To Get Lucky.
 
-But of course, Strict Provenance is "a lie", so you still can get lucky, so what's the point? The point is that if everyone agrees to just *pretend* that you're not allowed to do ptr-to-int casts, then having our sanitizers default to the strict semantics *is actually useful and effective*! Programmers that opt into this game also don't have to worry about "are we doing PNVI-ae-udi" or something else, because... it doesn't matter! Tower Of Weakenings Baby! Allowing any kind of int-to-ptr shenanigans is *definitely* weaker than forbidding them completely!
+But of course, Strict Provenance is "a lie", so you still can get lucky, so what's the point? The point is that if everyone agrees to just *pretend* that you're not allowed to do int-to-ptr casts, then having our sanitizers default to the strict semantics *is actually useful and effective*! Programmers that opt into this game also don't have to worry about "are we doing PNVI-ae-udi" or something else, because... it doesn't matter! Tower Of Weakenings Baby! Allowing any kind of int-to-ptr shenanigans is *definitely* weaker than forbidding them completely!
 
 But ok we have all this code that does pointer crimes, this is useless! It would be, if we didn't have the glorious ~~hack~~ innovation of [with_addr](https://docs.rs/sptr/0.3.1/sptr/trait.Strict.html#tymethod.with_addr)! This is the part of strict provenance that makes everything "work":
 
