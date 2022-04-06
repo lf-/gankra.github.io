@@ -190,7 +190,7 @@ But also... it lets you write this:
 
 This is just a Use After Free with extra steps! Trying to allow for int-to-ptr casts just reintroduces the concept of Getting Lucky, and that *sucks*. It might be a necessary evil, but it still makes me sad.
 
-It also makes sanitizers really sad. The more you crank up "things that are allowed to expose addresses" (Hmm, doesn't memcpy operate on `char*`? Isn't that an integer..?), the more flexible a sanitizer needs to be about things that Should Definitely Be Undefined Behaviour, But I Have To Assume You're Very Smart And Perfect Because Integer Casts Say So. Which is to say, you can have a dynamic execution that everyone 100% agrees should be a Use After Free, and which you would therefore hope a sanitizer to catch... and it just has to shrug it's shoulders and assume it isn't.
+It also makes sanitizers really sad. The more you crank up "things that are allowed to expose addresses" ([Hmm, doesn't memcpy operate on `char*`? Isn't that an integer..?](https://lists.llvm.org/pipermail/llvm-dev/2021-June/150883.html)), the more flexible a sanitizer needs to be about things that Should Definitely Be Undefined Behaviour, But I Have To Assume You're Very Smart And Perfect Because Integer Casts Say So. Which is to say, you can have a dynamic execution that everyone 100% agrees should be a Use After Free, and which you would therefore hope a sanitizer to catch... and it just has to shrug it's shoulders and assume it isn't.
 
 On the flip side, if you say "screw that", your sanitizer will constantly set off false alarms because everyone is told that int-to-ptr casts are totally fine and cool. This also sucks!
 
