@@ -64,7 +64,7 @@
 <p><em>My</em> problem is that C was elevated to a role of prestige and power, its reign so absolute and eternal that it has completely distorted the way we speak to each other. Rust and Swift cannot simply speak their native and comfortable tongues – they must instead wrap themselves in a grotesque simulacra of C’s skin and make their flesh undulate in the same ways it does.</p>
 <p>C is the <em>lingua franca</em> of programming. We must all speak C, and therefore C is not just a programming language anymore – it’s a protocol that every general-purpose programming language needs to speak. </p>
 <p>So actually this kinda <em>is</em> about the whole “C is an inscrutable implementation-defined mess” thing. But only insofar as it makes this protocol we all have to use an even bigger nightmare!</p>
-<h1 id="foreign-function-interfaces" class="section-header"><a href="#foreign-function-interfaces">Foreign Function Interfaces</a></h1>
+<h1 id="foreign-function-interfaces"><a href="#foreign-function-interfaces">Foreign Function Interfaces</a></h1>
 <p>Ok let’s get technical. You’ve finished designing your new language, Bappyscript, with first class support for Bappy Paws/Hooves/Fins. An amazing language that’s going to completely revolutionize the way that cats, sheep, and sharks program!</p>
 <p>But now you need to actually make it do something useful. You know like, take user input, or write output, or literally anything observable? If you want programs written in your language to be good little citizens that work well with the major operating systems, you need to interact with the operating system’s interface. I hear that everything on Linux is “just a file”, so let’s open a file on Linux!</p>
 <p><em>googles</em></p>
@@ -107,7 +107,7 @@ SYNOPSIS
 <p>Everyone had to learn to speak C to talk to the major operating systems, and then when it came time to talk to <em>eachother</em> we suddenly all already spoke C so… why not talk to eachother in terms of C too?</p>
 <p>Oops! Now C is the <em>lingua franca</em> of programming.</p>
 <p>Oops! Now C isn’t just a programming language, it’s a <em>protocol</em>.</p>
-<h1 id="what-does-talking-to-c-involve" class="section-header"><a href="#what-does-talking-to-c-involve">What Does Talking To C Involve?</a></h1>
+<h1 id="what-does-talking-to-c-involve"><a href="#what-does-talking-to-c-involve">What Does Talking To C Involve?</a></h1>
 <p>Ok so apparently basically every language has to learn to talk C. A language that is definitely very well-defined and not a mass hallucination.</p>
 <p>What does “talking” C mean? It means getting descriptions of an interface’s types and functions in the form of a C header and somehow:</p>
 <ul>
@@ -120,7 +120,7 @@ SYNOPSIS
 <li>You can’t actually write a C parser.</li>
 <li>C doesn’t actually have an ABI. Or even defined type layouts.</li>
 </ul>
-<h1 id="you-cant-actually-parse-a-c-header" class="section-header"><a href="#you-cant-actually-parse-a-c-header">You Can’t Actually Parse A C Header</a></h1>
+<h1 id="you-cant-actually-parse-a-c-header"><a href="#you-cant-actually-parse-a-c-header">You Can’t Actually Parse A C Header</a></h1>
 <p>Yes, I am genuinely asserting that <a href="https://hal.archives-ouvertes.fr/hal-01633123/document">parsing C is basically impossible</a>.</p>
 <p>“But wait! There are lots of tools that read in C headers! Like <a href="https://github.com/rust-lang/rust-bindgen/">rust-bindgen</a>!”</p>
 <p>Nope:</p>
@@ -138,7 +138,7 @@ SYNOPSIS
 <p>So what do you do if you Absolutely Positively do not want to have a C compiler parsing and resolving headers at compile time?</p>
 <p>You hand-translate those bad boys! <code>int64_t</code>? Write <code>i64</code>. <code>long</code>? Write… uhhhh… oh no.</p>
 <p>What’s a long?</p>
-<h1 id="c-doesnt-actually-have-an-abi" class="section-header"><a href="#c-doesnt-actually-have-an-abi">C Doesn’t Actually Have An ABI</a></h1>
+<h1 id="c-doesnt-actually-have-an-abi"><a href="#c-doesnt-actually-have-an-abi">C Doesn’t Actually Have An ABI</a></h1>
 <p>Ok well no big surprise here: the integer types in C that were designed to be wobbly-sized for “portability” are in fact wobbly-sized! Like ok we can punt on <a href="https://en.cppreference.com/w/cpp/types/climits">CHAR_BIT</a> being weird, but that still doesn’t help us know the size and align of <code>long</code>!</p>
 <p>“But wait! There are standardized calling conventions and ABIs for each platform!”</p>
 <p>There are! And they usually define the layouts of key primitives in C! (And some of them don’t just define the calling conventions in terms of C types! <em>side-eyes AMD64 SysV</em>)</p>
@@ -195,7 +195,7 @@ callee: [38, 39, 3A, 3B, 3C, 3D, 3E, 3F, 40, 41, 42, 43, 44, 45, 46, 47]
 <p>clang and gcc can’t even agree on the ABI of <code>__int128</code> on x64 linux. That type <em>is</em> a gcc extension but it’s also explicitly defined and specified by the AMD64 SysV ABI in one of those nice human-readable PDFs!</p>
 <p>I wrote this dang thing to check for <a href="https://github.com/rust-lang/rust/issues/54341">mistakes in <em>rustc</em></a>, I didn’t expect to find inconsistencies between the two major C compilers on one of the most important and well-trodden ABIs!</p>
 <p>ABIS ARE LIES</p>
-<h1 id="trying-to-tame-c" class="section-header"><a href="#trying-to-tame-c">Trying To Tame C</a></h1>
+<h1 id="trying-to-tame-c"><a href="#trying-to-tame-c">Trying To Tame C</a></h1>
 <p>So actually <em>semantically</em> parsing a C header is a horrible nightmare that can only really be done by “the” C compiler for that platform, and even if you get the C compiler to tell you the types and and how to make sense of the annotations that <em>still</em> doesn’t actually tell you the size/align/convention for everything.</p>
 <p>How do you interoperate with that mess?</p>
 <p>Your first option is to completely surrender and soulbond your language with C, which can be any of:</p>
@@ -223,7 +223,7 @@ callee: [38, 39, 3A, 3B, 3C, 3D, 3E, 3F, 40, 41, 42, 43, 44, 45, 46, 47]
 <p>So like, yeah their article is really good and working on some very real and very important problems but… how would programming languages even deal with this change? How would you specify which version of <code>intmax_t</code> you interoperate with? If some C header you have refers to <code>intmax_t</code>, which definition is it using?</p>
 <p>The primary mechanism we have for talking about platforms with different ABIs are target triples. You know what’s one target triple? <code>x86_64-unknown-linux-gnu</code>. You know what that covers? Basically every major desktop/server linux distro from <em>the last 20 years</em>. Right now you can ostensibly compile for that target and get a binary that “just works” on all those platforms. I do not believe this would be the case if some programs were compiled believing <code>intmax_t</code> was larger than <code>int64_t</code>.</p>
 <p>Would any platform that tries to make this change become a new target triple? <code>x86_64-unknown-linux-gnu2</code>? Would that even be enough if anything compiled against <code>x86_64-unknown-linux-gnu</code> was allowed to run on it?</p>
-<h1 id="changing-signatures-without-breaking-abis" class="section-header"><a href="#changing-signatures-without-breaking-abis">Changing Signatures Without Breaking ABIs</a></h1>
+<h1 id="changing-signatures-without-breaking-abis"><a href="#changing-signatures-without-breaking-abis">Changing Signatures Without Breaking ABIs</a></h1>
 <p>“So what, does C never get to improve anymore?”</p>
 <p>No! But also, Yes! Because they shipped bad designs.</p>
 <p>Making ABI-compatible changes is, honestly, a bit of an art form. Part of that art is <em>preparedness</em>. Specifically it’s much easier to make changes that don’t break ABI if you’re <em>prepared</em> for them.</p>
@@ -233,7 +233,7 @@ callee: [38, 39, 3A, 3B, 3C, 3D, 3E, 3F, 40, 41, 42, 43, 44, 45, 46, 47]
 <p>Except you still have a compatibility hazard: anyone who compiles against your new header can’t link against the old version of your library! The v1 version of your library simply <em>doesn’t</em> have the v2 symbol! So if you want the Hot New Features you need to accept incompatibility with older outdated systems.</p>
 <p>This isn’t a deal breaker though, it just makes platform vendors <em>sad</em> that no one gets to use the thing they spent so much time working on right away. You have to ship a shiny new feature and then sit on your hands for several years while everyone waits for it to be common/mature enough that people are willing to depend on it and break support for older platforms (or are willing to implement dynamic checking and fallback for it).</p>
 <p>If you get really serious about letting people upgrade right away, then you’re talking about <em>forward</em> compatability. This lets older versions of things somehow work with newer features that they have no conception of.</p>
-<h1 id="changing-types-without-breaking-abis" class="section-header"><a href="#changing-types-without-breaking-abis">Changing Types Without Breaking ABIs</a></h1>
+<h1 id="changing-types-without-breaking-abis"><a href="#changing-types-without-breaking-abis">Changing Types Without Breaking ABIs</a></h1>
 <p>Ok so we can change the signature of a function, what else can we change? Can we change type layouts?</p>
 <p>Yes! But also, No! It depends on how you expose the type.</p>
 <p>One of the genuinely fantastic features of C is that it lets you distinguish between a type which has a known layout and one that doesn’t. If you <em>only</em> forward-declare a type in a C header, then any user code that interacts with that type isn’t “allowed” to know the layout of that type and has to handle it opaquely behind a pointer at all times.</p>
@@ -255,7 +255,7 @@ callee: [38, 39, 3A, 3B, 3C, 3D, 3E, 3F, 40, 41, 42, 43, 44, 45, 46, 47]
 <li>Having a common prefix to all version of MyRadType that lets you “check” what version you’re working with.</li>
 <li>Having self-size fields so older versions can “skip over” the new parts</li>
 </ul>
-<h2 id="case-study-minidump_handle_data" class="section-header"><a href="#case-study-minidump_handle_data">Case Study: MINIDUMP_HANDLE_DATA</a></h2>
+<h2 id="case-study-minidump_handle_data"><a href="#case-study-minidump_handle_data">Case Study: MINIDUMP_HANDLE_DATA</a></h2>
 <p>Microsoft is genuinely a master of this forward-compatability fuckery, to the extent that they even keep stuff they really care about layout-compatible <em>between architectures</em>. An example I’ve recently been working with is <a href="https://docs.microsoft.com/en-us/windows/win32/api/minidumpapiset/ns-minidumpapiset-minidump_handle_data_stream">MINIDUMP_HANDLE_DATA_STREAM</a> in <code>Minidumpapiset.h</code>.</p>
 <p>This API describes a versioned list of values. The list starts with this type:</p>
 <div class="example-wrap"><pre class="language-C"><code>typedef struct _MINIDUMP_HANDLE_DATA_STREAM {
@@ -315,7 +315,7 @@ typedef MINIDUMP_HANDLE_DESCRIPTOR_N *PMINIDUMP_HANDLE_DESCRIPTOR_N;
 <p>This thing is an absolutely indestructible forward-compat <em>behemoth</em>. Hell, because they’re so careful with padding it even has the same layout between 32-bit and 64-bit! (Which is actually really important because you want a minidump processor on one architecture to be able to handle minidumps from <em>every</em> architecture.)</p>
 <p>Well, at least it’s really robust if you play along with its game and actually manipulate things by-reference and use the size fields.</p>
 <p>But hey, at least it’s very clear that there’s a game to play! At <em>some</em> point you do just have to say “you’re using this wrong”. Well ok no Microsoft probably wouldn’t say that, they’d just <a href="https://devblogs.microsoft.com/oldnewthing/20040115-00/?p=41043">do something horrible instead</a>.</p>
-<h2 id="case-study-jmp_buf" class="section-header"><a href="#case-study-jmp_buf">Case Study: jmp_buf</a></h2>
+<h2 id="case-study-jmp_buf"><a href="#case-study-jmp_buf">Case Study: jmp_buf</a></h2>
 <p>I’m not terribly familiar with this situation, but while looking into historical glibc breaks I came across this great article in lwn: <a href="https://lwn.net/Articles/605607/">The glibc s390 ABI break</a>. I’ll be assuming it’s accurate.</p>
 <p>As it turns out, glibc <em>has</em> broken the ABI of types before, at least on s390. Based on the description of this article it was <em>chaos</em>.</p>
 <p>Specifically they changed the layout of the save-state type used by setjmp/longjmp, <code>jmp_buf</code>. Now, they weren’t <em>complete</em> fools. They understood this was an ABI-breaking change, so they did the responsible symbol versioning thing.</p>
@@ -327,7 +327,7 @@ typedef MINIDUMP_HANDLE_DESCRIPTOR_N *PMINIDUMP_HANDLE_DESCRIPTOR_N;
 </blockquote>
 <p>Double Ouch!</p>
 <p>(The article is full of lots more great details, I highly recommend it.)</p>
-<h1 id="can-you-really-change-intmax_t" class="section-header"><a href="#can-you-really-change-intmax_t">Can You Really Change intmax_t?</a></h1>
+<h1 id="can-you-really-change-intmax_t"><a href="#can-you-really-change-intmax_t">Can You Really Change intmax_t?</a></h1>
 <p>As far as I’m concerned, not really. It’s just like <code>jmp_buf</code> – it’s not an opaque type, and that means it’s inlined into a ton of random structs, assumed to have a specific representation by tons of other languages and compilers, and probably part of tons of public interfaces that aren’t under the control of libc, linux, or even the distro maintainers.</p>
 <p>Sure, libc can properly do symbol versioning tricks to make <em>its</em> APIs work with the new definition, but changing the size of a really basic datatype like <code>intmax_t</code> is begging for chaos in the larger ecosystem for a platform.</p>
 <p>I’m happy to be proven wrong, but as far as I can tell making this change would necessitate a new target triple <em>and</em> to not allow any binary/library built for the old ABI to run on this new triple. You can certainly do that work, but I don’t envy any distro which does.</p>

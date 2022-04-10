@@ -16,6 +16,13 @@
     </image> 
 
     <item>
+        <title>Defaults Affect Inference in Rust: Expressions Instead Of Types - Faultlore</title>
+        <link>https://gankra.github.io/blah/defaults-affect-inference</link>
+        <description>Defaults Affect Inference in Rust: Expressions Instead Of Types</description>
+        <pubDate>Sun, 10 Apr 2022 23:00:13 +0000</pubDate>
+    </item>
+
+    <item>
         <title>The Tower of Weakenings: Memory Models For Everyone - Faultlore</title>
         <link>https://gankra.github.io/blah/tower-of-weakenings</link>
         <description>The Tower of Weakenings: Memory Models For Everyone</description>

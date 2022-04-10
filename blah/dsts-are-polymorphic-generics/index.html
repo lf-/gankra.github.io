@@ -80,7 +80,7 @@
 }</code></pre></div>
 <p>And <a href="https://doc.rust-lang.org/reference/type-coercions.html#unsized-coercions">Unsize</a> <code>&amp;MyGeneric&lt;[T; N]&gt;</code> to <code>&amp;MyGeneric&lt;[T]&gt;</code>. </p>
 <p>In either case, we have introduced some level of “distance” from the Fundamental DST by introducing extra structs that wrap them. These wrapping structs are forced to become DSTs but <em>crucially</em> the Metadata is unchanged: Rust still only stores the Metadata for the Fundamental DST and can figure everything else out from there.</p>
-<h1 id="very-large-dynamically-sized-type-metadata-vldstm" class="section-header"><a href="#very-large-dynamically-sized-type-metadata-vldstm">Very Large Dynamically Sized Type Metadata (VLDSTM)</a></h1>
+<h1 id="very-large-dynamically-sized-type-metadata-vldstm"><a href="#very-large-dynamically-sized-type-metadata-vldstm">Very Large Dynamically Sized Type Metadata (VLDSTM)</a></h1>
 <p>Currently, all DSTs must follow these rules:</p>
 <ul>
 <li><strong>Indirection</strong>: A DST must be “completed” by being put behind a pointer (<code>&amp;</code>, <code>*mut</code>, <code>Box</code>, …)</li>
@@ -94,7 +94,7 @@
 <p>A type like <code>[dyn Trait]</code> has <em>nested</em> Fundamental DSTs.</p>
 <p>In either case, we clearly need <em>multiple</em> Metadata, making our pointer wider and wider. We’re talking <em>SIMD</em> levels of wide. Actually no we’re talking <em>Itanium</em> levels of wide with VLDSTM pointers (Very Large Dynamically Sized Type Metadata)!</p>
 <p>But how many Metadatas do these types actually contain? Well when looking at a type like <code>&amp;[&amp;dyn Trait]</code> we have <em>arbitrarily many</em> Metadata, because each nested <code>&amp;dyn Trait</code> can be a <em>different</em> implementer of Trait. Does that mean <code>&amp;[dyn Trait]</code> must be Infinitely Wide? As it turns out, no! The reason there are arbitrarily many Metadata is because there are arbitrarily many <em>pointers</em>. Each pointer gets its own independent Metadata. With a type like <code>&amp;[dyn Trait]</code> there is only one pointer, so <em>everyone must share</em>.</p>
-<h1 id="polymorphic-compilation-of-generics" class="section-header"><a href="#polymorphic-compilation-of-generics">Polymorphic Compilation Of Generics</a></h1>
+<h1 id="polymorphic-compilation-of-generics"><a href="#polymorphic-compilation-of-generics">Polymorphic Compilation Of Generics</a></h1>
 <p>To understand this, let’s think about a simple generic function:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">my_generic</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Clone</span><span class="op">&gt;</span>(<span class="ident">val</span>: <span class="ident">T</span>) {
@@ -124,7 +124,7 @@
 )</code></pre></div>
 <p>Now inside the <em>body</em> of SwiftyGeneric, any time we need to handle an instance of our generic types, we can just ask the Value Witness Table whatever we need to know, and we can even <em>forward</em> it to other generic code. Need to make an <code>Array&lt;T&gt;</code> inside SwiftyGeneric? No problem, just hand the Array’s code your <code>witness_T</code> and it can use <code>witness_T.size/align/stride</code> to figure out how much memory to allocate and all the offsets!</p>
 <p>I’m making it sound simple but I cannot emphasize enough how much work this is to actually do. In particular, the fact that there can be generic types instantiated inside your generic function pointer means <em>you need to be able to generate Value Witness Tables at runtime</em> 🙀. Rust <em>tried</em> to have polymorphic generics in the early pre-1.0 days, and they quite reasonably <em>gave up</em> because it was too much work. For real Swift, great fucking working for getting all of this to work!</p>
-<h1 id="metadata-are-value-witnesses" class="section-header"><a href="#metadata-are-value-witnesses">Metadata Are Value Witnesses</a></h1>
+<h1 id="metadata-are-value-witnesses"><a href="#metadata-are-value-witnesses">Metadata Are Value Witnesses</a></h1>
 <p>Huh, I went off on a bit of a tangent there, huh? No of course not! Read the title of this section! <em>Metadata are just Value Witnesses</em>. The Metadata for <code>dyn Trait</code> is <em>literally</em> just a Value Witness Table with <code>Trait</code>’s methods stapled to the end! Slices don’t need that much, so we just need a Value Witness Length (usize).</p>
 <p>Crucially, these polymorphic generics are <em>WAY</em> tamer than full-on polymorphic function pointers. The whole “generating Value Witness Tables at runtime” thing goes completely away and you can indeed generate all your Metadata (Value Witnesses) ahead of time, which is… A Lot More Tractable!</p>
 <p>Now with that established, we can return to our hairy questions about Multiple Metadata. What <em>does</em> <code>&amp;[dyn Trait]</code> <em>mean</em>? It means this:</p>

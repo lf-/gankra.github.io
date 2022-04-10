@@ -60,7 +60,7 @@
 </blockquote>
 <p>This is the fourth entry in a series on implementing collections in the Rust programming language. The full list of entries can be found <a href="../">here</a>.</p>
 <p>In contrast to the <a href="../rust-btree-case/">previous</a> post, which dove into Rust’s BTreeMap and the idea of B-Trees in general, this post will be split up into two posts. In this post we will take a look at the general problems faced by hashtables, as well as the robin hood hashtable scheme. In the next post, we will take a high-to-mid-level look at Rust’s standard HashMap implementation (surprise, it’s a robin hood hashtable), and what it does to be safe and fast.</p>
-<h2 id="whats-a-hash" class="section-header"><a href="#whats-a-hash">What’s a Hash?</a></h2>
+<h2 id="whats-a-hash"><a href="#whats-a-hash">What’s a Hash?</a></h2>
 <p>Before I begin, I would just like to take a moment to reflect upon a formative quote offered up by my supervisor on the topic of hashing.</p>
 <blockquote>
 <p>Fuck your fucking hashtables!</p>
@@ -76,7 +76,7 @@
 <li>Do something interesting if two elements get the same index (hash conflict)</li>
 </ul>
 <p>In doing this, it is generally expected that one is able to insert, remove, and lookup keys in a hashmap in O(1) time. Literally as fast as theoretically possible! Unfortunately, in practice this O(1) is quite elusive. Or, when obtained, comes at the cost of a very <em>high</em> constant cost per operation. </p>
-<h2 id="handling-collisions" class="section-header"><a href="#handling-collisions">Handling Collisions</a></h2>
+<h2 id="handling-collisions"><a href="#handling-collisions">Handling Collisions</a></h2>
 <p>Hashing is a tricky problem in-and-of-itself, but for now we will assume we have solved the problem. This is because the problem of hashing is not very interesting until we understand how collisions are handled. So for now we will assume that, given an array of length n, every element deterministically gets mapped to an apparently random integer in the range [0, n) with uniform probability.</p>
 <p>Even with this miraculous assumption, it is still expected for collisions to occur. Especially as the map gets more full. Just <em>losing</em> one of the two elements is, presumably, not something many people want to happen. So we need some way to deal with this happening. There are two major families of collision resolution strategies: chaining, and open addressing.</p>
 <p>Chaining is the strategy you are most likely to see in an undergraduate data structure class, and definitely the easiest to implement and reason about. Basically, every index in your array doesn’t store <em>elements</em>, but rather <em>another</em> collection. Typically, the collection described is a linked-list. Every time an element is inserted into a particular index, we just add it to the list. To find if an element is in the map, we jump to its index, and then do a linear search of the list at that index. To remove an element from the map, we remove it from its list. That’s it.</p>
@@ -85,7 +85,7 @@
 <p>Regardless, chaining isn’t exactly the most efficient choice. It necessarily involves <em>some</em> level of indirection to store the auxiliary collections in an array, and those collections are going to require additional allocations to grow to fit an arbitrary number of elements. This means more wasted space, and a higher constant cost per operation.</p>
 <p>This is where open addressing comes in. Rather than introducing any of this noise about auxiliary structures, it asks the question “why don’t you just look somewhere else”? Given some deterministic way of searching from the location of the conflict for different empty spaces, we can avoid adding indirection or extra allocations to our hashmap. However, this complicates the analysis. Now we don’t just need to worry about a <em>true</em> hash collision, we also need to worry about collisions with displaced elements. A poor choice of algorithm here can completely subvert even a <em>perfect</em> hash function!</p>
 <p>However before we dig into open addressing schemes, let’s look at the problem of actually getting good hashing.</p>
-<h2 id="hashing" class="section-header"><a href="#hashing">Hashing</a></h2>
+<h2 id="hashing"><a href="#hashing">Hashing</a></h2>
 <p>Hashing is <em>technically</em> an orthogonal issue to hashmap implementation. Any decent hashing scheme can be plugged into any decent hashmap implementation. But it’s an important problem that can influence hashmap design decisions. Hashing for a hashmap is also a fairly different problem from e.g. hashing a password. As such, it’s worth discussing here.</p>
 <p>The goal of hashing is to take arbitrarily complex data and reduce it to a single (seemingly random) number. This number will be used to decide where the data should be inserted. Unfortunately, as we saw in the previous section, collisions can and will happen. The more collisions a function produces, the worse the map’s performance becomes.</p>
 <p>In fact, this is actually an attack vector on applications! The attack is variously known as a <em>denial of service attack</em>, <em>algorithmic complexity attacks</em>, or <em>hash flooding attack</em>. If a malicious user can feed carefully crafted data to a hashmap that all happens to hash to the same value, the hashmap will often experience disastrous performance. </p>
@@ -104,7 +104,7 @@
 <p>For reference, this is the position that Rust’s standard implementation takes (more on that next time). </p>
 <p>As an aside, SipHash is a <em>streaming</em> hasher. That means it consumes an arbitrary number of bytes until you tell it to spit out an answer. This is actually <em>super</em> convenient for a hashing API. Need to write a Hash implementation for a composite type? Just feed the hasher all the parts individually. Need to hash an arbitrary-length string? Just hash each byte of the string.</p>
 <p>The <em>alternative</em> to a streaming hasher is hash coding. Hash coding is super annoying and problematic. It requires the implementer of Hash to somehow reduce their type to a single integer which the hasher then hashes. This adds another place for hashmaps to be attacked, and it’s completely out of the hashmap implementor’s control. Classic mistakes like implementing hashcoding as the xor of the elements leads to easy exploits (x xor x = 0 for all x).</p>
-<h2 id="robinhood-hashmaps" class="section-header"><a href="#robinhood-hashmaps">Robinhood Hashmaps</a></h2>
+<h2 id="robinhood-hashmaps"><a href="#robinhood-hashmaps">Robinhood Hashmaps</a></h2>
 <p>Alright, let’s get back to open addressing. There are a few different strategies here, varying from simple to exotic. As cool as <a href="http://en.wikipedia.org/wiki/Cuckoo_hashing">cuckoo hashing</a> is, I will not be covering that. Instead we’re going to focus on the simple strategies.</p>
 <p>So let’s say we’ve encountered a hash collision. The index we want to occupy is full. What’s the simplest strategy you can possibly think of, to find an empty space?</p>
 <p>Walk to the right.</p>
@@ -165,7 +165,7 @@
 </blockquote>
 <p>So the expected worst-case search time is O(loglog n) if we have at most some constant load factor. I’ll admit, that’s not O(1). But let’s be serious here for a second: even if you somehow manage to populate a hash table with 2^64 elements, loglog 2^64 is… 6. For all intents and purposes, we’ve got constant-time searches.</p>
 <p>As a final little tidbit for why robinhood kicks ass, consider searching for an element in the table. Let’s say we’ve walked d steps, and we encounter an element that is some distance <em>less</em> than d from <em>its</em> ideal. If the element we’re searching for <em>was</em> in the table, then it would have displaced this one, right? So, we can stop. We don’t need to bottom out into an actually empty space to give up on the search like FCFS or LCFS, we can stop early! Nice.</p>
-<h2 id="conclusions" class="section-header"><a href="#conclusions">Conclusions</a></h2>
+<h2 id="conclusions"><a href="#conclusions">Conclusions</a></h2>
 <p>Hashmaps and hash functions enjoy a diverse ecosystem of literature and implementations. For performance and simplicity, I recommend a robinhood hashmap, which enjoys O(1) expected time per query without the need for chaining.</p>
 <p>For security, I recommend SipHash 2-4 as a reasonable <em>default</em> hashing algorithm, with some way to override the default for performance.</p>
 <p>Next time we’ll dig into Rust’s standard implementation of a HashMap using exactly the designs described above. Although theory time isn’t <em>quite</em> over. Our description will feature a <em>novel</em> theoretical result for robin hood hashmaps!</p>

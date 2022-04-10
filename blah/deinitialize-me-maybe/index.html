@@ -107,7 +107,7 @@ language optimized for the big bappy paws of cats. It’s going great – you’
 <p>These are things the programmer has to think about. Usually these things are expressed with sentinel values like “null” or “None”, which are basically just “there is no value” (i.e. basically the same thing as uninitialized memory, but hoisted up a logical level and less chaotic). </p>
 <p>Even if your language has no notion of things being initialized or uninitialized, it’s still happening on some semantic level, and it’s happening <em>constantly</em>. So all programming languages generally develop some tools to help programmers describe and think about those situations.</p>
 <p>Let’s look at those tools, and the problems that try to solve (and introduce!).</p>
-<h1 id="a-brief-aside-language-design-is-holistic" class="section-header"><a href="#a-brief-aside-language-design-is-holistic">1 A Brief Aside: Language Design is Holistic</a></h1>
+<h1 id="a-brief-aside-language-design-is-holistic"><a href="#a-brief-aside-language-design-is-holistic">1 A Brief Aside: Language Design is Holistic</a></h1>
 <p>The nasty thing with programming languages is that good design is often a <em>holistic</em> property. Certain features only make sense in the presence (or absence!) of other features. We’re going to be exploring a lot of different concepts in this post, and it’s important to keep in mind that they don’t work in a vacuum. They solve specific problems caused by solutions to <em>other</em> specific problems, caused by solutions to <strong>other other</strong> problems.</p>
 <p>For instance: </p>
 <p>“I don’t want to have <code>null</code> to be a valid value for every type”</p>
@@ -154,7 +154,7 @@ language optimized for the big bappy paws of cats. It’s going great – you’
 <p>Quite understandably, a lot of people are going to see that design and go “wow Options are garbage”. Meanwhile folks using languages built from the ground up without Option swear by how great it is to use! This is because one language has a more coherent and holistic design, while the other has a more jumbled and stapled together one.</p>
 <p>You might be picturing some particular languages here, but like, I don’t think the languages this happens to are <em>bad</em> or <em>wrong</em>. They’re just old and actively developed, and have had time for this stuff to build up. I believe this to be the fate of all actively developed languages with backwards compatibility guarantees: slowly grow into a horrible shambling mass as each new feature becomes increasingly awkward to bolt onto the side.</p>
 <p>(Arguably Rust and Swift both going through a relatively long period of aggressive breakage before stabilizing was an enormous boon, because wow they both tried a lot of Stuff That Did Not Work, and they would be a lot messier languages if they couldn’t throw stuff out and rework everything around the parts that did. But worry not, one day they will blossom into shambling frankensteins of their own making.)</p>
-<h1 id="background-concepts" class="section-header"><a href="#background-concepts">2 Background Concepts</a></h1>
+<h1 id="background-concepts"><a href="#background-concepts">2 Background Concepts</a></h1>
 <p>You can skip this section if you already believe you understand these concepts.</p>
 <p>TLDR:</p>
 <ul>
@@ -186,13 +186,13 @@ language optimized for the big bappy paws of cats. It’s going great – you’
 <p>Background Concept 3: Definite Initialization analysis lets you know how initialized variables are at each point in the program. This article will frequently say “if you use Definite Initialization then…”, so it’s useful to understand the concept.</p>
 </li>
 </ul>
-<h2 id="background-concept-1-what-is-uninitialized-memory-and-why-its-useful" class="section-header"><a href="#background-concept-1-what-is-uninitialized-memory-and-why-its-useful">2.1 Background Concept 1: What Is Uninitialized Memory, And Why It’s Useful</a></h2>
+<h2 id="background-concept-1-what-is-uninitialized-memory-and-why-its-useful"><a href="#background-concept-1-what-is-uninitialized-memory-and-why-its-useful">2.1 Background Concept 1: What Is Uninitialized Memory, And Why It’s Useful</a></h2>
 <p>The <a href="https://gankra.github.io/blah/initialize-me-maybe/">accidental prequel to this post</a> has a lot of discussion on the concept of “uninitialized”, and how it can be more murky then you’d like. </p>
 <p>For the purposes of this discussion, we are interested in a fairly high-level concept of initialization: whether a variable (or other location in memory) contains a useful value.</p>
 <p>Usually when talking about things being uninitialized, compiler people are talking about <em>uninitialized memory</em>. That is, when a variable comes into scope it gets allocated a little plot of memory that contains <em>nothing</em>. The bits are not 0 or 1, they are a third value: <code>uninit</code>.</p>
 <p>What this is trying to express is that the memory contains irrelevant garbage that shouldn’t be looked at. Only once we <em>initialize</em> the variable by assigning a value to it (overwriting the random garbage bits) can we confidently start reading that memory and know that it will have a useful meaning.</p>
 <p>It’s really important to understand this part: <strong>uninitialized memory is purely a logical construct. It exists to help us reason about the semantics of a program. We can arbitrarily decide that some particular memory is or isn’t uninitialized if we find it useful.</strong></p>
-<h3 id="uninitialized-memory-is-good-actually" class="section-header"><a href="#uninitialized-memory-is-good-actually">2.1.1 Uninitialized Memory Is Good Actually</a></h3>
+<h3 id="uninitialized-memory-is-good-actually"><a href="#uninitialized-memory-is-good-actually">2.1.1 Uninitialized Memory Is Good Actually</a></h3>
 <p>So why <em>is</em> it useful to talk about uninitialized memory? For compiler developers, there are two major reasons:</p>
 <ol>
 <li>
@@ -209,7 +209,7 @@ language optimized for the big bappy paws of cats. It’s going great – you’
 <p>Sure, you can build a system that default-initializes every value to 0 and it’s <em>fine</em>, but it’s also giving up on an opportunity to help the program write a program that does something useful. If everything is always initialized to 0 and it’s ok for programmers to rely on that, you can never distinguish between “actually wanted 0” and “forgot to put a useful value there”. You’re saving like, 3 keystrokes in exchange for the ability to catch really nasty bugs.</p>
 <p>That might be a genuinely reasonable choice for your language, but it’s not an <em>obvious</em> one. It’s also not one you need to make in such a binary manner! You could make it a <em>warning</em> to rely on the default value, but happily run the program anyway. Let the programmer test out their program, but reserve the ability to suggest ways it can improve. In this way you are basically saying the value is still <em>logically</em> uninitialized, but the compiler will do its best to try to do something reasonable about it.</p>
 <p>I think there’s a lot of really interesting potential in languages that can “do what I mean” but actually tell you about it and help you rework your program into something more robust!</p>
-<h3 id="expanding-the-scope-of-uninitialized-memory" class="section-header"><a href="#expanding-the-scope-of-uninitialized-memory">2.1.2 Expanding The Scope of Uninitialized Memory</a></h3>
+<h3 id="expanding-the-scope-of-uninitialized-memory"><a href="#expanding-the-scope-of-uninitialized-memory">2.1.2 Expanding The Scope of Uninitialized Memory</a></h3>
 <p>When I think “uninitialized memory” my mind immediately goes to a fresh allocation that hasn’t had a value written to it, and I expect this is what most other people picture as well. But we don’t need to limit ourselves to that!</p>
 <p>Many languages (or at least their implementations) have the concept of a variable becoming uninitialized <em>after</em> it has been initialized, requiring it to be reinitialized. This can happen when the value in the variable is “destroyed” or “moved”. These kinds of operations may not actually <em>modify</em> the underlying memory, but they still semantically reset all the bits to <code>uninit</code>.</p>
 <p>For instance, if you have a pointer into the heap and free it, the underlying memory may still contain the freed pointer, but it’s not correct to treat that memory like a valid pointer anymore. A freed pointer may as well be random garbage, so it’s reasonable to think of this memory as uninitialized again.</p>
@@ -228,7 +228,7 @@ language optimized for the big bappy paws of cats. It’s going great – you’
 <p>Make them silently coerce into a more appropriate value for the operation. Sentinel values being “falsey” is super popular, but they can also be “zeroish” or “NaNish” or anything else if you really just want to try to make the program do <em>something vaguely reasonable</em>.</p>
 </li>
 </ul>
-<h3 id="freeing-pointers-spooky-deinitialization-at-a-distance" class="section-header"><a href="#freeing-pointers-spooky-deinitialization-at-a-distance">2.1.3 Freeing Pointers: Spooky Deinitialization At A Distance</a></h3>
+<h3 id="freeing-pointers-spooky-deinitialization-at-a-distance"><a href="#freeing-pointers-spooky-deinitialization-at-a-distance">2.1.3 Freeing Pointers: Spooky Deinitialization At A Distance</a></h3>
 <p>In the previous section we saw that when a pointer becomes freed it <em>isn’t</em> mutated but its semantics change. Namely, it essentially becomes useless random garbage, and is reasonable to think of as uninitialized memory that shouldn’t be used anymore.</p>
 <p>The problem is that on its own, this isn’t a terribly useful insight. Pointers can be freely copied and offset, and all those “derived” pointers are arguably now also uninitialized memory (they’re dangling). It’s really easy to know the location of the pointer that was actually passed into <code>free</code>, but it’s a lot harder to know where all those other derived pointers are. </p>
 <p>What use is this horrible Spooky Deinitialization At A Distance?!</p>
@@ -239,7 +239,7 @@ language optimized for the big bappy paws of cats. It’s going great – you’
 <p>Ok but seriously, Rust’s whole “ownership” and “borrow checking” thing is basically the logically conclusion of trying <em>really</em> hard to make it possible to do whatever with pointers and still be able. Pointers are complicated.</p>
 <p>That said, we don’t necessarily need to be as <em>Extra</em> as Rust to still get some reasonable stuff done. You can build a simpler system that handles most cases reasonably. Then you can either force the programmer to constrain themselves to this system, or design a fallback system that keeps things working reasonably.</p>
 <p>We’ll discuss that in the next section.</p>
-<h2 id="background-concept-2-ownership" class="section-header"><a href="#background-concept-2-ownership">2.2 Background Concept 2: Ownership</a></h2>
+<h2 id="background-concept-2-ownership"><a href="#background-concept-2-ownership">2.2 Background Concept 2: Ownership</a></h2>
 <p>I will mostly be using Rust terminology for these concepts, because I like them (I’m biased and this is my article). More seriously I think Rust does the best job of keeping these concepts clear, because it expects programmers to think about them a lot more than any other language. The one exception is that I’m going to use “bitcopy” for the kind of shallow copy rust calls Copy, because the word “copy” is way too overloaded of a term in programming for me to just throw around.</p>
 <p>The system we will be considering is called <em>ownership</em>. You can think of it in a few different ways, and use it for different things, but this article is all about uninitialized memory, so we’ll be thinking about it a lot in this regard. That said, you can also think of it as a system for tracking and controlling the flow of values through a program.</p>
 <p>A system for managing the flow of values through a program is so useful because of the issue discussed in the previous section: <em>Spooky Deinitialization At A Distance</em>. If we know how values flow through our program (either by tracking them or restricting their flow), then we can know all the things that suddenly are (or could) be Spooky Deinitialized.</p>
@@ -247,7 +247,7 @@ language optimized for the big bappy paws of cats. It’s going great – you’
 <p>The first step in understanding ownership is to make a distinction between types which are “plain old data” (POD) and those that aren’t. POD types are “trivial” in the sense that they can’t be invalidated. They’re just a pile of bytes with a simple interpretation, and there isn’t any concern for Spooky Deinitialization. Primitives (Integers, Floats, Bools, …) are generally POD. A composite type that’s just “a bunch of primitives” such as <code>Vec4(Float, Float, Float, Float)</code> is also POD.</p>
 <p>Anything you’re more concerned with and want to really precisely track the flow of (such as heap pointers that might be freed), you make non-POD. This is a very cumbersome term, so <strong>for the rest of this article all types and values will be non-POD unless stated otherwise.</strong></p>
 <p>Instead of treating these values as random piles of bytes, we will regard them as distinct instances that <strong>never exist in more than one place in the program</strong>. That’s a strong restriction, but that’s why this system can be fairly simple!</p>
-<h3 id="ownershiplang-pseudocode-and-terminology-for-ownership" class="section-header"><a href="#ownershiplang-pseudocode-and-terminology-for-ownership">2.2.1 Ownershiplang: Pseudocode and Terminology For Ownership</a></h3>
+<h3 id="ownershiplang-pseudocode-and-terminology-for-ownership"><a href="#ownershiplang-pseudocode-and-terminology-for-ownership">2.2.1 Ownershiplang: Pseudocode and Terminology For Ownership</a></h3>
 <p>To help us discuss ownership and look at examples, we will be looking at a lot of examples using a “pseudo-Rust” language that I am going to call Ownershiplang. Beyond the usual if/else/while stuff, it has the following operations and terminology.</p>
 <p><strong>QUICK REFERENCE</strong></p>
 <ul>
@@ -284,7 +284,7 @@ language optimized for the big bappy paws of cats. It’s going great – you’
 <span class="ident">drop</span> <span class="ident">y</span>              <span class="comment">// x init          , y init -&gt; deinit</span>
 <span class="ident">drop</span> <span class="ident">x</span>              <span class="comment">// x init -&gt; deinit, y deinit</span></code></pre></div>
 <p>Note how we automatically insert <code>drop</code> calls for initialized variables that go out of scope. Here it was easy, but will it always be?</p>
-<h3 id="ownership-whats-the-point" class="section-header"><a href="#ownership-whats-the-point">2.2.2 Ownership: What’s The Point?</a></h3>
+<h3 id="ownership-whats-the-point"><a href="#ownership-whats-the-point">2.2.2 Ownership: What’s The Point?</a></h3>
 <p>Ok so I’ve defined all this stuff about “ownership” and “flows of values”, but what’s the point?</p>
 <p>Well in the most trivial sense, values that obey ownership are trivial to track: they are exactly where they are and nowhere else. If you know a variable is initialized and the type of its value, then you know how to destroy it (just drop it), and you can be confident there won’t be any Spooky Connected Copies floating around.</p>
 <p>If you do need to “copy” a value, you <em>clone</em> it, which creates a totally independent instance. In this sense you just don’t need to <em>care</em> about the flow of derived values, because whenever a value gets “copied” both versions are totally independent instances.</p>
@@ -300,7 +300,7 @@ language optimized for the big bappy paws of cats. It’s going great – you’
 <p>This works, but it also gives Swift some extremely Fun performance hazards. For instance, if you’re modifying an Array in a loop and accidentally bumping the reference count, your <code>O(n)</code> algorithm can suddenly be <code>O(n^2)</code> (because a reference count bump <em>is</em> semantically cloning it would have been quadratic even without COW, but COW “handling it for you” all the time means that copies might not be obvious).</p>
 <p>So <em>wherever</em> Swift can find a place where a refcounted pointer can be moved (+0) rather than cloned (+1) it’s not just a matter of saving an atomic increment, it can be the difference between linear and quadratic!</p>
 <p>Ownership: it’s damn useful!</p>
-<h2 id="background-concept-3-definite-initialization-analysis" class="section-header"><a href="#background-concept-3-definite-initialization-analysis">2.3 Background Concept 3: Definite Initialization Analysis</a></h2>
+<h2 id="background-concept-3-definite-initialization-analysis"><a href="#background-concept-3-definite-initialization-analysis">2.3 Background Concept 3: Definite Initialization Analysis</a></h2>
 <p>The purpose of this section is that I will frequently say “if you use Definite Initialization then you can…”. So here’s what that means and what it can do.</p>
 <p><em>Definite Initialization</em> (DI) analysis can be found in many production compilers, and it basically tracks how the initialization of variables flows into the uses of the variables.</p>
 <p>If you have ever seen a compiler spit out a warning to the effect of “hey you’re assigning a value here but nothing ever reads it”, that’s probably some version of DI. For instance, here’s rustc doing it:</p>
@@ -477,10 +477,10 @@ error[E0384]: cannot assign twice to immutable variable `x`
 8 |     x = 4;
   |     ^^^^^ cannot assign twice to immutable variable
 
-For more information about this error, try `rustc --explain E0384`.</code></pre></div><h1 id="problems-and-problematic-features" class="section-header"><a href="#problems-and-problematic-features">3 Problems and Problematic Features</a></h1>
+For more information about this error, try `rustc --explain E0384`.</code></pre></div><h1 id="problems-and-problematic-features"><a href="#problems-and-problematic-features">3 Problems and Problematic Features</a></h1>
 <p>So for the bulk of this post I will be focusing around building a C-like (really Rust-like) language with <em>constructors</em> and <em>destructors</em> – something like C++, Rust, and Swift. Even those 3 languages have a lot of really complicated differences in how they handle initialization and deinitialization! (I worked on Rust and Swift, and have reasonable knowledge of C++, but I sometimes mix up the details, it’s really complicated and subtle!)</p>
 <p>Some of the ideas here will be applicable to languages that don’t have “constructors” and “destructors”, because really what we’re talking about is thinking about the flow of values and initialization state in a program. Even if you build a nice dynamic automatically reference-counted language, a lot of these <em>ideas</em> are there under the hood – creating a reference counted object is like running a constructor, bumping the reference count is a clone (copy constructor), reducing a reference count is like dropping (destructor).</p>
-<h2 id="problem-constructor-transactionality" class="section-header"><a href="#problem-constructor-transactionality">3.1 Problem: Constructor Transactionality</a></h2>
+<h2 id="problem-constructor-transactionality"><a href="#problem-constructor-transactionality">3.1 Problem: Constructor Transactionality</a></h2>
 <p>The user has defined some type like this:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct</span> <span class="ident">MyType</span> {
@@ -496,7 +496,7 @@ For more information about this error, try `rustc --explain E0384`.</code></pre>
 </ol>
 <p>C++ and Rust both basically require you to have a specific point in your program where you provide all the values for the fields at once, to minimize the scope of this zombie period. In this way the value is <em>semantically</em> constructed atomically, because there’s no point where the value can be referred to but isn’t fully initialized.</p>
 <p>Swift instead pulls out our good friend Definite Initialization and just requires all the fields to be initialized before you can access the whole value.</p>
-<h3 id="java-constructors" class="section-header"><a href="#java-constructors">3.1.1 Java Constructors</a></h3>
+<h3 id="java-constructors"><a href="#java-constructors">3.1.1 Java Constructors</a></h3>
 <p>In Java, before the first line of a constructor even executes, the runtime has already filled in default values for every field, so the type is already completely initialized without you having to do anything. Certainly simple an effective!</p>
 <p>Having everything default initialized can be a bit wasteful, but optimizers exist for a reason. Perhaps more interestingly, this implicitly forces everything in Java to <em>have</em> a default value. Not a terribly difficult requirement given the fact that almost every type is actually a pointer which can be null. (I think every type’s default value is “0” at the bit-level, but don’t quote me on that.)</p>
 <p>(I bet there’s some interesting stuff to say about C# here, but I wouldn’t know it!)</p>
@@ -515,7 +515,7 @@ For more information about this error, try `rustc --explain E0384`.</code></pre>
         this.x = 3;
         this.y = 5;
     }      
-}</code></pre></div><h3 id="rust-constructors" class="section-header"><a href="#rust-constructors">3.1.2 Rust Constructors</a></h3>
+}</code></pre></div><h3 id="rust-constructors"><a href="#rust-constructors">3.1.2 Rust Constructors</a></h3>
 <p>Rust uses “record syntax” to force you to provide all the values for the fields as one ““atomic”“ step. Constructors are pretty boring in Rust, but I’m including them here because they’re interesting <em>in contrast</em> to what C++ does (see below).</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct</span> <span class="ident">MyType</span> {
@@ -538,7 +538,7 @@ For more information about this error, try `rustc --explain E0384`.</code></pre>
         <span class="ident">result</span> <span class="comment">// return it at the end</span>
     }
 }</code></pre></div>
-<h3 id="c-constructors" class="section-header"><a href="#c-constructors">3.1.3 C++ Constructors</a></h3>
+<h3 id="c-constructors"><a href="#c-constructors">3.1.3 C++ Constructors</a></h3>
 <p>C++ uses initializer lists (is that the right term?) to force you to provide all the values for the fields as one ““atomic”“ step. </p>
 <p>Although on the surface this is fairly similar to what Rust does, with C++ you have access to your <code>this</code> pointer in the constructor, which implies that the location in memory for the C++ value has already been allocated and passed in to the constructor.</p>
 <p>This is very important in C++ because it puts a lot more weight on instances of a type being tied to a specific location in memory. This is why “copying” or “moving” a value is described as a “constructor” – the change of location logically requires a new value! This is <em>very</em> important for values which contain “intrusive” pointers into themselves. </p>
@@ -560,7 +560,7 @@ struct MyType {
         // Although in this case we still have some work to do.
         *this-&gt;y = 5;
     }
-};</code></pre></div><h3 id="swift-constructors" class="section-header"><a href="#swift-constructors">3.1.4 Swift Constructors</a></h3>
+};</code></pre></div><h3 id="swift-constructors"><a href="#swift-constructors">3.1.4 Swift Constructors</a></h3>
 <p>Swift uses Definite Initialization to force you to provide all the values for the fields before ending an initializer or calling methods on <code>self</code>. It’s neat!</p>
 <p>It’s proper DI too, you can conditionally assign fields and do whatever as long as things are Definitely Initialized by the end! Swift also has “convenience initializers” (AKA “delegating initializers”) to distinguish between initializers which <em>really</em> initialize the values, and those that just call into another initializer.</p>
 <p>Interestingly, convenience initializers <em>can</em> call other convenience intializers – you just need to bottom out in a “designated” initializer that actually does the initialization. There is no checking for this, so you can actually just infinitely mutually recurse and blow the stack if you really want to! 💯</p>
@@ -609,7 +609,7 @@ class MyBox&lt;T&gt; {
     var val: T;
     init(_ newVal: T) { self.val = newVal; }
 }
-</code></pre></div><h2 id="problem-reassignment" class="section-header"><a href="#problem-reassignment">3.2 Problem: Reassignment</a></h2>
+</code></pre></div><h2 id="problem-reassignment"><a href="#problem-reassignment">3.2 Problem: Reassignment</a></h2>
 <p>So given <code>MyType</code> with a destructor, you can write this:</p>
 
 <div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">MyType</span>(<span class="number">1</span>);
@@ -627,7 +627,7 @@ that this is a “transactional” operation.</p>
 <p>(shallow copying isn’t really a coherent concept for types with destructors,
 because this can result in things like double-frees.) </p>
 <p>Here are some potential expansions:</p>
-<h3 id="reassignment-desugar-1-drop-construct" class="section-header"><a href="#reassignment-desugar-1-drop-construct">3.2.1 Reassignment Desugar 1: drop-construct</a></h3>
+<h3 id="reassignment-desugar-1-drop-construct"><a href="#reassignment-desugar-1-drop-construct">3.2.1 Reassignment Desugar 1: drop-construct</a></h3>
 <p>Drop x before reinitializing it with the new value.</p>
 
 <div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">MyType</span>(<span class="number">1</span>)   <span class="comment">// x init</span>
@@ -651,7 +651,7 @@ don’t want it to get destroyed before computing its replacement. </p>
 <span class="question-mark">?</span><span class="question-mark">?</span><span class="question-mark">?</span> <span class="op">=</span> <span class="ident">MyType</span>(<span class="kw">move</span> <span class="ident">x</span>)  <span class="comment">// ERROR: use of uninitialized value &quot;x&quot;</span></code></pre></div>
 <p>(I omitted the move out part because everything breaks before you get to that step and both values want to assign to the same location so it’s extra confusing.)</p>
 <p>Desugar 2 has a more reliable version of this operation, but you could imagine using ownership to determine if you can “get away with” using the more efficient Desugar 1. This is certainly possible, but it might make the language a bit more inconsistent. There’s an argument for sticking with Desugar 2 for consistency’s sake.</p>
-<h3 id="reassignment-desugar-2-construct-drop-move" class="section-header"><a href="#reassignment-desugar-2-construct-drop-move">3.2.2 Reassignment Desugar 2: construct-drop-move</a></h3>
+<h3 id="reassignment-desugar-2-construct-drop-move"><a href="#reassignment-desugar-2-construct-drop-move">3.2.2 Reassignment Desugar 2: construct-drop-move</a></h3>
 <p>Store the new value in a temporary, drop x, and then move into x.</p>
 
 <div class='information'><div class='tooltip ignore'>ⓘ</div></div><div class="example-wrap"><pre class="rust rust-example-rendered ignore"><code><span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="ident">MyType</span>(<span class="number">1</span>)     <span class="comment">// x init</span>
@@ -662,7 +662,7 @@ don’t want it to get destroyed before computing its replacement. </p>
 
 <span class="comment">// temp is not dropped because it was moved into x!</span></code></pre></div>
 <p>As far as I can tell, this is how Rust works (I was <em>sure</em> it did Desugar 1, dang!). It’s not <em>actually</em> that much more inefficient than Desugar 1, especially when optimizers get involved, but well, there’s a reason Rust has a reputation for codegen riddled with memcopies!</p>
-<h3 id="reassignment-desugar-3-construct-clone_from" class="section-header"><a href="#reassignment-desugar-3-construct-clone_from">3.2.3 Reassignment Desugar 3: construct-clone_from</a></h3>
+<h3 id="reassignment-desugar-3-construct-clone_from"><a href="#reassignment-desugar-3-construct-clone_from">3.2.3 Reassignment Desugar 3: construct-clone_from</a></h3>
 <p>Store the new value in a temporary, and use clone_from to try to minimize the
 cost of cloning instead of moving.</p>
 
@@ -675,7 +675,7 @@ cost of cloning instead of moving.</p>
 <p>C++ also doesn’t really like the concept of “reconstructing” a value. It would much rather you update the existing value in-place. Hence why we end up using clone_from. </p>
 <p>Note that we don’t get an extra temporary when we first define <code>x</code> because the initial declaration of a variable is <em>special</em>. Because the variable has <em>never</em> contained an initialized value at this point, C++ knows there’s no point in doing any kind of temporary dance and can construct the value in place.</p>
 <p>Looking at the initialization state in our desugarring, you can see how things are in some sense a lot cleaner and nicer: nothing ever becomes uninitialized until it goes out of scope. This isn’t really a tenable solution for something like <code>vector&lt;MyType&gt;</code> though, so there <em>is</em> machinery for destroying a value and constructing a new one in that location.</p>
-<h2 id="problem-delayed-initialization" class="section-header"><a href="#problem-delayed-initialization">3.3 Problem: Delayed Initialization</a></h2>
+<h2 id="problem-delayed-initialization"><a href="#problem-delayed-initialization">3.3 Problem: Delayed Initialization</a></h2>
 <p>(Delayed initialization is actually the one place where it’s worth talking about POD values, because even an integer can be uninitialized <em>at first</em>, but there’s no need to consider them differently from non-POD values, so we’ll stick to non-POD.)</p>
 <p>Here’s a simple example of delayed initialization you <em>might</em> want your language to support:</p>
 
@@ -728,7 +728,7 @@ cost of cloning instead of moving.</p>
 <span class="question-mark">?</span><span class="question-mark">?</span><span class="question-mark">?</span><span class="ident">drop</span><span class="question-mark">?</span><span class="question-mark">?</span><span class="question-mark">?</span> <span class="ident">x</span>            <span class="comment">// x MAYBE</span></code></pre></div>
 <p>This is what Rust calls <em>dynamic drop</em>. If you want this program to compile, it literally can’t be exclusively handled by static analysis (sorry Definite Initialization, I still love you!!!).</p>
 <p>We’ll look at strategies for handling this in the “Implementing Ownership” section.</p>
-<h2 id="problem-moving-out" class="section-header"><a href="#problem-moving-out">3.4 Problem: Moving Out</a></h2>
+<h2 id="problem-moving-out"><a href="#problem-moving-out">3.4 Problem: Moving Out</a></h2>
 <p>Just like you might want to support delayed initialization in your language, you might want to also support its natural counterpart: moving a value out of a variable before it goes out of scope.</p>
 <p>Once again, actual implementation details can be found in the “Implementing Ownership” section.</p>
 <p>First let’s have a minimal example of moving out of a variable:</p>
@@ -760,7 +760,7 @@ cost of cloning instead of moving.</p>
 }                       <span class="comment">// x MAYBE (merged &quot;uninit&quot; and &quot;init&quot; from both sides)</span>
 <span class="question-mark">?</span><span class="question-mark">?</span><span class="question-mark">?</span><span class="ident">drop</span><span class="question-mark">?</span><span class="question-mark">?</span><span class="question-mark">?</span> <span class="ident">x</span>            <span class="comment">// x MAYBE</span></code></pre></div>
 <p>Just as with Delayed Initialization, we need Dynamic Drop. And I won’t put it off anymore, it’s time to talk about Implementing Ownership!</p>
-<h1 id="implementing-ownership" class="section-header"><a href="#implementing-ownership">4 Implementing Ownership</a></h1>
+<h1 id="implementing-ownership"><a href="#implementing-ownership">4 Implementing Ownership</a></h1>
 <p>We’ve talked a lot about the ideas in ownership and how they can let us reason about the flow of values in our program, and how we can “desugar” some higher-level concepts to ownership semantics. But what do we even <em>do</em> with this information?</p>
 <p>And what do we do about the weird cases we saw in the previous section where things are only “maybe” initialized?</p>
 <p>Well, we have a lot of different options! First off, we’re going to look at a few different versions of <em>sentinel values</em>. If you don’t want to build any fancy static analysis, sentinel values are the solution for you!</p>
@@ -771,7 +771,7 @@ cost of cloning instead of moving.</p>
 <li>empty values (C++-like)</li>
 <li>smuggled drop flags (early versions of Rust)</li>
 </ul>
-<h2 id="ownership-strategy-null-sentinels-and-reference-counting-with-moves" class="section-header"><a href="#ownership-strategy-null-sentinels-and-reference-counting-with-moves">4.1 Ownership Strategy: Null Sentinels (And Reference Counting with Moves)</a></h2>
+<h2 id="ownership-strategy-null-sentinels-and-reference-counting-with-moves"><a href="#ownership-strategy-null-sentinels-and-reference-counting-with-moves">4.1 Ownership Strategy: Null Sentinels (And Reference Counting with Moves)</a></h2>
 <p>Lots of languages very quickly come to the conclusion that things would be <em>a lot</em> easier if everything was more uniform, and quickly come to the “everything is a pointer” strategy. And if everything is a pointer, you get a “there’s no value here” value for free: <code>null</code>!</p>
 <p>Let’s consider the design of a reference counted language (similar to Swift) that implements ownership and moves by using sentinel values.</p>
 <p>Now I imagine you’re thinking: hey what the heck, this is just basically every programming language ever! And you’re not completely wrong, but the difference is how we manipulate pointers at runtime.</p>
@@ -867,7 +867,7 @@ pointers which never have their reference count modified. It’s a fair question
 <p><em>Some</em> reference counted things can be aliased, and just want your runtime to be more uniform and simple. Reasonable!</p>
 <p>3: You are using <a href="https://gankra.github.io/blah/swift-abi/#ownership">the Swift COW trick</a>. </p>
 <p>So whenever you want to “copy” a value type, you actually just copy the pointer and bump the reference count, and do a proper deep copy whenever a mutation occurs with reference count &gt; 1. In this system, moves may be an important part of your ABI, because they don’t modify the reference count. They can also just be a thing your compiler emits in certain places as an optimization.</p>
-<h2 id="ownership-strategy-empty-sentinels-c-raii-and-move-semantics" class="section-header"><a href="#ownership-strategy-empty-sentinels-c-raii-and-move-semantics">4.2 Ownership Strategy: Empty Sentinels (C++ RAII and Move Semantics)</a></h2>
+<h2 id="ownership-strategy-empty-sentinels-c-raii-and-move-semantics"><a href="#ownership-strategy-empty-sentinels-c-raii-and-move-semantics">4.2 Ownership Strategy: Empty Sentinels (C++ RAII and Move Semantics)</a></h2>
 <p>Alright so this strategy of “empty values” is basically how C++ works, but the more I try to precisely describe how exactly C++ works, the more I’m going to put my foot in my mouth, so I’m gonna try to be a bit abstract here. The precise details of C++ might vary from what I describe.</p>
 <p>If you don’t want to have a uniform type layout, you can still implement an ownership system with runtime sentinels, but you need to be a bit more careful with it.</p>
 <p>Basically, for types that we want to be able to conditionally “initialize” or “deinitialize” with moves, we need those types to define a sentinel value that basically means “I’m empty” and for their destructor to check for this value.</p>
@@ -949,7 +949,7 @@ if cond2 {
 
 drop %x                             // drop x (may or may not be a noop)</code></pre></div>
 <p>This is basically the same thing we saw with with <code>null</code> sentinels, so similar arguments about optimizing out the <code>temp</code> cleanup apply.</p>
-<h2 id="ownership-strategy-smuggled-drop-flags-early-version-of-rust" class="section-header"><a href="#ownership-strategy-smuggled-drop-flags-early-version-of-rust">4.3 Ownership Strategy: Smuggled Drop Flags (Early Version of Rust)</a></h2>
+<h2 id="ownership-strategy-smuggled-drop-flags-early-version-of-rust"><a href="#ownership-strategy-smuggled-drop-flags-early-version-of-rust">4.3 Ownership Strategy: Smuggled Drop Flags (Early Version of Rust)</a></h2>
 <blockquote>
 <p>DISCLAIMER: some of this stuff predates my time working on Rust, so I wasn’t there for this full history. I might be misremembering or misrepresenting some of the motivation and details here, but the high level concept is correct.</p>
 </blockquote>
@@ -1000,7 +1000,7 @@ drop %x                             // drop x (may or may not be a noop)</code><
 
     <span class="comment">// temp goes out scope here, needs to be dynamically dropped!</span>
 }</code></pre></div>
-<h2 id="ownership-strategy-stack-drop-flags-rust-and-swift" class="section-header"><a href="#ownership-strategy-stack-drop-flags-rust-and-swift">4.4 Ownership Strategy: Stack Drop Flags (Rust and Swift)</a></h2>
+<h2 id="ownership-strategy-stack-drop-flags-rust-and-swift"><a href="#ownership-strategy-stack-drop-flags-rust-and-swift">4.4 Ownership Strategy: Stack Drop Flags (Rust and Swift)</a></h2>
 <p>So what was the visionary improvement upon Smuggled Drop Flags that Rust settled on?</p>
 <p>Just put the drop flags on the stack like normal variables.</p>
 <p>Yeah that’s it.</p>
@@ -1019,7 +1019,7 @@ drop %x                             // drop x (may or may not be a noop)</code><
 <p>Of course, for Rust a lot of ownership is part of the surface semantics of the language – if you mess up your moves it will be a compiler error. For Swift, this stuff shows up more as an implementation detail, than something a user thinks about day-to-day. Moves are a great optimization, so the compiler tries to find places in the program where it can insert moves instead of clones. Having dynamic drop flags makes it easier to move things more often.</p>
 <p><a href="https://forums.swift.org/t/a-roadmap-for-improving-swift-performance-predictability-arc-improvements-and-ownership-control/54206">Although Swift is more seriously looking at exposing this stuff to the end-user to make the language more reliable for low-level stuff</a>.</p>
 <p>Ownership is a tool, and tools are for solving the problems you care about!</p>
-<h2 id="ownership-strategy-static-drop-rejected-rust-proposal" class="section-header"><a href="#ownership-strategy-static-drop-rejected-rust-proposal">4.5 Ownership Strategy: Static Drop (Rejected Rust Proposal)</a></h2>
+<h2 id="ownership-strategy-static-drop-rejected-rust-proposal"><a href="#ownership-strategy-static-drop-rejected-rust-proposal">4.5 Ownership Strategy: Static Drop (Rejected Rust Proposal)</a></h2>
 <p>Ah, now for a treat. </p>
 <p>Let us turn back the page in Rust’s history. No, farther. FARTHER!</p>
 <p>Ah, there it is.</p>
@@ -1082,7 +1082,7 @@ AAAAAAAA 2</code></pre></div>
     <span class="macro">println!</span>(<span class="string">&quot;function over!&quot;</span>);
     <span class="ident">drop</span>(<span class="ident">var2</span>)</code></pre></div>
 <p>Tragically this proposal was just a <em>bit</em> too wild for Rust’s developers at the time, so we never got to really experience this. <em>Curse you pnkfelix, why couldn’t you take pnkfelix’s revolutionary ideas seriously!!</em></p>
-<h1 id="im-fucking-done" class="section-header"><a href="#im-fucking-done">5 IM FUCKING DONE</a></h1>
+<h1 id="im-fucking-done"><a href="#im-fucking-done">5 IM FUCKING DONE</a></h1>
 <p>AAAAAA THIS ARTICLE WAS SUPPOSED TO BE A BULLETED LIST HOW DID THIS HAPPEN</p>
 <p>WHY DO I KEEP DOING THIS</p>
 <p>IS THIS EVEN COHERENT</p>

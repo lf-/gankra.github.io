@@ -73,7 +73,7 @@
 <li>sse2.rs - the sse2 impl of our parallel bit tricks</li>
 </ul>
 <p>The hashtable has the parallel bit-trick details abstracted away by the generic and sse2 modules (impl picked at compile time).</p>
-<h1 id="memory-layout" class="section-header"><a href="#memory-layout">Memory Layout</a></h1>
+<h1 id="memory-layout"><a href="#memory-layout">Memory Layout</a></h1>
 <p>A table’s layout is defined by:</p>
 <ul>
 <li>n buckets (power of 2, for classic modulo trick reasons)</li>
@@ -95,7 +95,7 @@
 </ul>
 <p>I tried storing the size/capacity/etc metadata in the same allocation, but that requires more branches to handle the static empty map, and I couldn’t find any performance wins from making a HashMap thinner.</p>
 <p>Load-factor is a tunable parameter, all that matters is that you make sure there is always at least one empty bucket (feel free to crib the implementation).</p>
-<h1 id="control-bytes-and-hashes" class="section-header"><a href="#control-bytes-and-hashes">Control Bytes and Hashes</a></h1>
+<h1 id="control-bytes-and-hashes"><a href="#control-bytes-and-hashes">Control Bytes and Hashes</a></h1>
 <p>A control byte has one of 3 values:</p>
 <ul>
 <li><code>0b1111_1111</code> = EMPTY</li>
@@ -109,7 +109,7 @@
 <li>h2 - the top 7 bits of the hash, in FULL control byte format (see above); note that this will motivate you to have a hash function with good, uhhhhh, “entropy” in the high bits</li>
 </ul>
 <p>When we insert a key into the table, we store its h2 value in the associated control byte. When searching the table we can compare our search key’s h2 to each control byte. If they don’t match, then we know that we don’t have to look at the key stored there at all. With a good hash function we only have ~1/128 odds of a false positive here, so we almost never look at keys except for exactly equal ones! (We use the high bits for h2 so that they’ll be uncorrelated with the index h1, which is the log(n) lowest bits.)</p>
-<h1 id="searching-and-probing" class="section-header"><a href="#searching-and-probing">Searching and Probing</a></h1>
+<h1 id="searching-and-probing"><a href="#searching-and-probing">Searching and Probing</a></h1>
 <p>Note that in general our SIMD accesses won’t be properly aligned, so be sure to use the unaligned load/store functions. You can only use aligned ops when walking from the start of the array (iterator/realloc-ish stuff).</p>
 <p>So, searching:</p>
 <ol>
@@ -124,7 +124,7 @@
 <p>Probing is done by incrementing the current bucket by a triangularly increasing multiple of Groups: jump by 1 more group every time. So first we jump by 1 group (meaning we just continue our linear scan), then 2 groups (skipping over 1 group), then 3 groups (skipping over 2 groups), and so on.</p>
 <p>Interestingly, this pattern perfectly lines up with our power-of-two size such that we will visit every single bucket exactly once without any repeats (searching is therefore guaranteed to terminate as we always have at least one EMPTY bucket).</p>
 <p>Also note that our non-linear probing strategy makes us fairly robust against weird degenerate collision chains that can make us accidentally quadratic (Hash DoS). Also <strong>also</strong> note that we expect to almost never actually probe, since that’s WIDTH (8-16) non-EMPTY buckets we need to fail to find our key in.</p>
-<h1 id="insertion" class="section-header"><a href="#insertion">Insertion</a></h1>
+<h1 id="insertion"><a href="#insertion">Insertion</a></h1>
 <p>Insertion is done in two passes</p>
 <ul>
 <li>Pass 1: just run the search algorithm. If it returns a result, then overwrite that and return.</li>
@@ -146,7 +146,7 @@
 <li>search the Group for EMPTY or DELETED in parallel (match_empty_or_deleted)</li>
 <li>return the first location for insertion (guaranteed to exist!)</li>
 </ol>
-<h1 id="deletion" class="section-header"><a href="#deletion">Deletion</a></h1>
+<h1 id="deletion"><a href="#deletion">Deletion</a></h1>
 <p>The search routine for deletion is really easy: just run the search algorithm. There you found the thing to remove. The tricky bit is the cleanup.</p>
 <p>So we saw in the searching algorithm that our cue to probe is an entire contiguous Group of FULL/DELETED entries. So if the entry we want to delete is in within such a contiguous Group, setting it to EMPTY may “break” the search path for any key that probed over it. So we need to check if that’s the case, and if so, replace ourselves with DELETED. To put that another way: we need to find the nearest EMPTYs to our left and to our right, and make sure they’re less than WIDTH apart.</p>
 <p>Note how extreme that is: we only ever insert a tombstone if the entry we want to delete is in a pack of WIDTH non-EMPTY buckets. Under reasonable load factors that’s very unlikely!</p>
@@ -161,10 +161,10 @@
 <li>otherwise, set the bucket to EMPTY</li>
 </ol>
 <p>(implementation note, 3, 5, and 6 is just <code>a.leading_zeroes() + b.trailing_zeroes() &gt;= WIDTH</code>, although be careful which is which in your implementation, lots of negations and endianess confusion to be had!)</p>
-<h1 id="the-empty-singleton" class="section-header"><a href="#the-empty-singleton">The Empty Singleton</a></h1>
+<h1 id="the-empty-singleton"><a href="#the-empty-singleton">The Empty Singleton</a></h1>
 <p>You don’t want to allocate for empty tables, so just statically allocate an Group-aligned(!) array of <code>[EMPTY; WIDTH]</code> and point your empty collection at it. If you implemented everything right, it should just workout because you’ll load those WIDTH bytes into a Group, see it’s empty, and always conclude there’s nothing to do. When you need to actually insert, your load factor should tell you to resize right away. You mostly only need to add extra guards in places like <code>clear</code> and whenever you would realloc/free the table (all very slow paths, so no concern).</p>
 <p>There’s a minor hard-to-hit footgun here if your implementation somehow associates your pointer into the control bytes with the type of your keys. If you do this, the empty singleton may be under-aligned or you may run afoul of TBAA-style things. The fact that we hold separate pointers for keys and ctrls makes it pretty easy to avoid this. Just keep the ctrl pointer a boring untyped pointer-to-bytes.</p>
-<h1 id="extra-notes" class="section-header"><a href="#extra-notes">Extra Notes</a></h1>
+<h1 id="extra-notes"><a href="#extra-notes">Extra Notes</a></h1>
 <ul>
 <li>
 <p>You need your hash function to resize the array, as you need to recompute everyone’s h1 value, which you didn’t store. This means that swisstable will take a nasty perf hit if you have a very expensive hash function. This also makes it harder to use external state for hashing (e.g. an interner the map doesn’t know about), as more “random” operations will need that state passed in just in case.</p>

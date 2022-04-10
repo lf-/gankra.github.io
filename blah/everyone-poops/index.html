@@ -58,7 +58,7 @@
 <blockquote>
 <p>Wow I sure wrote this article, huh? What the fuck was I thinking, and why did everyone love this so much and latch onto it? I’ve preserved it for the sake of “history” but for real I made a much more useful version of this <a href="https://doc.rust-lang.org/nightly/nomicon/leaking.html">in the Rustonomicon’s section on leaking</a>. Also I rebranded “Pre-Pooping Your Pants” as just “Leak Amplification”.</p>
 </blockquote>
-<h1 id="leakpocalypse" class="section-header"><a href="#leakpocalypse">Leakpocalypse</a></h1>
+<h1 id="leakpocalypse"><a href="#leakpocalypse">Leakpocalypse</a></h1>
 <p>Much existential anguish and ennui was recently triggered by <a href="https://github.com/rust-lang/rust/issues/24292">Rust Issue #24292: std::thread::JoinGuard (and scoped) are unsound because of reference cycles</a>. If you feel like you’re sufficiently familiar with Leakpocalypse 2k15, feel free to skip to the next section. If you’ve been thoroughly stalking all my online interactions, then you’ve basically seen everything in this post already. Feel free to close this tab and return to scanning my IRC logs.</p>
 <p>The issue in question states:</p>
 <blockquote>
@@ -165,7 +165,7 @@
 <li><a href="https://github.com/rust-lang/rfcs/pull/1085">Leak and Destructor Guarantees</a></li>
 </ul>
 <p>Note that Rust has never guaranteed <em>leaks</em> don’t occur in general. Leaks, like race conditions (not to be mistaken with <a href="http://docs.oracle.com/cd/E19205-01/820-0619/geojs/index.html">data races</a>), are such a vague concept that they’re basically impossible to prevent. Putting stuff in a HashMap that you’ll never ask for again is a kind of leak. Allocating stuff on the stack and then looping forever is a kind of leak. The case where you put it on the heap and forget to ever free it is a specific kind of leak that people seem particularly terrified of for whatever reason. The issue at hand is whether data that is statically known to be “gone” can fail to have its destructor called during normal, safe execution.</p>
-<h2 id="dealing-with-it" class="section-header"><a href="#dealing-with-it">Dealing With It</a></h2>
+<h2 id="dealing-with-it"><a href="#dealing-with-it">Dealing With It</a></h2>
 <p>So initially I was pretty crestfallen. My work with collections had always assumed destructors were guaranteed to be run. This gave you the really nice property that you could make a special “handler” type that completely mangled the internal representation of a type <em>transiently</em>, and then fixed it when it was destructed. Paired with Rust’s lifetime system, this guaranteed that the transient inconsistent state was <em>statically unobservable</em> (except by the handler, of course)! Rust code could be <em>more reckless</em> than C++!</p>
 <p>The canonical example of this was to be <code>Vec::drain_range(a, b)</code>:</p>
 
@@ -278,7 +278,7 @@
 <p>Generally, one should strive to push their destructor reliance as far up this hierarchy as is practical, with the last category in the hierarchy <em>verboten</em> by an API that claims to be safe.</p>
 <p>This hierarchy is based on the assumption that leaking a destructor should be considered a bug <em>in running code</em>. That is, application code should be welcome to assume that a leak doesn’t randomly occur in code they control or under reasonable conditions in code they call. As is always the case in Rust, libraries have the onerous position of ensuring they are hardened against a leak.</p>
 <p>The fact that an API <em>admits</em> causing a leak (such as Rc) should not be considered a bug in and of itself. Especially if the leak is convoluted to invoke (as is arguably the case with Rc). While <code>mem::forget</code> is going to be safe to call, it should generally still be regarded as something that <em>unsafe</em> code does.</p>
-<h2 id="pre-pooping-your-pants" class="section-header"><a href="#pre-pooping-your-pants">Pre-Pooping Your Pants</a></h2>
+<h2 id="pre-pooping-your-pants"><a href="#pre-pooping-your-pants">Pre-Pooping Your Pants</a></h2>
 <p>So how do we push <code>drain_range</code> up the hierarchy? It turns out this is totally trivial! Just add this single line to the <code>drain_range</code> constructor:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Tell the Vec that it doesn&#39;t have any elements</span>

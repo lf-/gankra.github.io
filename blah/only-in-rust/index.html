@@ -63,12 +63,12 @@
 <p>The bug was a missing annotation, and the result was that users of Rust’s stdlib could compile some incorrect programs that violated memory safety. 🙀 Fortunately, those incorrect programs would be pretty surprising to see in the wild, so no one should be affected. Adding the annotation should fix the bug without anyone noticing.</p>
 <p>On twitter an interesting question was raised: is this the first Rust-specific bug class?</p>
 <p>Nope! There’s actually a few of them, which is why I did my best to document them in <a href="https://doc.rust-lang.org/nomicon/">The Rustonomicon</a> (which I’ve started working on again, and hope to improve and finish). But the Rust-specific bugs documented in the nomicon are mixed in with lots of details and bugs that happen in other languages, so I thought it would be interesting to put all the Rust-specific ones together in one place.</p>
-<h1 id="what-these-bugs-arent" class="section-header"><a href="#what-these-bugs-arent">What These Bugs Aren’t</a></h1>
+<h1 id="what-these-bugs-arent"><a href="#what-these-bugs-arent">What These Bugs Aren’t</a></h1>
 <p>So just to be clear, there’s lots of bugs that Rust code can have. Many of them you would expect to see in any language: integer overflow, index out of bounds, failing to sanitize input, etc.</p>
 <p>Others are <em>kinda</em> Rust-specific, in that they’re a consequence of certain features: <a href="https://doc.rust-lang.org/nomicon/exception-safety.html">exception safety</a>, dangling raw pointers, <a href="https://doc.rust-lang.org/nomicon/safe-unsafe-meaning.html#how-safe-and-unsafe-interact">inappropriately trusting interfaces</a>, etc. However we won’t be focusing on these issues because they’re just as relevant in Rust’s close relatives: C++ and Swift. (Swift doesn’t really have exception safety issues; and C++ doesn’t really have trust issues, insofar as C++ doesn’t really try to distinguish between “safe” and “unsafe” operations)</p>
 <p>But the bugs I want to focus on I’ve only seen in Rust code, as a result of unique type-system interactions. I won’t go so far as to say that no other language has these issues. I just don’t know them, and I wouldn’t expect to see them.</p>
 <p>Also I should note that all the bugs I want to focus on will be related to writing unsafe code. So these aren’t things you generally need to worry about day-to-day when using Rust. The reason they’re related to unsafe code is because these bugs are generally places where we’re doing clever/subtle things for you which are always correct <em>in safe code</em> but fall over once you start doing the things <code>unsafe</code> lets you.</p>
-<h1 id="ralfs-bug-oops-unsafe-autotraits" class="section-header"><a href="#ralfs-bug-oops-unsafe-autotraits">Ralf’s Bug: Oops Unsafe Autotraits</a></h1>
+<h1 id="ralfs-bug-oops-unsafe-autotraits"><a href="#ralfs-bug-oops-unsafe-autotraits">Ralf’s Bug: Oops Unsafe Autotraits</a></h1>
 <p>TL;DR: if you write <code>unsafe</code> you <em>must</em> closely audit <code>Send</code> and <code>Sync</code> for your types!</p>
 <p>This one’s going to need a fair bit of background, because it’s the consequence of a several obscure Rust features.</p>
 <p>There’s a trait (interface) in Rust called Sync. It’s a marker trait, which just means that the interface doesn’t actually have any methods or types you need to provide to implement. It’s basically a type-level boolean: either you implement it or you don’t. Implementing Sync is a declaration that your type has a property: it’s safe for two threads to access it concurrently. Generic APIs which want to share data between threads do that by requiring <code>T: Sync</code> so that they’re safe.</p>
@@ -85,7 +85,7 @@
 <p><em>Usually</em> this isn’t a problem because our “fishy type” protection catches it. But in this case MutexGuard just holds a perfectly normal reference to a Mutex – and Mutexes are Sync, so that should be fine!</p>
 <p>So there’s our first bug that You Should Only See In Rust: writing unsafe code, and failing to audit the stdlib’s two unsafe autotraits for your types: Send and Sync.</p>
 <p><a href="https://github.com/rust-lang/rust/pull/41624">And here’s the fix</a>: properly overriding the Sync impl for MutexGuard… right next to the line where we had already done that for Send two years ago. 😭</p>
-<h1 id="unbound-lifetimes" class="section-header"><a href="#unbound-lifetimes">Unbound Lifetimes</a></h1>
+<h1 id="unbound-lifetimes"><a href="#unbound-lifetimes">Unbound Lifetimes</a></h1>
 <p>TL;DR: don’t infer lifetimes that unsafe pointers produce!</p>
 <p>So Rust has these lifetime things. They’re type-level variables for talking about scopes/regions in your program. We attach them to references to indicate what scope of the program we can guarantee the reference will be valid for. Mostly, lifetimes only show up to create a relationship between two references. For example:</p>
 
@@ -205,7 +205,7 @@ note: borrowed value must be valid for the lifetime &#39;a as defined on the bod
   = help: consider giving it an explicit bounded or &#39;static lifetime</code></pre></div>
 <p>So one way to keep yourself safe is to use lifetime elision as much as possible.</p>
 <p><a href="https://github.com/rust-lang/rust/issues/17500#issue-43719812">Here’s a (pre-1.0) bug where we messed this up in the Rust standard library.</a></p>
-<h1 id="destructor-leaking---the-leakpocalypse" class="section-header"><a href="#destructor-leaking---the-leakpocalypse">Destructor Leaking - The Leakpocalypse</a></h1>
+<h1 id="destructor-leaking---the-leakpocalypse"><a href="#destructor-leaking---the-leakpocalypse">Destructor Leaking - The Leakpocalypse</a></h1>
 <p>TL;DR: don’t rely on borrows expiring meaning destructors ran!</p>
 <p>Every language I know of that has destructors comes with a little asterisk: destructors aren’t guaranteed to actually run. Or to put it another way:</p>
 <blockquote>
@@ -243,7 +243,7 @@ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</p>
 <p>The trick was to change the code that constructed a Drain to tell the collection that it was now empty. So, if at any point the Drain was leaked, the collection would find itself in a perfectly valid state. However this would also result in a leak of all the destructors of all the unprocessed elements being leaked. You leak me, I’ll leak you right back.</p>
 <p>However if the Drain destructor was allowed to run, which is almost always the case, then it would do all the cleanup and no one would know the difference. Nice!</p>
 <p>Sadly, some APIs don’t have any way to apply leak amplification, as was the case for the original design of thread::scoped. For that API, we had to force the user of our API to run inside a closure we call, so that we could run any cleanup code we wanted after their closure terminated. This works, it’s just less ergonomic and composable.</p>
-<h1 id="honorable-mention-zero-sized-types-zsts" class="section-header"><a href="#honorable-mention-zero-sized-types-zsts">Honorable Mention: Zero Sized Types (ZSTs)</a></h1>
+<h1 id="honorable-mention-zero-sized-types-zsts"><a href="#honorable-mention-zero-sized-types-zsts">Honorable Mention: Zero Sized Types (ZSTs)</a></h1>
 <p>TL;DR: be sure that <code>size_of::&lt;T&gt;() == 0</code> is handled reasonably for allocations and offsets!</p>
 <p>Ok so this one actually shows up in a few other languages (at very least Swift and Go), but it’s really cool and I want to talk about it. To be fair, I <em>think</em> these problems are the worst in Rust.</p>
 <p>Rust lets you create types that have nothing in them, and thus have zero size. For example, the empty tuple <code>()</code>. Instances of these types are completely useless – after all they hold no state. However they serve two purposes:</p>
@@ -268,7 +268,7 @@ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</p>
 <p>Swift decouples size from stride. ZSTs have a stride of 1 (byte), and allocations and offsets key off stride. So this means an Array of 100 empty tuples will allocate a buffer of 100 bytes that are never read/written. This is effectively the same solution that C++ has for empty types, but the decoupling of size and stride lets Swift stuff a bunch of zero-sized types in a struct and still declare that the struct is zero-sized with a stride of 1. I believe C++ would be forced to give every ZST in the struct its own byte.</p>
 <p>It seems like Go is closer to Rust in legitimately optimizing away ZSTs, but I’m not super confident in the details. Because Go is garbage collected, it seems like it needs to handle a lot of the details here for you, so ZSTs aren’t as big of a concern in practice.</p>
 <p><a href="https://dave.cheney.net/2014/03/25/the-empty-struct">This blog post</a> seems to have some interesting details about ZSTs in Go, but I don’t know how accurate it is.</p>
-<h1 id="honorable-mention-variance" class="section-header"><a href="#honorable-mention-variance">Honorable Mention: Variance</a></h1>
+<h1 id="honorable-mention-variance"><a href="#honorable-mention-variance">Honorable Mention: Variance</a></h1>
 <p>TL;DR: be sure to eat all of your PhantomDatas for breakfast!</p>
 <p>Variance is the thing that makes it so that you can pass a Cat to a function that expects an Animal in an object-oriented language, but not an <code>ArrayList&lt;Cat&gt;</code> where an <code>ArrayList&lt;Animal&gt;</code> is expected. In Rust, variance is applied to lifetimes: you can pass a long-lived thing to a function that expects short-lived things.</p>
 <p>Rust is already relatively unique in that it actually exposes type variance as something user-defined types can have (<code>&amp;MyType&lt;&amp;'long T&gt;</code> can potentially be passed where <code>&amp;MyType&lt;&amp;'short T&gt;</code> is expected). This is because variance is usually made unsound by shared mutability: if you turn an <code>ArrayList&lt;Cat&gt;</code> into an <code>ArrayList&lt;Animal&gt;</code>, and someone puts a <code>Dog</code> in, then anyone still holding the <code>ArrayList&lt;Cat&gt;</code> will interpret that Dog as a Cat! As it turns out, Rust’s type system is incredibly good at managing aliasing and mutability, so it’s easier for us to use variance in more places.</p>
@@ -290,7 +290,7 @@ WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.</p>
 }</code></pre></div>
 <p>I discuss this situation in more detail <a href="https://doc.rust-lang.org/nomicon/subtyping.html">here</a>
 and <a href="https://doc.rust-lang.org/nomicon/phantom-data.html">here</a>.</p>
-<h1 id="thats-all-i-can-think-of" class="section-header"><a href="#thats-all-i-can-think-of">That’s All I Can Think Of!</a></h1>
+<h1 id="thats-all-i-can-think-of"><a href="#thats-all-i-can-think-of">That’s All I Can Think Of!</a></h1>
 <p>Lemme know if you can think of any others!</p>
 
     </article>

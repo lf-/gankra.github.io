@@ -68,7 +68,7 @@ most surprising things I found was in the implementation of <code>insert</code>,
 }</code></pre></div>
 <p>This shocked me because it was doing something that was so offensive to people who care about collection performance that we had <a href="https://doc.rust-lang.org/std/collections/index.html#entries">designed an entire API to help people avoid it</a>: it did two lookups in the map.</p>
 <p>However, after some more discussion and review, I concluded that this implementation was reasonable. This post will try to cover why that is.</p>
-<h1 id="hashmap-basics" class="section-header"><a href="#hashmap-basics">Hashmap Basics</a></h1>
+<h1 id="hashmap-basics"><a href="#hashmap-basics">Hashmap Basics</a></h1>
 <p>Before we get into the details, we need a quick primer on how hashmaps work.</p>
 <p>A hashmap is basically just an array, and a way to convert keys to a seemingly-random index in that array (a hash function). We won’t be talking about hash functions, so just assume we’ve solved that problem well.</p>
 <p>Given this, doing insertions and lookups is conceptually very simple:</p>
@@ -113,7 +113,7 @@ most surprising things I found was in the implementation of <code>insert</code>,
 <div class="example-wrap"><pre class="language-text"><code>[..., A, *, C, _, ...]</code></pre></div>
 <p>Tombstones are like free spots for insertion, but they let our search algorithm know that there used to be something there, so we should keep searching past that spot in case it displaced the key we’re looking for.</p>
 <p>Whether tombstones or backshifting are better for you depends on your implementation and workload. All of the implementations Rust’s standard library has used over the years have been backshift based. Hashbrown is interesting because it bucks this trend and uses tombstones. So we’ll be focusing on tombstones from here on out.</p>
-<h1 id="hashbrown-and-tombstones" class="section-header"><a href="#hashbrown-and-tombstones">Hashbrown and Tombstones</a></h1>
+<h1 id="hashbrown-and-tombstones"><a href="#hashbrown-and-tombstones">Hashbrown and Tombstones</a></h1>
 <p>Tombstones lead to an interesting property of our insertion algorithm: the place that you prove that the key isn’t in the table can be incredibly far from where you perform the actual insertion:</p>
 <div class="example-wrap"><pre class="language-text"><code>[A, B, C, *, *, *, D, *, *, E, _]
  ^        ^                    ^

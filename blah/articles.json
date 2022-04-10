@@ -2,6 +2,12 @@
     "articles":
     [
         {
+            "path": "defaults-affect-inference",
+            "toc": true,
+            "title": "Defaults Affect Inference in Rust: Expressions Instead Of Types",
+            "date": "Sun, 10 Apr 2022 23:00:13 +0000"
+        },
+        {
             "path": "tower-of-weakenings",
             "toc": true,
             "title": "The Tower of Weakenings: Memory Models For Everyone",

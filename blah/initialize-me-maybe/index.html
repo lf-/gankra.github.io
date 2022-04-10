@@ -57,7 +57,7 @@
 </header>
 <p>Rust’s infamous <a href="https://doc.rust-lang.org/std/mem/fn.uninitialized.html">mem::uninitialized</a> method has been deprecated in today’s nightly build. Its replacement, <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a>, has been stabilized. If you are using the former, you should migrate to using the latter as soon as possible (probably when it hits stable in 6 weeks). This was done because it was determined that mem::uninitialized was fundamentally broken, and could not be made to work.</p>
 <p>Most of this post is dedicated to discussing the nature of uninitialized memory and how it can be worked with in Rust. <a href="#memuninitialized">Feel free to skip to the details on why mem::uninitialized is broken</a>.</p>
-<h1 id="whats-uninitialized-memory" class="section-header"><a href="#whats-uninitialized-memory">What’s Uninitialized Memory?</a></h1>
+<h1 id="whats-uninitialized-memory"><a href="#whats-uninitialized-memory">What’s Uninitialized Memory?</a></h1>
 <p>When you allocate memory in Rust it arrives to you in an <em>uninitialized</em> state. What exactly that means is a surprisingly subtle issue.</p>
 <p>From a low-level implementation perspective, this generally just means that some region of memory has been declared to be “yours”, but because that memory could have been previously used for something else, there’s no guarantee what the bits in that memory are set to. Why are old values from somewhere else still there? Because it’s faster and easier to not bother to clear out the memory.</p>
 <p>If you read from uninitialized memory, you are essentially reading random bits, and so your program may behave randomly. From this perspective, it’s almost always a serious bug to read from uninitialized memory. Although you could certainly construct cases where that’s not the case.</p>
@@ -66,7 +66,7 @@
 <p>Say you wanted to apply the simplification <code>y &amp; x =&gt; y</code>. That requires proving that <code>x</code> is all 1’s. Oh it’s uninitialized memory? Ok let’s just assume it’s all 1’s. For <code>y | x</code> you can assume it’s all 0’s. Whatever’s most convenient at the time! More controversially, one may also conclude normally impossible things, like <code>x == x =&gt; false</code>, by assuming the value is changing on each read.</p>
 <p>Unfortunately, what compilers most love in the world is to prove that something is Undefined Behaviour. Undefined Behaviour means they can apply aggressive optimizations and make everything go fast! Usually by deleting all your code.</p>
 <p>So as a conservative model it’s reasonable to just declare that if you do anything with uninitialized memory <em>other</em> than just copying it around, <strong>it is Undefined Behaviour</strong>. Full stop.</p>
-<h1 id="unsafely-working-with-uninitialized-memory-in-rust" class="section-header"><a href="#unsafely-working-with-uninitialized-memory-in-rust">Unsafely Working With Uninitialized Memory in Rust</a></h1>
+<h1 id="unsafely-working-with-uninitialized-memory-in-rust"><a href="#unsafely-working-with-uninitialized-memory-in-rust">Unsafely Working With Uninitialized Memory in Rust</a></h1>
 <p>By default, Rust prevents you from ever observing uninitialized memory, even though it actually gives you <a href="https://doc.rust-lang.org/std/option/index.html">lots of ways</a> to <a href="https://doc.rust-lang.org/nightly/nomicon/checked-uninit.html">work with it</a>. But, as you may know, Rust has an <a href="https://doc.rust-lang.org/nightly/nomicon/meet-safe-and-unsafe.html">unsafe side</a>.</p>
 <p>To my knowledge, Rust has 3 <code>unsafe</code> ways to acquire uninitialized memory that it can’t prevent you from reading:</p>
 <ul>
@@ -74,10 +74,10 @@
 <li><a href="https://doc.rust-lang.org/reference/items/unions.html">untagged unions</a></li>
 <li><a href="https://doc.rust-lang.org/std/mem/fn.uninitialized.html">mem::uninitialized</a> (BUSTED AND DEPRECATED)</li>
 </ul>
-<h2 id="raw-heap-allocation" class="section-header"><a href="#raw-heap-allocation">Raw Heap Allocation</a></h2>
+<h2 id="raw-heap-allocation"><a href="#raw-heap-allocation">Raw Heap Allocation</a></h2>
 <p>Calling <code>std::alloc::alloc</code> will give you a pointer to brand-new allocation, which means it’s a pointer to uninitialized memory. To correctly work with this memory, you must carefully initialize it with <a href="https://doc.rust-lang.org/std/primitive.pointer.html">raw pointer methods</a> like <code>write</code> and <code>copy_from</code>. These methods assume the target is uninitialized, and let you initialize it. It is up to you to maintain enough state to know when the memory is uninitialized. Ideally, you will also <code>read</code> or <code>drop_in_place</code> any initialized memory whose type has a Drop impl when you’re done with it, although forgetting to is <em>technically</em> allowed.</p>
 <p>Nothing too complex here.</p>
-<h2 id="untagged-unions" class="section-header"><a href="#untagged-unions">Untagged Unions</a></h2>
+<h2 id="untagged-unions"><a href="#untagged-unions">Untagged Unions</a></h2>
 <p>Untagged unions, on the other hand, are a little more subtle. For the most part, Rust treats unions the same as any other type. You can’t just not initialize them. This still won’t compile:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">union</span> <span class="ident">MyUnion</span> {
@@ -126,7 +126,7 @@
     <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">x</span>.<span class="ident">some</span>);
 }</code></pre></div>
 <p>Unlike C++, Rust does not have the notion of an <a href="https://en.cppreference.com/w/cpp/language/union">“active” union member</a>. Nor does Rust have C++’s <a href="https://blog.regehr.org/archives/1307">strict type-based aliasing</a>. As such, Rust freely allows you to use unions for type punning. Just be careful not to read uninitialized memory! (including padding bytes)</p>
-<h2 id="memuninitialized" class="section-header"><a href="#memuninitialized">mem::uninitialized</a></h2>
+<h2 id="memuninitialized"><a href="#memuninitialized">mem::uninitialized</a></h2>
 <p>Finally, we come to the focus of this post.</p>
 <p>The intended semantic of mem::uninitialized is that it pretends to create a value to initialize some memory, but it doesn’t actually do anything. In doing this, the static initialization checker becomes convinced the memory is initialized, but no work has been done. The motivation for this function is cases where you want to dynamically initialize a value in a way that the compiler just can’t understand, with no overhead at all.</p>
 <p>For the compiler people out there, mem::uninitialized simply lowers to <a href="https://llvm.org/docs/LangRef.html#undefined-values">llvm’s undef</a>.</p>
@@ -144,7 +144,7 @@
     <span class="comment">// All values carefully proven by programmer to be init</span>
     <span class="macro">println!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">results</span>[..]);
 }</code></pre></div>
-<h1 id="what-went-wrong" class="section-header"><a href="#what-went-wrong">What Went Wrong?</a></h1>
+<h1 id="what-went-wrong"><a href="#what-went-wrong">What Went Wrong?</a></h1>
 <p>Ok so you have determined that you’re in a special case where you need to convince the compiler’s safety checks that a value is initialized without actually initializing it. Say you write this:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">unsafe</span> {
@@ -170,7 +170,7 @@
 <p>Remember when I said that compilers can magically make uninitialized memory any value they want? And how they want everything to be Undefined Behaviour? Well because we tell the compiler that a bool is either 0 or 1, if the compiler can prove that a value of type bool is uninitialized memory it has successfully proven the program has Undefined Behaviour. No, it doesn’t matter that we didn’t read the uninitialized memory.</p>
 <p>So although mem::uninitialized can <em>maybe</em> be used correctly, for some types it’s <em>impossible</em> to use correctly. As such, we’re tossing it in the trash. It’s a bad design. You should use its replacement, <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a>.</p>
 <p>And to be absolutely clear, it’s not obvious to <a href="https://github.com/rust-lang/unsafe-code-guidelines">the Unsafe Code Guidelines team</a> that mem::uninitialized is usable even for always-valid types like u32. It’s just <em>more obviously</em> unusable for types like bool. So even if you’re very confident you won’t run into those types, you should still use <a href="https://doc.rust-lang.org/nightly/std/mem/union.MaybeUninit.html">MaybeUninit</a> just to be safe.</p>
-<h1 id="what-is-maybeuninit" class="section-header"><a href="#what-is-maybeuninit">What Is MaybeUninit?</a></h1>
+<h1 id="what-is-maybeuninit"><a href="#what-is-maybeuninit">What Is MaybeUninit?</a></h1>
 <p>In the section on <a href="#untagged-unions">untagged unions</a>, I noted that in the extreme case you could make an UntaggedOption type:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">union</span> <span class="ident">UntaggedOption</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Copy</span><span class="op">&gt;</span> {

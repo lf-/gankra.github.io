@@ -66,7 +66,7 @@
 <li><a href="#usage-examples">2.3 Usage Examples</a><ul></ul></li></ul></li>
 <li><a href="#conclusion">3 Conclusion</a><ul></ul></li></ul></nav></header>
 <p>For whatever reason “linear” types in Rust came up at work today, at which point I made my usual assertion that they’d be a nightmare to implement, because they don’t compose well. I tried to explain it off the top of my head, but I figured it’s best for me to just write it out.</p>
-<h1 id="definitions-and-the-state-of-rust" class="section-header"><a href="#definitions-and-the-state-of-rust">1 Definitions And The State Of Rust</a></h1>
+<h1 id="definitions-and-the-state-of-rust"><a href="#definitions-and-the-state-of-rust">1 Definitions And The State Of Rust</a></h1>
 <p>So there’s this thing called a <a href="https://en.wikipedia.org/wiki/Substructural_type_system">Substructural Type System</a>™, that Rust takes some ideas from. </p>
 <hr />
 <p>First off, I need to explain something about naming. My experience from discussing this system and its application to Rust and other programming languages is that it’s poorly named, and so are most of the concepts it introduces. As in, I frequently see conversations about this topic quickly get muddied and confused because two people are using the same terms to mean different things. </p>
@@ -87,12 +87,12 @@
 <li>must be used exactly once (linear™)</li>
 </ol>
 <p>Also for added confusion, sometimes linear™ or affine™ is used as a synonym for the whole substructural™ system. Nice™.</p>
-<h2 id="can-be-used-any-number-of-times" class="section-header"><a href="#can-be-used-any-number-of-times">1.1 Can Be Used Any Number Of Times</a></h2>
+<h2 id="can-be-used-any-number-of-times"><a href="#can-be-used-any-number-of-times">1.1 Can Be Used Any Number Of Times</a></h2>
 <p>This one doesn’t really need any justification – it’s how basically every programming language works. Rust provides this semantic in two forms: Copy and Clone. Copy is the form we’re all used to: total unrestricted use of the value. In Rust it has a very specific language semantic as well: copying the value can be done with a bitwise copy, and discarding the value can be done by just forgetting about it (it can’t implement Drop). </p>
 <p>This is in contrast to Swift and C++, which may implicitly execute code when a value is copied or destroyed (e.g. incrementing and decrementing reference counts).</p>
 <p>Clone is like Copy, but where we might need to do some work when we do the copy or destroy – like the aforementionned reference count manipulation. Copying a Clone value requires an explicit call to <code>clone()</code>, while destroying a Clone value implicitly calls <code>drop()</code>. <sup id="fnref1"><a href="#fn1">1</a></sup></p>
 <p>Plain Old Data types like <code>i32</code>, <code>f64</code>, and <code>[i32; 4]</code> are Copy. Almost every type in Rust is Clone (or, at least, could be without any issue).</p>
-<h2 id="cant-be-used-more-than-once" class="section-header"><a href="#cant-be-used-more-than-once">1.2 Can’t Be Used More Than Once</a></h2>
+<h2 id="cant-be-used-more-than-once"><a href="#cant-be-used-more-than-once">1.2 Can’t Be Used More Than Once</a></h2>
 <p>This is what Rust calls move semantics, or move-only types. e.g.</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>];
@@ -122,7 +122,7 @@
 <span class="ident">write_data</span>(<span class="ident">token1b</span>);               <span class="comment">// who knows what this will do</span></code></pre></div>
 <p>Most types don’t have this problem though – they own all the context they care about.</p>
 <p>Another bug move-only types can’t prevent is <em>forgetting to do a thing</em>. We can make sure you perform step1 before step2, but we can’t actually make you do step2. Which brings us to the next kind of type…</p>
-<h2 id="must-be-used-at-least-once" class="section-header"><a href="#must-be-used-at-least-once">1.3 Must Be Used At Least Once</a></h2>
+<h2 id="must-be-used-at-least-once"><a href="#must-be-used-at-least-once">1.3 Must Be Used At Least Once</a></h2>
 <p>This is the form Rust has the loosest support for, but it does have <em>some</em>. Aspects of At Least Once can be seen in two places:</p>
 <ul>
 <li>the unused_variables, unused_assignments, and unused_must_use lints</li>
@@ -178,10 +178,10 @@
 <p>Ultimately, Rust lacks “proper” support for this kind of type.</p>
 <p>(Edit: a commenter pointed out to me that you can hack some stronger must-use guarantees by making step3 return a value, and having the current function return a Step3Token. This makes it so that it’s impossible to return from the function without a proof of completing step3. But there’s lots of holes in this design, not the least of which is that the user of your API needs to be “in on it” and set that up).</p>
 <p>(Edit2: It’s possible for a library to statically require its client to call functions up to and including step3 by providing <code>with_step1&lt;R, F: FnOnce(Step1Token) -&gt; (R, Step3Token)&gt;(f: F) -&gt; R</code> instead of <code>step1() -&gt; Step1Token</code>, which fixes the first edit’s approach’s issue of require the client to have prior knowledge of step3. This is a similar pattern to what <code>scoped_threadpool</code> uses to work around the <a href="https://github.com/rust-lang/rust/issues/24292">JoinGuard unsoundness</a>)</p>
-<h2 id="must-be-used-exactly-once" class="section-header"><a href="#must-be-used-exactly-once">1.4 Must Be Used Exactly Once</a></h2>
+<h2 id="must-be-used-exactly-once"><a href="#must-be-used-exactly-once">1.4 Must Be Used Exactly Once</a></h2>
 <p>There’s nothing actually interesting about this case. It’s just a move-only must-use type. People who say they want Linear™ Types In Rust actually just want Proper Support For Relevant™ Types.</p>
 <p>As such, we will focus on what providing must-use types looks like.</p>
-<h1 id="adding-proper-must-use-types-to-rust" class="section-header"><a href="#adding-proper-must-use-types-to-rust">2 Adding Proper Must-Use Types To Rust</a></h1>
+<h1 id="adding-proper-must-use-types-to-rust"><a href="#adding-proper-must-use-types-to-rust">2 Adding Proper Must-Use Types To Rust</a></h1>
 <p>Proper support for must-use types requires three things:</p>
 <ul>
 <li>a checker that ensures a must-use value is always locally moved (mem::forget being the ultimate destination of all must-use types)</li>
@@ -189,7 +189,7 @@
 <li>stdlib support</li>
 </ul>
 <p>I posit that this system is deeply unpleasant.</p>
-<h2 id="the-checker" class="section-header"><a href="#the-checker">2.1 The Checker</a></h2>
+<h2 id="the-checker"><a href="#the-checker">2.1 The Checker</a></h2>
 <p>The checker is trivial to implement. It already basically exists in rustc to implement dynamic drop flags; it’s just a basic definite-initialization analysis. The only tweak that needs to be made is to produce an error if a must-use type isn’t definitely uninitialized by the end of the function, or overwritten while already initialized. There would need to be some special handling if <code>&lt;T: Copy&gt;</code>, I think this is easy but wouldn’t be surprised if weird stuff comes up.</p>
 <p>I’m pretty sure you don’t need to do anything special for closures that take must-use values as arguments. The creator of the closures just checks that the closure body moves the input, like any other function.</p>
 <p>I don’t think anything at all needs to be done with the borrow checker? There’s probably some new must-use reference type you could make but I can’t think of what the point of that would be (it can’t be &amp;uninit, because must-use types can be passed to mem::forget).</p>
@@ -229,7 +229,7 @@
 </li>
 </ol>
 <p>Solution 1, like all effect systems, is a huge infectious burden. Solution 2 is a bit depressing but probably the right choice to make this even vaguely usable. Anyone who opts into a panic=abort build won’t have to worry about this. </p>
-<h2 id="the-trait" class="section-header"><a href="#the-trait">2.2 The Trait</a></h2>
+<h2 id="the-trait"><a href="#the-trait">2.2 The Trait</a></h2>
 <p>First off, we have the issue of legacy defaults: all generic code today implicitly doesn’t support must-useness. That’s probably for the best, as generic must-use code is pretty awkward to write. <sup id="fnref3"><a href="#fn3">3</a></sup> Thankfully, Rust has already faced this issue once before in the form of Sized, and developed a solution for it. </p>
 <p>All generic types in Rust are implicitly Sized, but generic code may opt out of this assumption with the <code>T: ?Sized</code> bound. Here “?” is read as “maybe”. So rather than being definitely Sized, we are now saying that something is maybe Sized, which is exactly what the absence of any other trait bound means: the type specified by <code>&lt;T&gt;</code> is <em>maybe</em> Copy.</p>
 <p>I suggest introducing a new trait called Leave, which Drop extends. This is in analogy to Copy and Clone. Leave basically states “this type can be left unused”. If a type is Leave but not Drop, then dropping the value is a no-op (<code>intrinsics::needs_drop::&lt;T&gt;() == false</code>). All types implicitly derive Leave. All generic code has an implicit Leave bound. This bound can be opted out of by adding <code>T: ?Leave</code>. </p>
@@ -247,7 +247,7 @@
 <li>It will lead to pain whenever you run into an API which Doesn’t Yet Support ?Leave (because it depends on other APIs which don’t, which in turn depend on…)</li>
 </ul>
 <p>Having trouble thinking of exactly the right way to encode “a function that must be called at least once” for functions that capture must-use values. The negative bound of ?Leave combined with the backwards thinking of Fn traits hurts my brain right now.</p>
-<h2 id="usage-examples" class="section-header"><a href="#usage-examples">2.3 Usage Examples</a></h2>
+<h2 id="usage-examples"><a href="#usage-examples">2.3 Usage Examples</a></h2>
 <p>A bunch of the standard library will need to be “upgraded” to have ?Leave support. Here’s some pain points I see.</p>
 <p>Let’s look at Option:</p>
 
@@ -298,7 +298,7 @@
 </ul>
 <p>Some of these would be solved by dependent types, but that’s like the most catastrophically complex language extension there is. Others like insert, remove, and retain would need replacement APIs that return all the values that might be replaced. This is a lot of API work. Basically a full audit of the standard lib, with lots of new API design work.</p>
 <p>Actually, now that I mention it, I’m not actually certain how into_iter is supposed to work? The for loop consumes the iterator, but what if it held must-use data that isn’t part of the yield? I think the loop just has to mem::forget all iterators passed to it unconditionally, and if you did something weird, that’s your problem? Ick.</p>
-<h1 id="conclusion" class="section-header"><a href="#conclusion">3 Conclusion</a></h1>
+<h1 id="conclusion"><a href="#conclusion">3 Conclusion</a></h1>
 <p>Ok having actually written this all out, it’s better than I thought. That said, I still think it’s <em>a lot</em> of paper cuts that pile up to make an overall unpleasant and difficult to implement system. The library work is probably the biggest burden. Something that would realistically take years to shake out.</p>
 <p>Feel free to call me a fool, or ask me questions, on twitter or any of the usual places The Rust Evangelism Strikeforce hangs out.</p>
 <div class="footnotes"><hr><ol><li id="fn1"><p>Technically it calls <code>drop_in_place()</code>, which calls <code>drop()</code> and then recursively calls <code>drop_in_place()</code> on all fields.&nbsp;<a href="#fnref1">↩</a></p></li><li id="fn2"><p>There’s a bunch of hairy details about moving subfields and stuff I don’t care about getting into here.&nbsp;<a href="#fnref2">↩</a></p></li><li id="fn3"><p>The Swift devs have basically the exact same argument for move-only code, and their implicit Copy bound. Hooray!&nbsp;<a href="#fnref3">↩</a></p></li></ol></div>

@@ -74,7 +74,7 @@
 <p>This article is broken up into two sections: background and details. Feel free to skip to the details if you’re very comfortable with the problems inherent to producing a robust dynamically linked system interface.</p>
 <p>If you aren’t comfortable with the basic concepts of type layouts, ABIs, and calling conventions, I recommend reading the article I wrote on <a href="https://gankra.github.io/blah/rust-layouts-and-abis/">the basic concepts of type layout and ABI as they pertain to Rust</a>.</p>
 <p>Also huge thanks to the Swift devs for answering all of the questions I had and correcting my misunderstandings!</p>
-<h1 id="background" class="section-header"><a href="#background">1 Background</a></h1><h2 id="swift-tldr" class="section-header"><a href="#swift-tldr">1.1 Swift TLDR</a></h2>
+<h1 id="background"><a href="#background">1 Background</a></h1><h2 id="swift-tldr"><a href="#swift-tldr">1.1 Swift TLDR</a></h2>
 <p>I know a lot of people don’t really follow Swift, and it can be hard to understand what they’ve really accomplished without some context of what the language is like, so here’s a TL;DR of the language’s shape:</p>
 <ul>
 <li>Exists to replace Objective-C on Apple’s platforms, oriented at application development
@@ -109,7 +109,7 @@
 </li>
 </ul>
 <p>Don’t worry about fully understanding all of these, we’ll dig into the really important ones and their implications as we go on.</p>
-<h2 id="what-is-abi-stability-and-dynamic-linking" class="section-header"><a href="#what-is-abi-stability-and-dynamic-linking">1.2 What Is ABI Stability and Dynamic Linking</a></h2>
+<h2 id="what-is-abi-stability-and-dynamic-linking"><a href="#what-is-abi-stability-and-dynamic-linking">1.2 What Is ABI Stability and Dynamic Linking</a></h2>
 <p>When the Swift developers talk about “ABI Stability” they have exactly one thing in mind: they want native system APIs for MacOS and iOS to be written in Swift, and for you to dynamically link to them. This includes dynamically linking to a single system-wide copy of the Swift Standard Library.</p>
 <p>Ok so what’s dynamic linking? For our purposes it’s a system where you can compile an application against some abstract <em>description</em> of an interface without providing an actual implementation of it. This produces an application that on its own will not work properly, as part of its implementation is missing.</p>
 <p>To run properly, it must tell the system’s <em>dynamic linker</em> about all of the interfaces it needs implementations for, which we call <em>dynamic libraries</em> (dylibs). Assuming everything goes right, those implementations get hooked up to the application and everything Just Works.</p>
@@ -144,7 +144,7 @@ bool process(bool value);</code></pre></div>
 <p>For comparison, most platforms provide a dynamically linked version of the C standard library, and everyone uses it. On the other hand, C++’s standard library isn’t very useful to dynamically link to; it’s literally called the Standard <em>Template</em> Library!</p>
 <p>In spite of this issue (and many others), C++ <em>can</em> be dynamically linked and used in an ABI-stable way! It’s just that it ends up looking a lot more like a C interface due to the limitations.</p>
 <p>Idiomatic Rust is similarly hostile to dynamic linking (it also uses monomorphization), and so an ABI-stable Rust would also end up only really supporting C-like interfaces. Rust has largely just embraced that fact, focusing its attention on other concerns.</p>
-<h2 id="swifts-stable-abi" class="section-header"><a href="#swifts-stable-abi">1.3 Swift’s Stable ABI</a></h2>
+<h2 id="swifts-stable-abi"><a href="#swifts-stable-abi">1.3 Swift’s Stable ABI</a></h2>
 <p>I have now made some seemingly contradictory claims:</p>
 <ul>
 <li>Swift has similar features to Rust</li>
@@ -161,7 +161,7 @@ bool process(bool value);</code></pre></div>
 <p>It’s harder for third party developers to care about this, as they will naturally only control some small part of the software running on a device, and typical benchmarking strategies don’t really capture “this change made your application run faster but is making some background services less responsive and hurting battery life”. Hence C++ and Rust inevitably pushing towards “more code, more fast”.</p>
 <p>This is all to say that some things which seem like compromises made for ABI stability’s sake are genuinely just regarded as desirable.</p>
 <p>I never got any great concrete numbers on this concern from the Swift or Foundation folks, would definitely love to see some! <em>Waves at the Apple employees reading this</em>.</p>
-<h2 id="resilience-and-library-evolution" class="section-header"><a href="#resilience-and-library-evolution">1.4 Resilience and Library Evolution</a></h2>
+<h2 id="resilience-and-library-evolution"><a href="#resilience-and-library-evolution">1.4 Resilience and Library Evolution</a></h2>
 <p><a href="https://github.com/apple/swift/blob/master/docs/LibraryEvolution.rst">The Swift developers cover this topic fairly well in their documentation</a>. I’ll just be giving a simplified version, focusing on the basic motivation.</p>
 <p>Resilience is the core concept behind Swift’s dynamic linking story. It means that things default to having ABIs that are <em>resilient</em> to breaking when the implementation changes in an API-preserving way (nothing can save API-breaking changes). This allows developers to create dynamically linked and idiomatic-feeling libraries that can still easily evolve their implementations.</p>
 <p>This is in contrast to C, which only makes it <em>possible</em> to create a stable ABI with proper vigilance and foresight. This is because C requires you to commit to many of the ABI details of your interface upfront, even if you’re uncertain about them. If you don’t want to commit to those details, you’ll have to change the shape of your API to hide them.</p>
@@ -220,10 +220,10 @@ bool process(bool value);</code></pre></div>
 
 <span class="ident">public</span> <span class="ident">func</span> <span class="ident">getFileMetadata</span>(<span class="kw">_</span> <span class="ident">path</span>: <span class="ident">String</span>) -&gt; <span class="ident">FileMetadata</span><span class="question-mark">?</span></code></pre></div>
 <p>Unfortunately, guaranteeing the layout of FileMetadata using the <code>@frozen</code> attribute in future versions <em>would</em> be an ABI breaking change under the current design. Hopefully it will be clear why by the end of this document.</p>
-<h1 id="details" class="section-header"><a href="#details">2 Details</a></h1>
+<h1 id="details"><a href="#details">2 Details</a></h1>
 <p>Ok! Now for the details, where I will in fact be ignoring the <em>actual</em> details and instead discussing the high level ideas behind them.</p>
 <p>Once again, feel free to check out <a href="https://github.com/apple/swift/blob/master/docs/LibraryEvolution.rst">Swift’s documentation of the annotations that are used to manage abi resilience</a>. That covers a lot of motivation and the fine-grain details of what you can and can’t do.</p>
-<h2 id="resilient-type-layout" class="section-header"><a href="#resilient-type-layout">2.1 Resilient Type Layout</a></h2>
+<h2 id="resilient-type-layout"><a href="#resilient-type-layout">2.1 Resilient Type Layout</a></h2>
 <p>By default, a type that is defined by a dylib has a <em>resilient</em> layout. This means that the size, alignment, <a href="https://developer.apple.com/documentation/swift/memorylayout">stride</a>, and <a href="https://github.com/apple/swift/blob/master/docs/ABIStabilityManifesto.md#enums">extra inhabitants</a> of that type aren’t statically known to the application. To get that information, it must ask the dylib for that type’s <em>value witness table</em> at runtime.</p>
 <p>“Witness tables” are Swift’s term for what are ultimately vtables. The details of how these tables are acquired and laid out don’t really interest me, so I won’t discuss that.</p>
 <blockquote>
@@ -240,7 +240,7 @@ bool process(bool value);</code></pre></div>
 <p>The real major problem is stack allocations. llvm really doesn’t like dynamic stack allocations. Yes, <a href="https://llvm.org/docs/LangRef.html#alloca-instruction">alloca</a> does exist, but it’s a bit messy. I believe the Swift devs managed to get it working all the time for resilient layout, but not for some of its cousins we’ll see in the next section. In the general case, local variables need to actually be boxed up onto the heap. For convenience, I’ll just generically refer to these dynamic stack allocations as “boxed”.</p>
 <p><strong>Crucially</strong> this boxing this doesn’t change layouts, just where local variables are stored and how they’re passed in the calling convention (more on that later). Also, once there is <em>some</em> indirection everything is still stored inline. So types which already come with indirection like <code>Array&lt;MyResilientStruct&gt;</code> or <code>MyResilientClass</code> require <em>no</em> additional allocation, and consequently no ABI changes.</p>
 <p>I’ve left out some key details, but let’s address them while looking at polymorphic generics, since it turns out those are quite similar, but also more interesting!</p>
-<h2 id="polymorphic-generics" class="section-header"><a href="#polymorphic-generics">2.2 Polymorphic Generics</a></h2>
+<h2 id="polymorphic-generics"><a href="#polymorphic-generics">2.2 Polymorphic Generics</a></h2>
 <p>Unlike Rust and C++ which must monomorphize (copy+paste) implementations for each generic/template substitution, Swift is able to compile a generic function into a single implementation that can handle every substitution dynamically.</p>
 <p>This has several benefits:</p>
 <ul>
@@ -263,7 +263,7 @@ bool process(bool value);</code></pre></div>
 <p>Polymorphic code needs to work with any type, and structs don’t contain any identifying runtime information. Worse yet, polymorphic code can be called without providing any values of that type! So the <em>caller</em> needs to pass in type information. Abstractly, we <em>could</em> pass in minimal information and have the polymorphic code look up all the witness tables, but that’s really wasteful (consider calling the function in a loop). So instead Swift’s actual implementation has the caller pass in pointers to every required witness table as extra arguments (automatically handled by the compiler).</p>
 <p>With the witness tables handled, we just have the problem of passing/returning actual values. The main thing is that storing these kinds of values in registers is totally off limits; we really need to pass them around as pointers. That’s sometimes a bit slower, but not a terribly huge deal given we’re already signed up for dynamic linking and polymorphic compilation.</p>
 <p>But to really understand passing these values, we need to talk about <em>reabstraction</em>.</p>
-<h2 id="reabstraction" class="section-header"><a href="#reabstraction">2.3 Reabstraction</a></h2>
+<h2 id="reabstraction"><a href="#reabstraction">2.3 Reabstraction</a></h2>
 <p>Resilient compilation forces us to use a particular calling convention that’s different from what we would use statically. For instance, in the <a href="https://www.uclibc.org/docs/psABI-x86_64.pdf#section.3.2">x64 SysV ABI</a>, the following would have all of its fields passed in registers:</p>
 
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct</span> <span class="ident">Vec4</span> { <span class="ident">int32_t</span> <span class="ident">x</span>; <span class="ident">int32_t</span> <span class="ident">y</span>; <span class="ident">int32_t</span> <span class="ident">z</span>; <span class="ident">int32_t</span> <span class="ident">w</span>; }
@@ -319,7 +319,7 @@ bool process(bool value);</code></pre></div>
 <p>(I believe the Swift devs don’t technically call that one Reabstraction but it’s close enough that I’m happy to conflate the concepts. Thunk away ABI complexities!)</p>
 <p>Now that we have a basic idea of how resilience and polymorphism affects calling conventions, it should hopefully be clear why it’s an ABI-breaking change to mark a type as <code>@frozen</code>, removing its resilient layout: it would change the way the type is passed to functions.</p>
 <p>This could have potentially been “fixed” by making resilience part of the name mangle and providing both the resilient and non-resilient versions, but that requires robust versioning info for every attribute and could lead to a huge combinatoric explosion in the number of symbols a dylib provides. Not necessarily a great idea.</p>
-<h2 id="materialization" class="section-header"><a href="#materialization">2.4 Materialization</a></h2>
+<h2 id="materialization"><a href="#materialization">2.4 Materialization</a></h2>
 <p>Resilient layout could be generalized to provide the offsets to a resilient type’s public fields, but Swift actually takes this to another level: public fields don’t actually need to exist by default.</p>
 <p>Resiliently exposed fields are only exposed as getters and setters!</p>
 <p>Getters and setters are actually a first class feature of Swift that can be used explicitly, but for resilience the compiler will implicitly introduce those getters and setters just to hide the fact that the fields physically exist, in case you change your mind.</p>
@@ -388,7 +388,7 @@ bool process(bool value);</code></pre></div>
 
 <span class="ident">doSomeWork</span>() <span class="kw-2">*</span><span class="op">=</span> <span class="number">2</span></code></pre></div>
 <p>Nifty!</p>
-<h2 id="ownership" class="section-header"><a href="#ownership">2.5 Ownership</a></h2>
+<h2 id="ownership"><a href="#ownership">2.5 Ownership</a></h2>
 <p>Swift makes extensive use of reference counting, and as it turns out it’s really expensive to constantly modify the count! Especially when you make all your collections copy-on-write (CoW), so an errant reference count bump can make an O(n) algorithm O(n<sup>2</sup>)! (I actually consider this a correctness error in the case of data structures and algorithms, but reasonable people may disagree.)</p>
 <p>To help deal with this, Swift made ownership of reference-counted values (~classes) part of its calling convention. The most important aspect is “+0” vs “+1”, referring to how the caller should change the refcount:</p>
 <ul>
@@ -417,10 +417,10 @@ bool process(bool value);</code></pre></div>
 }</code></pre></div>
 <p>(Interestingly, this implementation is marked as <code>inlineable</code>, and so it’s actually guaranteed to always work. Array’s ABI details were pretty aggressively guaranteed since it’s a <em>relatively</em> simple fundamental type whose performance matters a lot.)</p>
 <p>There’s also a read-only version of modify, “read”, which provides a +0 getter. That one isn’t as strongly motivated, but hey it’s a nice little optimization to avoid a needless retain+release.</p>
-<h2 id="opting-out-of-resilience" class="section-header"><a href="#opting-out-of-resilience">2.6 Opting Out of Resilience</a></h2>
+<h2 id="opting-out-of-resilience"><a href="#opting-out-of-resilience">2.6 Opting Out of Resilience</a></h2>
 <p>Resilience is nifty but it clearly comes with some performance overhead. So of course Swift also provides special attributes to opt out of resilience. I had originally intended to write a whole bunch about this but it’s actually really complex and subtle, so I really need to <a href="https://github.com/apple/swift/blob/master/docs/LibraryEvolution.rst">punt to Swift’s actual docs</a>.</p>
 <p>TL;DR you can mark things as having a frozen (non-resilient) layout, exhaustively matchable, inlineable, non-subclassable, non-escaping, and a bunch of other whacky stuff which variously affects API and ABI in subtle ways.</p>
-<h2 id="esoterica" class="section-header"><a href="#esoterica">2.7 Esoterica</a></h2>
+<h2 id="esoterica"><a href="#esoterica">2.7 Esoterica</a></h2>
 <p>This is already <s>17</s> <s>18</s> <s>19</s> <s>20</s> 21 pages and it was supposed to just be a warmup for something else I need to do and I NEED TO STOP SO BULLET POINTS:</p>
 <ul>
 <li>

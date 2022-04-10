@@ -73,7 +73,7 @@
 <li><a href="#some-examples-of-calling-conventions">3.4.2 Some Examples of Calling Conventions</a><ul></ul></li></ul></li></ul></li></ul></nav></header>
 <p>Over the years I’ve found myself with a weird amount of knowledge about how types and ABIs in Rust work, and I wanted to write it all down in one place so that… it’s written down in one place. Much of this information can or should be found in the <a href="https://doc.rust-lang.org/reference/">Rust Language Reference</a> and the <a href="https://doc.rust-lang.org/nomicon/">Rustonomicon</a>.</p>
 <p>Special thanks to Nicole Mazzuca for doing tons of fact-checking on this one!</p>
-<h1 id="the-anatomy-of-a-platform" class="section-header"><a href="#the-anatomy-of-a-platform">1 The Anatomy of a Platform</a></h1>
+<h1 id="the-anatomy-of-a-platform"><a href="#the-anatomy-of-a-platform">1 The Anatomy of a Platform</a></h1>
 <p>There are a lot of exotic platforms out there, and C is kinda jacked up from trying to support them all. Some of these distortions are annoying but technically fair, like not defining integers to be two’s complement or not defining a byte (char) to be 8 bits, because those captured genuine differences between platforms at the time. Others are more just an artifact from C trying something that ended up being a mistake, like <a href="#the-c-integer-hierarchy">the weird integer size fuzziness and promotion stuff</a>.</p>
 <p>A lot of the things C was trying to cope with have largely died off or been relegated to incredibly niche platforms. As such Rust took the opportunity to define more of the properties of the platforms it supports without breaking compatibility with C on those platforms.</p>
 <blockquote>
@@ -100,21 +100,21 @@
 <li><a href="#segmented-architectures">Segmented architectures</a></li>
 <li>Platforms where <code>ptrdiff_t</code> = <code>intptr_t</code> = <code>ssize_t</code> doesn’t hold</li>
 </ul>
-<h1 id="the-anatomy-of-a-type" class="section-header"><a href="#the-anatomy-of-a-type">2 The Anatomy of a Type</a></h1>
+<h1 id="the-anatomy-of-a-type"><a href="#the-anatomy-of-a-type">2 The Anatomy of a Type</a></h1>
 <p>Types have several properties that define how they can be manipulated and accessed. It’s possible to only know some of these properties, in which case it’s only safe to do certain operations.</p>
 <p>It’s also possible to know literally nothing about a type, in which case the only thing you can really do with it is pass around pointers to it in a type-safe way. A situation where this might be true is when using a library which defines the type, and needs you to hold onto some pointers for it, but doesn’t want you to actually access the data in those pointers. For instance this might be how state is passed to callbacks. Rust calls such a type an <em><a href="https://github.com/rust-lang/rfcs/blob/master/text/1861-extern-types.md">extern type</a></em>.</p>
 <p>As of this writing, extern types are still experimental. <code>struct MyType { }</code> can be used for a similar purpose, although the compiler won’t produce an error if you try to load/store values of that type, instead silently discarding the accesses.</p>
-<h2 id="size" class="section-header"><a href="#size">2.1 Size</a></h2>
+<h2 id="size"><a href="#size">2.1 Size</a></h2>
 <p>The most fundamental property of a type is its <em>size</em>: how many bytes it occupies in memory. Knowing only the size of a type, it’s possible to perform pointer offsets into arrays of that type and to copy values between pointers of that type. The stride of elements in an array is always equal to their size. Values of that type can also be loaded from or stored in registers, though registers generally aren’t part of the semantic model of Rust.</p>
 <p>In Rust, unlike C/C++, types may have a size of 0 (a zero-sized type, or ZST). This generally just means that it doesn’t actually exist in memory, and therefore reads/writes of its values are no-ops.</p>
 <p>A type’s size may be a dynamic property of its values, as is the case for types like <code>[T]</code> and <code>Trait</code>. Such types don’t implement the assumed-to-be-implemented <code>Sized</code> trait. Generic functions which wish to work with such a type must opt-in with <code>&lt;T: ?Sized&gt;</code>.</p>
-<h2 id="alignment" class="section-header"><a href="#alignment">2.2 Alignment</a></h2>
+<h2 id="alignment"><a href="#alignment">2.2 Alignment</a></h2>
 <p>The second most fundamental property of a type is its <em>alignment</em>: what number of bytes its position in memory must be a multiple of (when stored in memory). So for instance a type with alignment 4 can only be stored at address 0, 4, 8, etc. With size and alignment, it becomes possible to allocate memory where values of that type can be stored.</p>
 <p>Alignment is at least 1 and must always be a power of 2. Size is always a multiple of alignment. A type usually has the maximum alignment of its fields’ alignments. Alignment requirements give rise to <em>padding</em> which is parts of the a type which are logically uninitialized because the size or relative position of something needed to be rounded to satisfy alignment. Reads to padding aren’t guaranteed to produce reliable results, and writes to padding aren’t guaranteed to be respected.</p>
 <p>Alignment is largely an artifact of hardware which either prefers or requires that operations have a certain alignment. In a lot of cases misaligned accesses are “just” a nasty performance cliff, but in other cases the hardware will actually raise an exception for misalignment. In some sense how the hardware behaves doesn’t actually matter anymore, because the compiler may assume pointers are aligned and miscompile your code if they aren’t!</p>
 <p>Zero-sized types may have an alignment greater than 1 (e.g. <code>[u32; 0]</code> has the alignment of <code>u32</code>, which is usually 4). Although ZSTs don’t exist in memory, fields and pointers of that type must still be well-aligned, so a ZST may influence the layout, size, and alignment of a composite type that contains it.</p>
 <p>As a slight aside, some older ABIs like the i386 System V ABI (the x86 linux C ABI) will align things in a slightly weird way. When placed in a struct, a <code>double</code> will be aligned to <code>4</code>, but on the stack it will always be aligned to <code>8</code>. However Rust is able to be compatible with this by just always aligning to <code>4</code>, as C can’t tell if a pointer to a double is part of a struct or its own local.</p>
-<h2 id="offsets" class="section-header"><a href="#offsets">2.3 Offsets</a></h2>
+<h2 id="offsets"><a href="#offsets">2.3 Offsets</a></h2>
 <p>The <em>offsets</em> of a type are the relative positions of each of its fields. There are three possibilities for offsets in Rust:</p>
 <ul>
 <li>Offsets are non-deterministic</li>
@@ -158,7 +158,7 @@
 }</code></pre></div>
 <p><code>Vec</code> doesn’t have any deterministic ordering, so although we deterministically know the exact offsets <code>x</code> and <code>y</code> will be stored at, we can’t know the offset of <code>z</code> or the size of <code>MyStruct</code>, because those facts depend on the size of <code>y</code> which isn’t deterministically knowable. As such this type isn’t suitable for FFI with C.</p>
 <p>Ok actually it might be the case that alignment also isn’t deterministic by default? In which case <code>y</code>’s offset would also be unknown. This is under-defined, and <a href="https://github.com/rust-rfcs/unsafe-code-guidelines/issues/11">is actively being discussed by the Rust developers</a>.</p>
-<h2 id="layout" class="section-header"><a href="#layout">2.4 Layout</a></h2>
+<h2 id="layout"><a href="#layout">2.4 Layout</a></h2>
 <p>The <em>layout</em> of a type is its size, alignment, offsets, and the recursive layouts of its fields.</p>
 <p>Having the full layout of a type allows one to access the fields of a type. It also makes it possible to convert between types with <em>compatible</em> layouts. There isn’t really a strict definition of compatible layout I can come up with. Basically if you know some memory has the same location in both types, you can reinterpret one type as the other and know what happens to that memory. This is perfectly legal in Rust because we have no type-based alias analysis (TBAA, AKA “strict aliasing”).</p>
 <p>For instance, you can create your own kind of inheritance this way:</p>
@@ -188,7 +188,7 @@
     <span class="macro">println!</span>(<span class="string">&quot;&quot;</span>);
 }</code></pre></div>
 <p>Also if you can create a type declaration with compatible layout in C/C++, you can pass that value across the FFI boundary by-reference and have both sides be able to read/write all the fields.</p>
-<h2 id="abi" class="section-header"><a href="#abi">2.5 ABI</a></h2>
+<h2 id="abi"><a href="#abi">2.5 ABI</a></h2>
 <p>The layout of a type is enough to do anything you want to do with a type <em>within Rust</em>, but it’s insufficient for full communication with C. In particular, it’s insufficient for passing things <em>by value</em> to a C function. This is because there are additional properties that define the <em>ABI</em> (Application Binary Interface) of a type. The ABI of a type determines how it is passed to a C function by-value (<a href="#calling-conventions">see the section on calling conventions for details</a>).</p>
 <p>To my knowledge the only property that is unique to ABI is that of <em>type-kind</em>. Although <code>#[repr(C)] struct MyType(u32)</code>, <code>u32</code>, and <code>f32</code> may be layout compatible on a given target, they may still have incompatible ABIs because they have a different type-kind.</p>
 <p>As of this writing, there are 4 type-kinds that Rust can care about:</p>
@@ -211,7 +211,7 @@
 
 <span class="attribute">#[<span class="ident">repr</span>(<span class="ident">C</span>)]</span>
 <span class="kw">struct</span> <span class="ident">Hetero</span>(<span class="ident">u64</span>, <span class="ident">f64</span>);</code></pre></div>
-<h2 id="the-layoutsabis-of-builtins" class="section-header"><a href="#the-layoutsabis-of-builtins">2.6 The Layouts/ABIs of Builtins</a></h2>
+<h2 id="the-layoutsabis-of-builtins"><a href="#the-layoutsabis-of-builtins">2.6 The Layouts/ABIs of Builtins</a></h2>
 <p>Here is a table of the ABIs of the core primitives in Rust, which C/C++ types they are guaranteed to be ABI compatible with, and what values are defined for these types (storing other values in such a type may lead to Undefined Behaviour):</p>
 <div><table><thead><tr><th></th><th>size</th><th>align</th><th>kind</th><th>C/C++ type</th><th>defined values</th></tr></thead><tbody>
 <tr><td>u8</td><td>1</td><td>1</td><td>integer</td><td>uint8_t</td><td>all</td></tr>
@@ -243,7 +243,7 @@
 <p>Arrays (<code>[T; n]</code>) have the same layout as C arrays: aligned to <code>T</code>, with <code>n * size_of::&lt;T&gt;()</code> size, and element <code>i</code> is at byte offset <code>i * size_of::&lt;T&gt;()</code>. However arrays currently have no specified type-kind, as arrays cannot actually be passed by-value in C (<code>void func(int x[5])</code> is semantically identical to <code>void func(int* x)</code>).</p>
 <p>Tuples have completely unspecified layout, except for <code>()</code> which is size 0 and align 1.</p>
 <p>I think that covers all the interesting builtins.</p>
-<h2 id="specifying-layouts-and-abis" class="section-header"><a href="#specifying-layouts-and-abis">2.7 Specifying Layouts and ABIs</a></h2>
+<h2 id="specifying-layouts-and-abis"><a href="#specifying-layouts-and-abis">2.7 Specifying Layouts and ABIs</a></h2>
 <p>The following annotations have the following effects on layout and ABI:</p>
 <ul>
 <li>
@@ -272,9 +272,9 @@
 </li>
 </ul>
 <p>And that’s everything I know about defining type layouts and ABIs in Rust!</p>
-<h1 id="extended-random-notes" class="section-header"><a href="#extended-random-notes">3 Extended Random Notes</a></h1>
+<h1 id="extended-random-notes"><a href="#extended-random-notes">3 Extended Random Notes</a></h1>
 <p>Welcome to The Turbo Footnotes, where I just dump random stuff that is tangentially related.</p>
-<h2 id="the-c-integer-hierarchy" class="section-header"><a href="#the-c-integer-hierarchy">3.1 The C Integer Hierarchy</a></h2>
+<h2 id="the-c-integer-hierarchy"><a href="#the-c-integer-hierarchy">3.1 The C Integer Hierarchy</a></h2>
 <p>So C had two problems it was trying to solve: different platforms have different values for the size of a byte (the smallest unit of addressable memory), and different platforms have different “native” (most efficient/important) integer sizes.</p>
 <p>Their solution to this was two-fold: define a type for the platform’s unit of memory (<code>char</code>) and then define a hierarchy of integers with different sizing constraints between them. In this way code could theoretically be portable and run reasonably well on 10-bit-byte platforms, 16-bit platforms, 32-bit platforms, and so on.</p>
 <p>The constraints for the core integer types are as follows:</p>
@@ -290,11 +290,11 @@
 <p>This isn’t just a theoretical concern. During the 32-bit era, assuming <code>int</code> was <em>exactly</em> 32 bits became so rampant that when 64-bit hardware started to show up, compiler developers were forced to define <code>int</code> to still be 32 bits, as too much software was completely busted when <code>int</code> was anything else.</p>
 <p>Of course the whole point of <code>int</code> is that its <em>supposed</em> to be the native integer size, so this in turn pushed compiler developers to abuse the fact that signed overflow is undefined to allow <code>int</code> to be implicitly promoted to 64-bit in places where it really mattered.</p>
 <p>There was a really great compiler dev (gcc?) email about this history but I can’t seem to find it anymore. So for the time-being I’ll settle for <a href="https://gist.github.com/rygorous/e0f055bfb74e3d5f0af20690759de5a7">Fabien Giesen’s discussion on the matter</a>.</p>
-<h2 id="endianness" class="section-header"><a href="#endianness">3.2 Endianness</a></h2>
+<h2 id="endianness"><a href="#endianness">3.2 Endianness</a></h2>
 <p>For integers and floats, endianness (AKA byte-order) specifies how the individual bytes of the value are ordered. In a big-endian encoding they’re written out like you would write numbers on paper: the most significant bytes come first. In a little-endian system the least significant bytes come first. As far as I can tell this is basically the systems programming version of oxford commas, in that it really doesn’t matter much but everyone has strong opinions so you regularly see both.</p>
 <p>These days little-endian has largely won the battle for what new hardware uses as its native format (e.g. all x64 chips and most ARM chips), while big-endian has been relegated to being the storage/wire encoding for a bunch of random formats.</p>
 <p>With that said, it’s really easy to write programs that are agnostic to the native endianness of a platform, so it’s really not a big deal for Rust to support the remaining big-endian platforms.</p>
-<h2 id="segmented-architectures" class="section-header"><a href="#segmented-architectures">3.3 Segmented Architectures</a></h2>
+<h2 id="segmented-architectures"><a href="#segmented-architectures">3.3 Segmented Architectures</a></h2>
 <p>A segmented architecture, for our purposes, is one in which pointers that have an identical runtime representation may actually refer to different regions of memory, because they are associated with different <em>segments</em>.</p>
 <p>One example generously provided to me by John Regehr is the <a href="http://www.kjit.bme.hu/images/stories/targyak/jarmufedelzeti_rendszerek/atmel_atmega128_manual.pdf">ATmega128</a>, an 8-bit arduino microcontroller which has 4 segments: SRAM, EEPROM, ROM, and I/O.</p>
 <p>I am aware of three reasons why segmentation can be messy to the programming model:</p>
@@ -304,7 +304,7 @@
 <li>Segmentation may involve decoupling the size of a pointer and the size of a pointer offset, which Rust currently mandates are equal (usize).</li>
 </ul>
 <p>Unfortunately I am running out of steam here and really am only peripherally aware of these issues, so uh, I’m just gonna leave it at that for now. Someone else figure this out!</p>
-<h2 id="calling-conventions" class="section-header"><a href="#calling-conventions">3.4 Calling Conventions</a></h2>
+<h2 id="calling-conventions"><a href="#calling-conventions">3.4 Calling Conventions</a></h2>
 <p>ABI can mean a lot of different things to different people. At the end of the day it’s a catch-all term
 for “implementation details that at least two things need to agree on for everything to work”. In this document we refer to ABI as covering type layout and how the different types/values are passed between C functions, as these are the aspects of the Rust ABI that are guaranteed and useful.</p>
 <p>There are additional details of Rust’s ABI which are currently unspecified and unstable, such as vtable layouts for trait objects, and how linker/debug symbols are mangled. It’s fine if that was gibberish to you, because you aren’t really allowed to care about those things right now! (Although that doesn’t necessarily stop people from trying…)</p>
@@ -317,7 +317,7 @@ for “implementation details that at least two things need to agree on for ever
 <li><a href="https://github.com/apple/swift/blob/edfb86f09aaf8cfcc1a0608bdcd6fe21b7a35460/docs/CallingConvention.rst#responsibility">Swift’s ownership/ARC ABI</a></li>
 <li><a href="https://quuxplusone.github.io/blog/2018/05/02/trivial-abi-101/">Non-trivial types in C++</a></li>
 </ul>
-<h3 id="problem-and-motivation-for-calling-conventions" class="section-header"><a href="#problem-and-motivation-for-calling-conventions">3.4.1 Problem and Motivation for Calling Conventions</a></h3>
+<h3 id="problem-and-motivation-for-calling-conventions"><a href="#problem-and-motivation-for-calling-conventions">3.4.1 Problem and Motivation for Calling Conventions</a></h3>
 <p>So first off, the problem: it’s pretty common for CPUs to have some kind of native notion of calling a function, but it’s generally much simpler than a programming language function call. In its simplest form, a call instruction just tells the CPU to jump to a new set of instructions and start executing those. But functions as we know them in most languages have arguments, and so we need to define some way for the <em>caller</em> to set up state so that the <em>callee</em> can find those arguments. Function returns are similar, requiring the <em>callee</em> to set up state so that the <em>caller</em> can pick up where it left off, and also acquire any returned values.</p>
 <p>There’s two major ways to pass state between the two sides of a function call: in registers, and on the stack. There’s a bunch of competing concerns here that make one of the other more desirable and I don’t pretend to fully understand them, but I’ll try to give a sketch of some of them here.</p>
 <p><a href="https://en.wikipedia.org/wiki/Processor_register">Registers</a> are your CPU’s primary observable global (well, thread-local-ish) state. They’re incredibly fast to access, but also generally very small. Also registers are usually mandatory to get anything done. CPU instructions can be thought of as little builtin functions with their own adhoc ABIs, and those ABIs generally pass arguments/returns in registers. A nice beefy modern cpu might give you general purpose registers on the order of 32 64-bit values. Less than a KB of working space! SIMD registers might beef this up to a few KB, but they’re also much less flexible to use. See also <a href="https://en.wikipedia.org/wiki/Register_renaming">register renaming</a> for fun details on how the size of your working set is a lot more complicated than just a number!</p>
@@ -332,7 +332,7 @@ for “implementation details that at least two things need to agree on for ever
 <p>Here’s a slightly better solution: right before performing the call, the caller saves all the registers it actually cares about to the stack. Then the callee can assume it can do whatever it wants with the registers, and the caller just assumes the callee has stomped over all the registers, and reinitializes them as it sees fit. This is <em>caller saving</em> or <em>volatile registers</em>. By default, this is a lot better because the caller generally won’t actually be using many of the registers (especially because most of the register size is in harder-to-use SIMD). Another advantage of this approach is that it now completely frees up all the registers to be used for argument/return value passing!</p>
 <p>Modern calling conventions generally have a more hybrid approach which, presumably, is based on typical patterns. Some registers are marked as callee-saved, while others are caller-saved. This gives the callee and caller some flexibility to try to cooperate to avoid register saving.</p>
 <p>For instance, if the caller keeps all of its working set in non-volatile registers while the callee keeps all of its working set in volatile registers, then no registers need to be saved at all. This gives a reasonable motivation to keep around a <em>few</em> callee-saved registers. Similarly, callee-saving is desirable for code that passes around a “context” pointer to lots of functions (see: <code>this</code>/<code>self</code> in a huge amount of languages, and I assume several Very Cursed C Frameworks).</p>
-<h3 id="some-examples-of-calling-conventions" class="section-header"><a href="#some-examples-of-calling-conventions">3.4.2 Some Examples of Calling Conventions</a></h3>
+<h3 id="some-examples-of-calling-conventions"><a href="#some-examples-of-calling-conventions">3.4.2 Some Examples of Calling Conventions</a></h3>
 <p>Rather than detail entire calling conventions here, I’m mostly just going to focus on where the distinctions made in the earlier sections of this document affect how different conventions behave. In particular I believe it is sufficient to look at some examples of value passing for the System V ABIs for <a href="https://www.uclibc.org/docs/psABI-i386.pdf#section.2.2">x86</a> (“cdecl”) and <a href="https://software.intel.com/sites/default/files/article/402129/mpx-linux64-abi.pdf#section.3.2">x64</a> (these are the standard Linux/BSD/MacOS calling conventions, although x86 was a bit more wild-west so assume I’m talking about GCC on Linux here while I pray that that has any kind of consistent meaning).</p>
 <p>A note on notation: I use <code>stack -x</code> to indicate that the value is stored <code>x</code> bytes before the frame of the callee (because the System V ABIs store stack arguments in the caller).</p>
 <p>Given this decl:</p>

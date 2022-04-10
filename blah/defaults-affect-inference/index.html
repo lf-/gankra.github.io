@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <title>Defaults Affect Inference in Rust: Expressions Instead Of Types - Faultlore</title></title>
+
+    
+    <link href="../rust.css" rel="stylesheet" type="text/css">
+<link href="../style.css" rel="stylesheet" type="text/css">
+
+<meta name="author" content="Aria Beingessner">
+<meta property="og:image" content="https://gankra.github.io/blah/img/error-base.png">
+<meta property="og:type" content="article">
+
+<meta property="og:title" content="Defaults Affect Inference in Rust: Expressions Instead Of Types - Faultlore">
+<meta property="og:url" content="https://gankra.github.io/blah/defaults-affect-inference">
+
+</head>
+<body class="rustdoc">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    <link href="../header.css" rel="stylesheet" type="text/css">
+
+<header id="title-bar">
+    <div id = "logo">
+        <a id="logo" href="../">
+            <img src="../img/error-glitch.png"/>
+        </a>
+    </div>
+    
+    <h1 id="title">
+        <div id="title-layer1" class="layer">
+            Faultlore
+            <div id="title-layer2" class="layer">
+                Faultlore
+                <div id="title-layer3" class="layer">
+                    Faultlore
+                </div>
+            </div>
+        </div>
+    </h1>
+</header>
+
+<article class="content">
+
+    <h1 class="title">Defaults Affect Inference in Rust: Expressions Instead Of Types</h1>
+    <header>
+    <p class="author">Aria Beingessner</p>
+    <p class="date">April 10th, 2022</p>
+<nav id="TOC"><ul>
+<li><a href="#default-type-parameters">1 Default Type Parameters</a><ul></ul></li>
+<li><a href="#adding-new-defaulted-parameters">2 Adding New Defaulted Parameters</a><ul></ul></li>
+<li><a href="#defaults-affect-inference">3 Defaults Affect Inference</a><ul></ul></li>
+<li><a href="#some-wild-shit-swift-does">4 Some Wild Shit Swift Does</a><ul></ul></li>
+<li><a href="#rust-features-you-want-anyway">5 Rust Features You Want Anyway</a><ul>
+<li><a href="#named-arguments">5.1 Named Arguments</a><ul></ul></li>
+<li><a href="#optional-arguments">5.2 Optional Arguments</a><ul></ul></li></ul></li>
+<li><a href="#solving-hashers-and-allocators-fantasy-version">6 Solving Hashers and Allocators: Fantasy Version</a><ul></ul></li>
+<li><a href="#subset-defaults">7 Subset Defaults</a><ul></ul></li>
+<li><a href="#solving-hashers-and-allocators-reality-version">8 Solving Hashers and Allocators: Reality Version</a><ul></ul></li>
+<li><a href="#solving-hashers-and-allocators-hacky-version">9 Solving Hashers and Allocators: Hacky Version</a><ul></ul></li>
+<li><a href="#implementing-default-with-optional-args">10 Implementing Default With Optional Args</a><ul></ul></li>
+<li><a href="#conclusion">11 Conclusion</a><ul></ul></li></ul></nav></header>
+<p>Have you ever noticed that some of the bounds on Rust’s collection types are weird? This is a very long and old story of a problem from before even 1.0. I will explain this problem, and then try to solve it in a new way. I will fail to do so, but in the process develop out a lot of interesting concepts, and maybe someone a little smarter than me can find the “missing piece” to perfectly solve the problem.</p>
+<h1 id="default-type-parameters"><a href="#default-type-parameters">1 Default Type Parameters</a></h1>
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span> <span class="op">=</span> <span class="ident">RandomState</span><span class="op">&gt;</span>;
+
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">RandomState</span><span class="op">&gt;</span>;
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span><span class="op">&gt;</span>;</code></pre></div>
+<p><a href="https://doc.rust-lang.org/std/collections/struct.HashMap.html">HashMap</a> has a third type parameter that you may have not noticed, declared as <code>S = RandomState</code>. S is the <a href="https://doc.rust-lang.org/std/hash/trait.BuildHasher.html">Hasher</a> HashMap uses, and we’re saying that if it isn’t otherwise specified, to implicitly use <a href="https://doc.rust-lang.org/std/collections/hash_map/struct.RandomState.html">RandomState</a>, which protects users against accidentally being vulnerable to <a href="https://gankra.github.io/blah/robinhood-part-1/#hashing">Hash DOS Attacks</a>. This is a safe default, but not always necessary, so users can explicitly specify their own S to make seeding deterministic, or just to make the hashing algorithm weaker (and presumably faster).</p>
+<p>But why does <code>new</code> hardcode RandomState, while <code>default</code> doesn’t?</p>
+<p>Well, it’s because defaulted type parameters are… not as good as you would hope. If you use HashMap as a type, as in <code>my_map: HashMap&lt;K, V&gt;</code> then rust will implicitly understand that this is actually just shorthand for <code>HashMap&lt;K, V, RandomState&gt;</code>. But if you refer to HashMap as part of an expression, as in <code>HashMap::some_static_method</code> then the default isn’t “turned on” – all 3 of K, V, and S are free to be inferred from context.</p>
+<p>Rust is pretty all or nothing with type parameters: either you’re specifying that something <em>has</em> some type, all the generics need to be filled in, and the default is applied; or you’re using the type name as a glorified namespace for its methods, all of the generics are freely inferred, and defaults aren’t applied. (This line gets blurrier when you write <code>let x: HashMap&lt;_, V&gt; = ...</code> but don’t worry about it.)</p>
+<p>Inferring the types in the “expression” context is very handy, because it lets you not write any type parameters when they can be obviously inferred from usage. For instance, this works:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">my_map</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
+<span class="ident">my_map</span>.<span class="ident">insert</span>(<span class="string">&quot;hello&quot;</span>, <span class="string">&quot;there&quot;</span>);
+<span class="macro">println!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">my_map</span>);</code></pre></div>
+<p>But this doesn’t:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">my_map</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
+<span class="macro">println!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">my_map</span>);</code></pre></div>
+<div class="example-wrap"><pre class="language-text"><code>error[E0282]: type annotations needed for `HashMap&lt;K, V&gt;`
+ --&gt; src/main.rs:4:22
+  |
+4 |     let mut my_map = HashMap::new();
+  |         ----------   ^^^^^^^^^^^^ cannot infer type for type parameter `K`
+  |         |
+  |         consider giving `my_map` the explicit type `HashMap&lt;K, V&gt;`, where the type parameter `K` is specified</code></pre></div>
+<p>The problem is that we “need” to know what type the HashMap has, but we’re only using operations that are completely generic so… it could have any type! We can help rustc out with a type ascription:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">my_map</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">u32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
+<span class="macro">println!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">my_map</span>);</code></pre></div>
+<p>or the turbofish:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">my_map</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">u32</span><span class="op">&gt;</span><span class="ident">::new</span>();
+<span class="macro">println!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">my_map</span>);</code></pre></div>
+<p>But hold on, how is the compiler inferring S in this snippet?</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">my_map</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
+<span class="ident">my_map</span>.<span class="ident">insert</span>(<span class="string">&quot;hello&quot;</span>, <span class="string">&quot;there&quot;</span>);
+<span class="macro">println!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">my_map</span>);</code></pre></div>
+<p>What possibly determines it? Well, we can find out the hard way by using HashMap::default instead:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">my_map</span> <span class="op">=</span> <span class="ident">HashMap::default</span>();
+<span class="ident">my_map</span>.<span class="ident">insert</span>(<span class="string">&quot;hello&quot;</span>, <span class="string">&quot;there&quot;</span>);
+<span class="macro">println!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">my_map</span>);</code></pre></div>
+<div class="example-wrap"><pre class="language-text"><code>error[E0282]: type annotations needed for `HashMap&lt;&amp;str, &amp;str, S&gt;`
+ --&gt; src/main.rs:4:22
+  |
+4 |     let mut my_map = HashMap::default();
+  |         ----------   ^^^^^^^ cannot infer type for type parameter `S` declared on the struct `HashMap`
+  |         |
+  |         consider giving `my_map` the explicit type `HashMap&lt;_, _, S&gt;`, where the type parameter `S` is specified</code></pre></div>
+<p>YUP! HashMap::new hardcoding <code>S = RandomState</code> is <em>load bearing</em>. Any code that creates a short-lived HashMap as part of some algorithm would run into this horrible error about how S is unknown! The consequence (suffering) of this hack is that anyone who <em>does</em> want to change S just… doesn’t get to use <code>new</code>! This is why it’s common to see:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">type</span> <span class="ident">MyMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">MyHasher</span><span class="op">&gt;</span>;
+
+<span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">MyMap::default</span>();
+...</code></pre></div>
+<p>We were sneaky and cut out a little “hole” in the API where it’s generic, so that you still have Basically Nice Things. Unfortunately this is a hack that’s <em>pretty</em> unique to HashMap because its default type parameter was <em>ancient</em>. Like, pre-1.0 ancient. In terms of API stability, HashMap has <em>always</em> had S.</p>
+<h1 id="adding-new-defaulted-parameters"><a href="#adding-new-defaulted-parameters">2 Adding New Defaulted Parameters</a></h1>
+<p>This is not the case for <a href="https://doc.rust-lang.org/std/vec/struct.Vec.html">Vec</a>, which many years after 1.0 got a new type parameter grafted onto it. Of course that would be a breaking change since lots of code refers to <code>Vec&lt;T&gt;</code>, so we of course reached for the default type parameter machinery: </p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">A</span> <span class="op">=</span> <span class="ident">Global</span><span class="op">&gt;</span> <span class="kw">where</span>
+    <span class="ident">A</span>: <span class="ident">Allocator</span>, </code></pre></div>
+<p>Ah, the mythical generic <a href="https://doc.rust-lang.org/std/alloc/trait.Allocator.html">Allocator</a>, a feature long heralded since before even 1.0. They’re finally <a href="https://github.com/rust-lang/rust/issues/32838">experimenting with it</a>. This is a feature that, during my tenure as a standard library team member, I basically soft-blocked on “solving” the HashMap hackery. Why? Let’s look at Vec’s constructors:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Old, stable</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">Global</span><span class="op">&gt;</span>;
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_capacity</span>(<span class="ident">capacity</span>: <span class="ident">usize</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">Global</span><span class="op">&gt;</span>;
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">default</span>() -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">Global</span><span class="op">&gt;</span>;
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_raw_parts</span>(<span class="ident">ptr</span>: <span class="kw-2">*mut</span> <span class="ident">T</span>, <span class="ident">length</span>: <span class="ident">usize</span>, <span class="ident">capacity</span>: <span class="ident">usize</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">Global</span><span class="op">&gt;</span>;
+
+<span class="comment">// New, unstable</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_in</span>(<span class="ident">alloc</span>: <span class="ident">A</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">A</span><span class="op">&gt;</span>;
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_capacity_in</span>(<span class="ident">capacity</span>: <span class="ident">usize</span>, <span class="ident">alloc</span>: <span class="ident">A</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">A</span><span class="op">&gt;</span>;
+<span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_raw_parts_in</span>(<span class="comment">/* you get the idea */</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">A</span><span class="op">&gt;</span>;</code></pre></div>
+<p>Yiiiikes. All the “good” constructors hardcode the allocator to the “classic” Global allocator, and you need to use different constructors if you want a different allocator (even if it’s globally accessible too!). Worse yet, <code>Vec&lt;T, MyAllocator&gt;</code> <em>can’t implement the <a href="https://doc.rust-lang.org/std/default/trait.Default.html">Default</a> trait</em>.</p>
+<p>We always knew this “had” to happen with custom allocators, because if you were to make <code>Default</code> generic over <code>A</code> then <em>all code that calls Vec::default would become instantly ambiguous</em>. Making a ton of code stop compiling is obviously terrible, so, we didn’t! I considered this “fatal” to custom allocators, but people Really Really Want Them, so I totally understand pushing through the pain anyway.</p>
+<p>I was also willing to consider it “fatal” because… well, there was supposed to be a solution!</p>
+<h1 id="defaults-affect-inference"><a href="#defaults-affect-inference">3 Defaults Affect Inference</a></h1>
+<p>Lets go all the way back to February 2015, 3 months before Rust 1.0, where we had all agreed on the solution to this issue: <a href="https://github.com/rust-lang/rfcs/blob/master/text/0213-defaulted-type-params.md">RFC 213: Default Type Parameter Fallback</a>, or as I’ve always called it, Defaults Affect Inference (DAI).</p>
+<p>The premise is simple: if the compiler is Doing Some Inference and can’t infer what some generic type parameter is, but there’s a Default on the type… use it!</p>
+<p>The precedent is simple: the compiler <em>already does this</em> for integer literals! If absolutely nothing at all implies what type an integer literal should have, <a href="https://github.com/rust-lang/rfcs/blob/master/text/0212-restore-int-fallback.md">it just picks i32</a> to make the code work. If this sounds Completely Fucking Terrifying… it’s actually pretty rare in practice. In “real” code there’s almost always something like array indexing or your inputs/outputs that implies everything should have some particular type (Rust doesn’t do integer promotion and doesn’t like mixed-with operations). This feature is basically “make unit tests and code examples less annoying”. (Don’t ask about why it’s i32.)</p>
+<p>So! Slamdunk feature, makes perfect sense, compiler already does this trick. Pretty natural for me, a library person, to say “yep that’s happening, wait until it’s shipped”.</p>
+<p>Well, as it turns out, <a href="https://github.com/rust-lang/rust/issues/27336">it’s a more complicated feature than it sounded</a>. First there was some concern over how exactly it should <a href="https://internals.rust-lang.org/t/interaction-of-user-defined-and-integral-fallbacks-with-inference/2496">interact with i32 fallback</a> but that one seemed… fairly negligible. No one wanted to default integer types for Hashers or Allocators, and those were the important things! But as time went on the compiler folks found more <a href="https://github.com/rust-lang/rust/issues/27336#issuecomment-229988042">hairy questions</a> and things just got too nasty and… well the feature fell into limbo. In 2020 everyone just said let’s stop pretending we’re gonna crack this and <a href="https://github.com/rust-lang/rust/issues/27336#issuecomment-662951104">the tracking issue for the RFC was simply closed</a>.</p>
+<p>I’ll be honest, I don’t really “get” all the problems. It seems to be a mix of genuinely tricky corner cases mixed with fundamental limitations in the current inference engine (which has been descripted to me as “basically <a href="https://ncatlab.org/nlab/show/bidirectional+typechecking">bidirectional typechecking</a> but with some hacky subtyping-plus-<a href="http://dev.stephendiehl.com/fun/006_hindley_milner.html">Hindley-Miln</a>-ish thing grafted on”).</p>
+<p>But I have been on a kick of solving problems that I can’t understand with <a href="https://gankra.github.io/blah/tower-of-weakenings/">solutions that are obviously correct</a>, so I don’t <em>need</em> to understand the problem if I can make something simpler that seemingly “has to work”. Let’s try!</p>
+<h1 id="some-wild-shit-swift-does"><a href="#some-wild-shit-swift-does">4 Some Wild Shit Swift Does</a></h1>
+<p>So if you ever talk to me about programming language design, this conversation will happen a lot:</p>
+<p>You: “Wouldn’t it be cool if a language had &lt;wild feature&gt;”
+Me: “<a href="https://gankra.github.io/blah/swift-abi/">Oh yeah Swift did that.</a>”</p>
+<p>As far as I can tell, Swift is basically what happens when you hypnotize a bunch of compiler developers to simply believe that what ever you say “should” work <em>does</em> work, and then they start walking through walls until it <em>does</em>.</p>
+<p>There’s also a very long tradition of both Rust and Swift just blatantly pointing at eachother and just going “nice, that’s mine now”:</p>
+<ul>
+<li><a href="https://github.com/rust-lang/rfcs/blob/master/text/0160-if-let.md">Rust copies if-let from Swift</a></li>
+<li><a href="https://github.com/rust-lang/rfcs/blob/master/text/2294-if-let-guard.md">Rust copies guard-let from Swift</a></li>
+<li><a href="https://github.com/apple/swift-evolution/blob/main/proposals/0244-opaque-result-types.md">Swift copies “impl Trait” types as “some Protocol”</a></li>
+<li><a href="https://github.com/apple/swift-evolution/blob/main/proposals/0328-structural-opaque-result-types.md">Swift proceeds to make “some Protocol” more like Rust</a></li>
+</ul>
+<p>This rules! Languages should absolutely just do this whenever another language clearly nails a problem they’re working on. So, if you’re working on Swift and want some inspiration, scroll through <a href="">Rust’s RFCs</a> and if you’re working on Rust and want some inspiration, scroll through <a href="https://github.com/apple/swift-evolution/tree/main/proposals">Swift Evolution</a>.</p>
+<p>I was doing that last night and I came across this Swift Evolution proposal, <a href="https://github.com/apple/swift-evolution/blob/main/proposals/0347-type-inference-from-default-exprs.md">SE-0347: Type inference form default expressions</a>. Sounds pretty fuckin’ relevant to my interests!</p>
+<p>In this proposal, they’re looking at a problem that’s like, 3 steps deeper into rad features than Rust is right now. </p>
+<ul>
+<li>Swift has named function arguments (not used in the following example, but useful later)</li>
+<li>Swift has optional arguments with defaulted values</li>
+<li>Swift has overrideable literals (not needed by us, but Fun To Mention)</li>
+</ul>
+<p>Putting these things together with generics, you can in principle write something like this totally artifical example:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="ident">func</span> <span class="ident">compute</span><span class="op">&lt;</span><span class="ident">C</span>: <span class="ident">Collection</span><span class="op">&gt;</span>(<span class="kw">_</span> <span class="ident">values</span>: <span class="ident">C</span> <span class="op">=</span> [<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>])</code></pre></div>
+<p>This code is declaring a <code>compute(my_values)</code> function that works on any Collection, but if you don’t want to provide the data to operate on it, you can just call <code>compute</code> and it will use the default value. But the default value is an array literal, so any Collection that <em>also</em> conforms to <a href="https://swiftdoc.org/v3.0/protocol/arrayliteralconvertible/">ArrayLiteralConvertible</a> can use this. Also <a href="https://swiftdoc.org/v3.0/protocol/integerliteralconvertible/">the integer literals are overloadable</a> so this is <a href="https://stackoverflow.com/questions/29707622/swift-compiler-error-expression-too-complex-on-a-string-concatenation">actually a combinatoric type inferrence nightmare</a>, but that’s just how Swift rolls.</p>
+<p>The crux of the issue is that not all Collections conform to ArrayLiteralConvertible, so this default isn’t universally applicable. The compiler understandably and conservatively says “no” to this, but, that was only the a brief weakening of the Swift team’s hypnotic trance, so this proposal just says “actually yes”. The interpretation of this is conceptually simple: if you don’t provide this argument, then it’s “as if” you explicitly wrote out the default expression, and the compiler infers the code like normal from there.</p>
+<p>They demonstrate this with a “real” example of:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">F</span>: <span class="ident">Flags</span><span class="op">&gt;</span> {
+  <span class="ident">init</span>(<span class="ident">flags</span>: <span class="ident">F</span> <span class="op">=</span> <span class="ident">DefaultFlags</span>()) {
+    ...
+  }
+}
+
+<span class="ident">Box</span>() <span class="comment">// F is inferred to be DefaultFlags</span>
+<span class="ident">Box</span>(<span class="ident">flags</span>: <span class="ident">CustomFlags</span>()) <span class="comment">// F is inferred to be CustomFlags</span></code></pre></div>
+<p>Hey! That’s friggin’ HashMap’s Hasher! This is doing Defaults Affect Inference!</p>
+<p>But crucially, the defaulting is <em>not</em> keying off the type, and is instead keying of the <em>method</em>. Why is this crucial? Because the case where we <em>are</em> doing Default Affect Inference, it’s literally just sugar for:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="ident">Box</span>(<span class="ident">flags</span>: <span class="ident">DefaultFlags</span>()) </code></pre></div>
+<p>I think we can all agree that the compiler <em>definitely</em> already knows how to infer that, because it’s literally what we ask you to do with <a href="https://doc.rust-lang.org/std/vec/struct.Vec.html#method.new_in">Vec::new_in</a> and <a href="https://doc.rust-lang.org/std/collections/hash_map/struct.HashMap.html#method.with_hasher">HashMap::with_hasher</a>:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_in</span>(<span class="ident">alloc</span>: <span class="ident">A</span>) -&gt; <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">A</span><span class="op">&gt;</span>;
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_hasher</span>(<span class="ident">hash_builder</span>: <span class="ident">S</span>) -&gt; <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span><span class="op">&gt;</span></code></pre></div>
+<p>So if our solution is <em>literally</em> a desugarring to extra optional arguments, then It Definitely Just Works!</p>
+<h1 id="rust-features-you-want-anyway"><a href="#rust-features-you-want-anyway">5 Rust Features You Want Anyway</a></h1>
+<p>Ok so, here’s the features Rust should steal from Swift that people want anyway:</p>
+<ul>
+<li>Named arguments</li>
+<li>Optional arguments with default expressions</li>
+</ul>
+<p>Optional arguments are the only feature we “really” need, but named arguments “soft block” them because once you open the optional argument floodgates, callsites get really complicated and confusing without them! It also makes it unambiguously possible to have multiple optional arguments and elide any subset of them. For this reason I would make optional arguments <em>have</em> to be named, because it’s better for forward-compatibility (you can always add more optional defaults to the end and it’s just as easy to only use the new ones and ignore the old ones).</p>
+<h2 id="named-arguments"><a href="#named-arguments">5.1 Named Arguments</a></h2>
+<p>In Swift, named arguments are declared like this:</p>
+<div class="example-wrap"><pre class="language-swift"><code>func ditto(arg: String) { print(arg) }
+func external(withArg arg: String) { print(arg) }
+func unnamed(_ arg: String) { print(arg) } </code></pre></div>
+<p>and must be used like this:</p>
+<div class="example-wrap"><pre class="language-swift"><code>ditto(arg: &quot;hello&quot;)
+external(withArg: &quot;there&quot;)
+unnamed(&quot;everyone!&quot;)</code></pre></div>
+<p>To summarize: arguments are named by default, and function calls must use that name (it’s even part of the function signature!). <strong>The caller cannot change the order of the named arguments.</strong> If you put <em>two</em> names, then the first is “external” and the second is “internal”. If you put <code>_</code> as the external name, then it’s a purely positional argument.</p>
+<p>These rules are very interesting because they’re… not what you expect coming from a language like Python where (AIUI) named arguments are basically sugar for an unordered Dictionary as far as the caller is concerned.</p>
+<p>Swift is using named arguments to make the callsite <em>clear</em> and <em>natural to read</em>. So for instance this array search API:</p>
+<div class="example-wrap"><pre class="language-swift"><code>func starts&lt;PossiblePrefix&gt;(
+    with possiblePrefix: PossiblePrefix, 
+    by areEquivalent: (Element, PossiblePrefix.Element) throws -&gt; Bool
+) rethrows -&gt; Bool 
+where PossiblePrefix : Sequence</code></pre></div>
+<p>is called as:</p>
+<div class="example-wrap"><pre class="language-swift"><code>array.starts(with: [&quot;x&quot;, &quot;y&quot;], by: my_comparator)</code></pre></div>
+<p>It is extremely cute but also extremely unironically <em>nice</em>.</p>
+<p>How would we “steal” this for Rust?</p>
+<p>Well we can’t have the same default for backcompat, but external args are pretty common when you want to do this, so let’s take a simple approach:</p>
+<div class="example-wrap"><pre class="language-swift"><code>func ditto(arg arg: String) { println!(&quot;{arg}&quot;) }
+func external(withArg arg: String) { println!(&quot;{arg}&quot;) }
+func unnamed(arg: String) { println!(&quot;{arg}&quot;) }
+
+ditto(arg: &quot;hello&quot;)
+external(withArg: &quot;there&quot;)
+unnamed(&quot;everyone!&quot;)</code></pre></div>
+<p>Basically, you just always have to use external args. If you want you could make <code>ditto</code> be <code>_ arg</code>, you can, but is an amazing nightmare because it would mean Rust and Swift have the exact same syntax and support the exact same things <em>but the mapping from syntax to behaviour is perfectly shuffled and never the same</em>. This is pure chaos and I respect it entirely.</p>
+<p>Proponents of “Rust should totally have arbitrary subexpression type ascription” will be sad that I’m “burning” the <code>:</code> here but:</p>
+<ul>
+<li>It’s 2022 and it still hasn’t happened, get over it</li>
+<li>This is already rust’s syntax for initializing records, so it’s just Consistent.</li>
+<li>Named arguments are way higher impact than defaults</li>
+</ul>
+<p>I am perfectly happy to accept all the following restrictions Swift applies, but I concede that they’re fair game for bikeshedding because we are adding this stuff to an existing language:</p>
+<ol>
+<li>Named arguments cannot be reordered by the caller</li>
+<li>Named arguments must be passed using the name (can’t be positional too)</li>
+<li>Argument names are part of the function signature (for function pointers and the like)</li>
+</ol>
+<p>Restriction 1 is just Opinionated but does help ensure a “flow” to the args, and is mildly necessary to make function signatures coherent. Restriction 2 is a bit messy because it basically means no one gets to “phase in” named arguments to existing code. I expect this one will get dropped, but I think it’s back-compat to “undo”. Restriction 3 is similar to 2, although might get dropped even more aggressively because it would fuck with function type syntax (Swift lets you give tuples named fields so this is slightly easier to rationalize but that in itself is a huge tarpit that led to tons of wild problems).</p>
+<h2 id="optional-arguments"><a href="#optional-arguments">5.2 Optional Arguments</a></h2>
+<p>Ok now the “key” part. Swift lets you declare Optional Arguments with <code>=</code>:</p>
+<div class="example-wrap"><pre class="language-swift"><code>func doThing(withArg arg: String = &quot;hello&quot;)
+
+// sugar for doThing(withArg: &quot;hello&quot;)
+doThing() </code></pre></div>
+<p>I am <em>certain</em> this is wildly complicated in Swift because of all its wild features, but one simple interpretation of this is that this is equivalent to:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="ident">func</span> <span class="ident">doThing_argDefault</span>() -&gt; <span class="ident">String</span> { <span class="kw">return</span> <span class="string">&quot;hello&quot;</span>; }
+<span class="ident">func</span> <span class="ident">doThing</span>(<span class="ident">arg</span>: <span class="ident">String</span>);
+
+<span class="ident">doThing</span>(<span class="ident">arg</span>: <span class="ident">argDefault</span>())</code></pre></div>
+<p>That’s it! You just need to generate an anonymous free function that evaluates the expression and returns the field type. What would this look like in Rust? Let’s try this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">do_thing</span>(<span class="ident">with_arg</span> <span class="ident">arg</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;hello&quot;</span>)
+
+<span class="comment">// sugar for do_thing(with_arg: &quot;hello&quot;)</span>
+<span class="ident">do_thing</span>()</code></pre></div>
+<p>Full desugarring, we get:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">do_thing__with_arg_default</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> { <span class="string">&quot;hello&quot;</span> }
+<span class="kw">fn</span> <span class="ident">do_thing</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">with_arg</span> <span class="ident">arg</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">str</span>);
+
+<span class="ident">do_thing</span>(<span class="ident">with_arg</span>: <span class="ident">do_thing__with_arg_default</span>())</code></pre></div>
+<p>I used <code>&amp;str</code> here on purpose because lifetimes are a bit of a nasty question, but I think with a hopefully simple answer: the return type of the default argument function is exactly the type of the argument <em>but with every lifetime replaced with ’static</em>. This requires the expression to be computable with no context, and because almost everything is covariant, will generally Do The Right Thing.</p>
+<p>It will fall over for weird things involving invariance or contravariance and you will just get a compiler error. I think that’s simply <em>fine</em>. The overwhelming application of this feature will be for things that don’t even have lifetimes, like RandomState or Global. String literals and slices are the “big” issue, and ’static works well for those. <code>self</code> cannot be used to compute the default, because, oh my god no.</p>
+<p>Also, if you’re worried about type declaration having arbitrary expressions, we can go for the “salty but simple” solution of forcing the user to write the default function manually and provide a function pointer:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">my_arg_default</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> { <span class="string">&quot;hello&quot;</span> }
+<span class="kw">fn</span> <span class="ident">do_thing</span>(<span class="ident">with_arg</span> <span class="ident">arg</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="ident">my_arg_default</span>)
+
+<span class="comment">// sugar for do_thing(with_arg: my_arg_default())</span>
+<span class="ident">do_thing</span>()</code></pre></div>
+<p>That makes the entire syntax as boring as it can get, and basically answers all the hard syntactical problems with “well it’s all normal rust code you write”. It’s just a question of if the minimal syntax is <em>at all</em> viable. And the minimal syntax is purely a bikesheddable detail, so, presumably there exists <em>some</em> valid syntax for this!</p>
+<p>The nastiest question as far as I’m concerned is <em>what is the actual signature of do_thing</em>. Ignoring “names in singatures”, is it <code>fn() -&gt; ()</code> or <code>for&lt;'a&gt; fn(&amp;'a str) -&gt; ()</code>? I would like to propose that the answer can be <em>both</em>. In particular, you should be allowed to do this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">my_arg_default</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> { <span class="string">&quot;hello&quot;</span> }
+<span class="kw">fn</span> <span class="ident">do_thing</span>(<span class="ident">with_arg</span> <span class="ident">arg</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="ident">my_arg_default</span>)
+
+<span class="kw">let</span> <span class="ident">my_func1</span>: <span class="kw">fn</span>() -&gt; () <span class="op">=</span> <span class="ident">do_thing</span>;
+<span class="kw">let</span> <span class="ident">my_func2</span>: <span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) -&gt; () <span class="op">=</span> <span class="ident">do_thing</span>;</code></pre></div>
+<p>Basically, whenever the compiler needs to coerce a function to a function pointer, it now has options to choose from, but in general it should be able to know “which one” to pick based on the coercion target, as is the case for many coercions. This is 100% me bullshitting, but it sure sounds plausible!</p>
+<p>But, how <em>can</em> it do the <code>my_func1</code> coercion? Well, all the default calls are free functions with no inputs that return <code>'static</code>, so the compiler should <em>in principle</em> be able to emit this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">_do_thing_defaulted</span>() {
+    <span class="kw">let</span> <span class="ident">arg0</span> <span class="op">=</span> <span class="ident">my_arg_default</span>();
+    <span class="ident">do_thing</span>(<span class="ident">with_arg</span>: <span class="ident">arg0</span>)
+}
+
+<span class="kw">let</span> <span class="ident">my_func1</span>: <span class="kw">fn</span>() -&gt; () <span class="op">=</span> <span class="ident">_do_thing_defaulted</span>;</code></pre></div>
+<p>This is an <em>extremely</em> boring magical transformation, because it’s basically just:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let</span> <span class="ident">my_func1</span>: <span class="kw">fn</span>() -&gt; () <span class="op">=</span> <span class="op">|</span><span class="op">|</span> -&gt; () {
+    <span class="kw">let</span> <span class="ident">arg0</span> <span class="op">=</span> <span class="ident">my_arg_default</span>();
+    <span class="ident">do_thing</span>(<span class="ident">with_arg</span>: <span class="ident">arg0</span>)  
+};</code></pre></div>
+<p>Which I believe actually works and compiles today.</p>
+<p>(There’s deeper corner of this for generics, multiple defaulted args, and traits… we’ll be getting to that slowly as we refine the design.)</p>
+<h1 id="solving-hashers-and-allocators-fantasy-version"><a href="#solving-hashers-and-allocators-fantasy-version">6 Solving Hashers and Allocators: Fantasy Version</a></h1>
+<p>(I’m about to skip over some steps to show “the dream”. This is intentionally making mistakes because it’s useful for exposition to make the mistakes and then “solve them”.)</p>
+<p>Ok so how do we put this to service in solving Defaults Affect Inference? Well, we just add new named default args to all the old constructors! (Here I’ll be using the sugariest version of the syntax, but know that I could pull it all out to the super desugarred forms)</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">impl</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span>: <span class="ident">BuildHasher</span><span class="op">&gt;</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">with_hasher</span> <span class="ident">hasher</span>: <span class="ident">S</span> <span class="op">=</span> <span class="ident">RandomState::new</span>())
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">A</span>: <span class="ident">Allocator</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">A</span><span class="op">&gt;</span> {
+    <span class="comment">// Yes, Global is an empty struct so this is an actual expr</span>
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">in_alloc</span> <span class="ident">allocator</span>: <span class="ident">A</span> <span class="op">=</span> <span class="ident">Global</span>)
+}</code></pre></div>
+<p>And now you can do this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let</span> <span class="ident">vec1</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+<span class="kw">let</span> <span class="ident">vec2</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="op">&lt;</span><span class="ident">MyAllocator</span><span class="op">&gt;</span><span class="ident">::new</span>();
+<span class="kw">let</span> <span class="ident">vec3</span> <span class="op">=</span> <span class="ident">Vec::new</span>(<span class="ident">in_alloc</span>: <span class="kw-2">&amp;</span><span class="ident">my_local_allocator</span>);
+
+<span class="kw">let</span> <span class="ident">map1</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
+<span class="kw">let</span> <span class="ident">map2</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="op">&lt;</span><span class="ident">MyHasher</span><span class="op">&gt;</span><span class="ident">::new</span>();
+<span class="kw">let</span> <span class="ident">map3</span> <span class="op">=</span> <span class="ident">HashMap::new</span>(<span class="ident">with_hasher</span>: <span class="ident">MySeededHasher::new</span>(<span class="number">0</span>));</code></pre></div>
+<p>Wow! Perfect! Incredible! Complete Bullshit That Doesn’t Work!</p>
+<p>I’ve skipped two things:</p>
+<ul>
+<li>I didn’t introduce the feature the Swift proposal was <em>actually</em> about, which was allowing optional argument expressions to not cover all possible types for the argument.</li>
+<li>I made the defaults hardcode the default type parameter, but then just magically assumed <code>Vec::&lt;MyAllocator&gt;::new()</code> would work, which is nonsense.</li>
+</ul>
+<p>We’re going to need to think a bit harder to make this work!</p>
+<h1 id="subset-defaults"><a href="#subset-defaults">7 Subset Defaults</a></h1>
+<p>Going back to super-desugarred form, Subset Defaults would allow this code to compile:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">default_hasher</span>() -&gt; <span class="ident">RandomState</span> { ... }
+
+<span class="kw">impl</span> <span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span>: <span class="ident">BuildHasher</span><span class="op">&gt;</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">with_hasher</span> <span class="ident">hasher</span>: <span class="ident">S</span> <span class="op">=</span> <span class="ident">default_hasher</span>) { ... }
+}
+
+<span class="comment">// uses S=RandomState</span>
+<span class="kw">let</span> <span class="ident">map1</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
+<span class="kw">let</span> <span class="ident">map2</span> <span class="op">=</span> <span class="ident">HashMap::new</span>(<span class="ident">with_hasher</span>: <span class="ident">MySeededHasher::new</span>(<span class="number">0</span>));</code></pre></div>
+<p>Under the hood, what this is actually desugarring to is something roughly like this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">default_hasher</span>() -&gt; <span class="ident">RandomState</span> { ... }
+
+<span class="kw">impl</span> <span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span>: <span class="ident">BuildHasher</span><span class="op">&gt;</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">with_hasher</span> <span class="ident">hasher</span>: <span class="ident">S</span>) { ... }
+}
+
+
+<span class="comment">// uses S=RandomState</span>
+<span class="kw">let</span> <span class="ident">map1</span> <span class="op">=</span> <span class="op">|</span><span class="op">|</span> {
+    <span class="kw">let</span> <span class="ident">arg0</span> <span class="op">=</span> <span class="ident">default_hasher</span>();
+    <span class="ident">HashMap::new</span>(<span class="ident">with_hasher</span>: <span class="ident">arg0</span>);
+};
+
+<span class="kw">let</span> <span class="ident">map2</span> <span class="op">=</span> <span class="ident">HashMap::new</span>(<span class="ident">with_hasher</span>: <span class="ident">MySeededHasher::new</span>(<span class="number">0</span>));</code></pre></div>
+<p>Basically the “canonical” signature has the compiler strip away all the defaults and just include all the names, but the compiler records the defaulting functions associated with each function. When <em>syntactically</em> you omit an argument (or a coercion site’s type requires it), the compiler will look up the appropriate defaulting functions and emit a “reabstraction thunk” (closure). That calls the defaults and passes them in.</p>
+<p>Under this desugarring, default subsets “obviously” work, because we’re applying a transform <em>purely</em> based on syntax to “normal” rust code and then typechecking it. Good compiler errors may be a challenge, or maybe it will be fine, not sure!</p>
+<p>This handles the “hardcode” usecase, but what about the “default” usecase. We could instead write this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// NOTE: now generic over Default!</span>
+<span class="kw">fn</span> <span class="ident">default_hasher</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Default</span> <span class="op">+</span> <span class="ident">BuildHasher</span><span class="op">&gt;</span>() -&gt; <span class="ident">S</span> { <span class="ident">S::default</span>() }
+
+<span class="kw">impl</span> <span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span>: <span class="ident">BuildHasher</span><span class="op">&gt;</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">with_hasher</span> <span class="ident">hasher</span>: <span class="ident">S</span> <span class="op">=</span> <span class="ident">default_hasher</span>) { ... }
+}
+
+<span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="op">&lt;</span><span class="ident">MyHasher</span><span class="op">&gt;</span><span class="ident">::new</span>();</code></pre></div>
+<p>Now our <code>new</code> impl has a defaulting value implementation that is generic, but a more refined generic than <code>new</code>’s own signature. The desugarring would actually be completely unaffected:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">default_hasher</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Default</span> <span class="op">+</span> <span class="ident">BuildHasher</span><span class="op">&gt;</span>() -&gt; <span class="ident">S</span> { <span class="ident">S::default</span>() }
+
+<span class="kw">impl</span> <span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span>: <span class="ident">BuildHasher</span><span class="op">&gt;</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">with_hasher</span> <span class="ident">hasher</span>: <span class="ident">S</span>) { ... }
+}
+
+
+<span class="comment">// uses S=RandomState</span>
+<span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="op">|</span><span class="op">|</span> {
+    <span class="kw">let</span> <span class="ident">arg0</span> <span class="op">=</span> <span class="ident">default_hasher</span>();
+    <span class="ident">HashMap</span>::<span class="op">&lt;</span><span class="ident">MyHasher</span><span class="op">&gt;</span><span class="ident">::new</span>(<span class="ident">with_hasher</span>: <span class="ident">arg0</span>);
+};</code></pre></div>
+<p>Again, we have made a purely syntactic transform. Again, good compiler errors for the case where MyHasher doesn’t implement Default is Probably Hard.</p>
+<p>Now it would be good for the compiler to check if our defaults <em>at all</em> make sense. For instance, these two examples should ideally be rejected without any callers:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Bound isn&#39;t a subset, doesn&#39;t include BuildHasher </span>
+<span class="kw">fn</span> <span class="ident">default_hasher</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Default</span><span class="op">&gt;</span>() -&gt; <span class="ident">S</span> { <span class="ident">S::default</span>() }
+<span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">BuildHasher</span><span class="op">&gt;</span>(<span class="ident">with_hasher</span> <span class="ident">hasher</span>: <span class="ident">S</span> <span class="op">=</span> <span class="ident">default_hasher</span>)</code></pre></div>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// Concrete type doesn&#39;t implement BuildHasher</span>
+<span class="kw">fn</span> <span class="ident">default_hasher</span>() -&gt; <span class="ident">String</span> { <span class="ident">String::new</span>() }
+<span class="kw">fn</span> <span class="ident">new</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">BuildHasher</span><span class="op">&gt;</span>(<span class="ident">with_hasher</span> <span class="ident">hasher</span>: <span class="ident">S</span> <span class="op">=</span> <span class="ident">default_hasher</span>)</code></pre></div>
+<p>I’m a bit tired so I’m not sure how to express this well, but I believe the compiler should be able to check this using normal type checking machinery. In particular, validating defaults is effectively just checking that the real constructor <em>could be called from the defaulting function</em>. So it needs to check that this code is well-formed:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// fake_default_hasher has the same bounds as default_hasher </span>
+<span class="kw">fn</span> <span class="ident">fake_default_hasher</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Default</span><span class="op">&gt;</span>() { 
+    <span class="kw">let</span> <span class="ident">test</span> <span class="op">=</span> <span class="ident">default_hasher</span>()
+    
+    <span class="comment">// Extra arguments added to demonstrate that we can do the everybody_loops</span>
+    <span class="comment">// trick to potentially check things piece-wise.</span>
+    <span class="ident">HashMap::new</span>(
+        <span class="ident">arg0</span>: <span class="macro">todo!</span>(), 
+        <span class="ident">with_hasher</span>: <span class="ident">test</span>, 
+        <span class="ident">arg2</span>: <span class="macro">todo!</span>()
+    )
+}</code></pre></div>
+<p>I… <em>think</em> default checking can be done piece-wise? And I <em>think</em> this should be “easy” for the compiler to either synthesize or check-without-even-generating-the-definiton? BIG HANDWAVE ON THIS ONE!</p>
+<h1 id="solving-hashers-and-allocators-reality-version"><a href="#solving-hashers-and-allocators-reality-version">8 Solving Hashers and Allocators: Reality Version</a></h1>
+<p>I don’t think I can give you everything. The Dream was this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let</span> <span class="ident">vec1</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+<span class="kw">let</span> <span class="ident">vec2</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="op">&lt;</span><span class="ident">MyAllocator</span><span class="op">&gt;</span><span class="ident">::new</span>();
+<span class="kw">let</span> <span class="ident">vec3</span> <span class="op">=</span> <span class="ident">Vec::new</span>(<span class="ident">in_alloc</span>: <span class="kw-2">&amp;</span><span class="ident">my_local_allocator</span>);
+
+<span class="kw">let</span> <span class="ident">map1</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
+<span class="kw">let</span> <span class="ident">map2</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="op">&lt;</span><span class="ident">MyHasher</span><span class="op">&gt;</span><span class="ident">::new</span>();
+<span class="kw">let</span> <span class="ident">map3</span> <span class="op">=</span> <span class="ident">HashMap::new</span>(<span class="ident">with_hasher</span>: <span class="ident">MySeededHasher::new</span>(<span class="number">0</span>));</code></pre></div>
+<p>I can give you this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">let</span> <span class="ident">vec1</span> <span class="op">=</span> <span class="ident">Vec::new</span>();
+<span class="kw">let</span> <span class="ident">vec2</span> <span class="op">=</span> <span class="ident">Vec::new</span>(<span class="ident">in_alloc</span>: <span class="ident">MyAlloctor::default</span>());
+<span class="kw">let</span> <span class="ident">vec3</span> <span class="op">=</span> <span class="ident">Vec::new</span>(<span class="ident">in_alloc</span>: <span class="kw-2">&amp;</span><span class="ident">my_local_allocator</span>);
+
+<span class="kw">let</span> <span class="ident">map1</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
+<span class="kw">let</span> <span class="ident">map2</span> <span class="op">=</span> <span class="ident">HashMap::new</span>(<span class="ident">in_alloc</span>: <span class="ident">MyHasher::default</span>());
+<span class="kw">let</span> <span class="ident">map3</span> <span class="op">=</span> <span class="ident">HashMap::new</span>(<span class="ident">with_hasher</span>: <span class="ident">MySeededHasher::new</span>(<span class="number">0</span>));</code></pre></div>
+<p>Basically, I think we still have to hardcode the Type default still, but we can get the combinatorics of everything way more under control, making it way more tolerable to add new defaulted type parameters. In particular, you may have noticed that HashMap doesn’t yet have an Allocator parameter. I don’t know this for sure, but I bet it’s because the combinatorics will <em>actually</em> get out of control at that point. Let’s see how this approach scales.</p>
+<p>We would end up with a HashMap implementation like this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">struct</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span><span class="op">=</span><span class="ident">RandomState</span>, <span class="ident">A</span><span class="op">=</span><span class="ident">Global</span><span class="op">&gt;</span> { ... }
+
+<span class="kw">fn</span> <span class="ident">default_hasher</span>() -&gt; <span class="ident">RandomState</span> { ... }
+<span class="kw">fn</span> <span class="ident">default_alloc</span>() -&gt; <span class="ident">Global</span> { ... }
+
+<span class="kw">impl</span> <span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span>: <span class="ident">BuildHasher</span>, <span class="ident">A</span>: <span class="ident">Allocator</span><span class="op">&gt;</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(
+        <span class="ident">with_hasher</span> <span class="ident">hasher</span>: <span class="ident">S</span> <span class="op">=</span> <span class="ident">default_hasher</span>, 
+        <span class="ident">in_alloc</span> <span class="ident">alloc</span>: <span class="ident">A</span> <span class="op">=</span> <span class="ident">default_alloc</span>,
+    ) -&gt; <span class="self">Self</span> 
+    { ... }
+
+    <span class="kw">fn</span> <span class="ident">with_capacity</span>(
+        <span class="ident">capacity</span>: <span class="ident">usize</span>,
+        <span class="ident">with_hasher</span> <span class="ident">hasher</span>: <span class="ident">S</span> <span class="op">=</span> <span class="ident">default_hasher</span>, 
+        <span class="ident">in_alloc</span> <span class="ident">alloc</span>: <span class="ident">A</span> <span class="op">=</span> <span class="ident">default_alloc</span>,
+    ) -&gt; <span class="self">Self</span>
+    { ... }
+}</code></pre></div>
+<p>And be able to use it like this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// All of these now work</span>
+<span class="kw">let</span> <span class="ident">map1</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
+<span class="kw">let</span> <span class="ident">map2</span> <span class="op">=</span> <span class="ident">HashMap::new</span>(<span class="ident">with_hasher</span>: <span class="ident">MyHasher::new</span>());
+<span class="kw">let</span> <span class="ident">map3</span> <span class="op">=</span> <span class="ident">HashMap::new</span>(<span class="ident">with_alloc</span>: <span class="ident">MyAlloc::new</span>());
+<span class="kw">let</span> <span class="ident">map4</span> <span class="op">=</span> <span class="ident">HashMap::new</span>(
+    <span class="ident">with_hasher</span>: <span class="ident">MyHasher::new</span>(),
+    <span class="ident">with_alloc</span>: <span class="ident">MyAlloc::new</span>(),
+);
+
+<span class="comment">// And we don&#39;t need 4 new copies of alternative constructors:</span>
+<span class="kw">let</span> <span class="ident">map5</span> <span class="op">=</span> <span class="ident">HashMap::with_capacity</span>(<span class="number">10</span>, <span class="ident">in_alloc</span>: <span class="kw-2">&amp;</span><span class="ident">local_allocator</span>);</code></pre></div>
+<p>Note especially “map3” where we are “skipping over” the with_hasher argument. Without named arguments, this is annoying/impossible to express. If it <em>was</em> possible you would have to write something like <code>HashMap::new(_, MyAlloc::new())</code>, which, is going to scale incredibly badly.</p>
+<h1 id="solving-hashers-and-allocators-hacky-version"><a href="#solving-hashers-and-allocators-hacky-version">9 Solving Hashers and Allocators: Hacky Version</a></h1>
+<p>Ok here’s where things start getting hacky just to see what happens. What if we wrap all our defaults args Options?</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">default_hasher</span>() -&gt; <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">RandomState</span><span class="op">&gt;</span> { ... }
+
+<span class="kw">impl</span> <span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span>: <span class="ident">BuildHasher</span><span class="op">&gt;</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span>, <span class="ident">S</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">with_hasher</span> <span class="ident">hasher</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">default_hasher</span>) 
+        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Default</span>,
+    {
+        <span class="kw">let</span> <span class="ident">hasher</span> <span class="op">=</span> <span class="ident">hasher</span>.<span class="ident">unwrap_or_default</span>();
+        ...
+    }
+}</code></pre></div>
+<p>That seems pretty pointless! But, now you can write this:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="comment">// uses S=RandomState</span>
+<span class="kw">let</span> <span class="ident">map1</span> <span class="op">=</span> <span class="ident">HashMap::new</span>();
+<span class="kw">let</span> <span class="ident">map2</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="op">&lt;</span><span class="ident">MyHasher</span><span class="op">&gt;</span><span class="ident">::new</span>(<span class="ident">with_hasher</span>: <span class="prelude-val">None</span>);
+<span class="kw">let</span> <span class="ident">map3</span> <span class="op">=</span> <span class="ident">HashMap::new</span>(<span class="ident">with_hasher</span>: <span class="prelude-val">Some</span>(<span class="ident">MySeededHasher::new</span>(<span class="number">0</span>)));</code></pre></div>
+<p>Basically, by adding an Option (or an enum equivalent to Option), the user can explicitly request a “partial application” of the default. In this way we can squeeze all 3 usecases into one function… kind of. The explicit map3 case takes two hits:</p>
+<ul>
+<li>It is now <em>extra</em> explicit</li>
+<li>It must now conform to Default <em>even though we’re explicitly providing it</em></li>
+</ul>
+<p>I don’t know how to do better than this without true changes to the type system. But, hey, it’s there as an option?  Ok actually if you want to get Really Fucking Hacky we could make a MaybeDefault trait that basically panics for types that can’t actually be defaulted or something?</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">trait</span> <span class="ident">MaybeDefault</span> {
+    <span class="kw">fn</span> <span class="ident">maybe_default</span>() -&gt; <span class="self">Self</span>;
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Default</span><span class="op">&gt;</span> <span class="ident">MaybeDefault</span> <span class="kw">for</span> <span class="ident">T</span> {
+    <span class="kw">fn</span> <span class="ident">maybe_default</span>() -&gt; <span class="self">Self</span> { <span class="ident"><span class="self">Self</span>::default</span>() }
+}
+
+<span class="kw">impl</span> <span class="ident">MaybeDefault</span> <span class="kw">for</span> <span class="ident">MyUndefaultableType</span> {
+    <span class="kw">fn</span> <span class="ident">maybe_default</span> -&gt; <span class="self">Self</span> { <span class="macro">unreachable!</span>(<span class="string">&quot;get fucked&quot;</span>) }
+}</code></pre></div>
+<p>This is certainly Code That Can Be Written. Should it be written? Absolutely Not.</p>
+<h1 id="implementing-default-with-optional-args"><a href="#implementing-default-with-optional-args">10 Implementing Default With Optional Args</a></h1>
+<p>At the top of this post, I mentioned how it sucks that Vec::default is fucked up by introducing new defaulted type parameters. Can we fix this?</p>
+<p>Not with my design! I initially thought you could maybe allow Extra Optional Arguments in trait impls because the compiler has to be able to generate the Proper One as a reabstraction thunk anyway… and I think that part is <em>plausible</em>, but it doesn’t actually solve the problem.</p>
+<p>You would end up with:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">fn</span> <span class="ident">default_alloc</span>() -&gt; <span class="ident">Global</span> { <span class="ident">Global</span> }
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">A</span>: <span class="ident">Allocator</span><span class="op">&gt;</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">A</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>(<span class="ident">in_alloc</span> <span class="ident">alloc</span>: <span class="ident">A</span> <span class="op">=</span> <span class="ident">default_alloc</span>) -&gt; <span class="self">Self</span> {
+        <span class="ident"><span class="self">Self</span>::new</span>(<span class="ident">in_alloc</span>: <span class="ident">alloc</span>)
+    }
+}</code></pre></div>
+<p>Which… doesn’t actually do anything! Anyone who calls default() is just hardcoding the default, which is Global! You can’t make default_alloc generic over <code>A: Allocator</code>, because then you get HashMap::default’s need to be explicit and break everyone calling Vec::default(). Argh!</p>
+<p>I’ve got absolutely nothing on this one, it seems like it really truly needs Defaults Affect Inference. 😭</p>
+<h1 id="conclusion"><a href="#conclusion">11 Conclusion</a></h1>
+<p>Whelp, I failed!</p>
+<p>A lot of this stuff is really nice, and I would personally love to have it the language if only to tame the <em>combinatorics</em> of defaults a little bit. And for people who aren’t <em>explicitly</em> trying to solve the Allocator problem, this gives them a lot of great tools for building nice APIs.</p>
+<p>But I just don’t see how this can be done without proper type/inference changes. Maybe all of this stuff makes the hard cases trivial? That would be nice. </p>
+<p>I didn’t talk to any compiler/lang people while writing this. I also didn’t talk to anyone on the allocators working group or really look over their notes. This is just a brain worm that has bugged me for almost a decade, and I was like, The Collections Person on the libs team, so I understand the problemspace pretty well! </p>
+<p>This was mostly just an excuse to write out the problem in full and mess aorund with some cool ideas that were just FUN TO THINK ABOUT regardless of the practical details! If either of those groups has cracked the nut on Defaults Affect Inference without me noticing, then, holy shit! Amazing fucking work!!</p>
+<p>Also I mean… the hacky solution isn’t that bad? I wouldn’t have even pushed forward with allocators at all given the current situation, so clearly y’all are kinda ok with suffering!?</p>
+<p>Is it that bad..?</p>
+
+    </article>
+
+<footer id="footer">
+
+</footer>
+
+</body>
+</html>
