@@ -38,7 +38,7 @@
             display:  flex;
         }
         #title {
-            font-size: calc(14vw - 20px);
+            font-size: calc(min(256px, 14vw - 20px));
             position:  relative;
         }
         #logo {
